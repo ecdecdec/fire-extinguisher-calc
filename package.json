@@ -1,0 +1,10 @@
+{
+  "name": "fire-extinguisher-calc",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Расчёт огнетушителей по Приложению 3 к ППБ РК и СТ РК 1487-2006 с отчётом в PDF",
+  "scripts": {
+    "test": "node --test",
+    "pdf": "node tools/sample-pdf.js"
+  }
+}

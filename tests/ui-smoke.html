@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Проверка интерфейса</title>
+  <style>
+    body { font: 14px/1.45 system-ui, "Segoe UI", sans-serif; margin: 16px; color: #18212b; }
+    h1 { font-size: 18px; margin: 0 0 6px; }
+    #summary { font-weight: 700; margin: 10px 0; }
+    #report div { padding: 1px 0; }
+    .pass { color: #17794d; }
+    .fail { color: #b3261e; font-weight: 700; }
+    iframe { width: 1100px; height: 640px; border: 1px solid #c9ced6; margin-top: 12px; }
+  </style>
+</head>
+<body>
+  <h1>Проверка интерфейса</h1>
+  <p>Страница открывает приложение в отдельном хранилище (<code>?ns=uitest</code>), сама нажимает кнопки и сверяет результат.
+     Рабочие данные не затрагиваются. Открывать через локальный сервер: <code>http://localhost:8765/tests/ui-smoke.html</code>.</p>
+  <div id="summary">Выполняется…</div>
+  <div id="report"></div>
+  <iframe id="frame" title="Приложение"></iframe>
+
+  <script>
+  (async function () {
+    'use strict';
+    const KEY = 'firecalc.state.v1.uitest';
+    const frame = document.getElementById('frame');
+    const report = document.getElementById('report');
+    let passed = 0, failed = 0;
+
+    function log(ok, name, detail) {
+      if (ok) passed += 1; else failed += 1;
+      const row = document.createElement('div');
+      row.className = ok ? 'pass' : 'fail';
+      row.textContent = (ok ? 'PASS  ' : 'FAIL  ') + name + (detail ? ' — ' + detail : '');
+      report.appendChild(row);
+    }
+    function eq(name, actual, expected) {
+      const a = JSON.stringify(actual), e = JSON.stringify(expected);
+      log(a === e, name, a === e ? '' : 'ожидалось ' + e + ', получено ' + a);
+    }
+    function ok(name, condition, detail) { log(!!condition, name, condition ? '' : (detail || '')); }
+
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const doc = () => frame.contentDocument;
+    const q = sel => doc().querySelector(sel);
+    const qa = sel => Array.from(doc().querySelectorAll(sel));
+    const text = el => (el ? el.textContent.replace(/\s+/g, ' ').trim() : '');
+    const sec = n => qa('main > section')[n - 1];
+    const floors = () => Array.from(sec(2).querySelectorAll(':scope > .card'));
+    const rooms = floorEl => Array.from(floorEl.querySelectorAll('.room'));
+    const need = floorEl => text(floorEl.querySelector('.floor__need b'));
+    const bar = () => text(q('.bar__sum b'));
+    const units = () => Array.from(sec(3).querySelectorAll('.unit'));
+    const totals = () => qa('.total').map(t => text(t.querySelector('.total__code')) + ':' + parseInt(text(t.querySelector('.total__n')), 10));
+    const activeStep = () => qa('.steps .step').findIndex(s => s.classList.contains('step--on')) + 1;
+    const chipsOn = roomEl => Array.from(roomEl.querySelectorAll('.f-classes .chip--on')).map(text).join('');
+
+    function load(url) { return new Promise(resolve => { frame.onload = () => resolve(); frame.src = url; }); }
+    async function open(query) {
+      await load('../index.html?ns=uitest' + (query || ''));
+      for (let i = 0; i < 200 && !q('.brand__name'); i++) await sleep(20);
+      await sleep(40);
+    }
+    async function click(el) { el.click(); await sleep(40); }
+    async function setValue(el, value, eventName) {
+      el.value = value;
+      el.dispatchEvent(new Event(eventName || 'input', { bubbles: true }));
+      await sleep(40);
+    }
+    async function goStep(n) { await click(qa('.steps .step')[n - 1]); }
+
+    try {
+      window.localStorage.removeItem(KEY);
+      await open();
+
+      // --- запуск ---
+      eq('запуск: открыт шаг 1', activeStep(), 1);
+      eq('запуск: итог пуст', bar(), 'пока нет данных');
+      ok('шаги 2 и 3 скрыты', sec(2).offsetParent === null && sec(3).offsetParent === null);
+
+      // --- шаг 1: объект ---
+      await setValue(sec(1).querySelector('.grid2 input'), 'Тестовый объект');
+      await click(sec(1).querySelector('input[type=radio][value=industrial]'));
+      ok('назначение здания меняет подсказку', text(sec(1).querySelector('.kinds + .hint')).includes('30, 40 или 70'));
+      await click(q('.bar .btn--primary'));
+      eq('кнопка «К помещениям» открывает шаг 2', activeStep(), 2);
+
+      // --- шаг 2: помещения ---
+      eq('один этаж, одно помещение', [floors().length, rooms(floors()[0]).length], [1, 1]);
+      let r1 = rooms(floors()[0])[0];
+      await setValue(r1.querySelector('.f-area input'), '450');
+      eq('офис 450 м² в производственном здании', need(floors()[0]), '3 × ОП-5');
+      eq('итог в нижней панели', bar(), '3 × ОП-5');
+
+      await click(floors()[0].querySelector('.btn--add'));
+      eq('добавлено помещение', rooms(floors()[0]).length, 2);
+      let r2 = rooms(floors()[0])[1];
+      eq('новое помещение — по назначению здания', [r2.querySelector('.f-purpose select').value, r2.querySelector('.f-cat select').value, chipsOn(r2)], ['workshop', 'CV4', 'AE']);
+      await setValue(r2.querySelector('.f-area input'), '100');
+      eq('цех В4 100 м² добавляет 1 × ОП-5', need(floors()[0]), '4 × ОП-5');
+
+      await click(rooms(floors()[0])[1].querySelectorAll('.f-classes .chip')[1]);
+      eq('класс B включён', chipsOn(rooms(floors()[0])[1]), 'ABE');
+      eq('класс B переводит на строку «газы и жидкости» — ОП-10', need(floors()[0]), '3 × ОП-5, 1 × ОП-10');
+
+      await setValue(rooms(floors()[0])[1].querySelector('.f-purpose select'), 'server', 'change');
+      r2 = rooms(floors()[0])[1];
+      eq('назначение «серверная» подставляет категорию и классы', [r2.querySelector('.f-cat select').value, chipsOn(r2)], ['PUB', 'AE']);
+      eq('серверная — углекислотный', need(floors()[0]), '3 × ОП-5, 1 × ОУ-3');
+
+      r1 = rooms(floors()[0])[0];
+      await click(r1.querySelector('.icon--more'));
+      ok('кнопка «Ещё» раскрывает дополнительные поля', !!rooms(floors()[0])[0].querySelector('.room__more'));
+      const dims = rooms(floors()[0])[0].querySelectorAll('.room__more input[type=number]');
+      await setValue(dims[0], '100'); await setValue(dims[0], '100', 'change');
+      await setValue(dims[1], '3'); await setValue(dims[1], '3', 'change');
+      ok('несовпадение площади и размеров подсвечено', text(rooms(floors()[0])[0].querySelector('.room__note')).includes('300'));
+      eq('размеры не меняют уже введённую площадь', rooms(floors()[0])[0].querySelector('.f-area input').value, '450');
+
+      await click(floors()[0].querySelector('.floor__head .btn'));
+      eq('этаж продублирован', floors().length, 2);
+      eq('копия названа следующим номером', floors()[1].querySelector('.floor__name').value, '2 этаж');
+      eq('в копии те же помещения', rooms(floors()[1]).length, 2);
+      eq('итог удвоился', bar(), '6 × ОП-5 · 2 × ОУ-3');
+
+      // --- шаг 3: результат ---
+      await click(q('.bar .btn--primary'));
+      eq('кнопка «Показать результат» открывает шаг 3', activeStep(), 3);
+      eq('карточки итога', totals(), ['ОП-5:6', 'ОУ-3:2']);
+      ok('без фактических данных — подсказка о сверке', text(sec(3)).includes('Чтобы сверить расчёт с фактом') && !q('.verdict'));
+      eq('первая расчётная группа', text(units()[0].querySelector('.unit__need')), '3 × ОП-5 (ABC(E))');
+
+      await click(units()[0].querySelector('.link'));
+      ok('расчёт раскрывается, есть шаги со ссылками на нормы', units()[0].querySelectorAll('.why').length >= 2 && text(units()[0].querySelector('.ref')).includes('Прил. 3'));
+      // по площади хватило бы 2 × ОП-10, но помещение 100 × 3 м требует трёх мест размещения (п. 4)
+      const alt = Array.from(units()[0].querySelectorAll('.chip--alt')).find(c => text(c).includes('ОП-10'));
+      ok('предложена замена на ОП-10 с учётом расстояния', !!alt && text(alt).startsWith('3 × ОП-10'), alt ? text(alt) : 'нет');
+      await click(alt);
+      eq('замена типа пересчитывает количество', text(units()[0].querySelector('.unit__need')), '3 × ОП-10 (ABC(E))');
+      const back = Array.from(units()[0].querySelectorAll('.link')).find(l => text(l).includes('Вернуть'));
+      ok('есть возврат к автоматическому выбору', !!back);
+      await click(back);
+      eq('автоматический выбор восстановлен', text(units()[0].querySelector('.unit__need')), '3 × ОП-5 (ABC(E))');
+
+      // --- сверка с фактом ---
+      await goStep(2);
+      await setValue(floors()[0].querySelectorAll('.floor__fact input')[0], '1');
+      await goStep(3);
+      eq('вывод сверки', text(q('.verdict__title')), 'Не соответствует');
+      const rows = qa('.verdict tbody tr').map(tr => Array.from(tr.cells).map(text).join(' '));
+      eq('строки сверки', rows, ['1 этаж 3 1 2 1 0 1', '2 этаж фактическое наличие не указано']);
+      ok('текст вывода', text(q('.verdict')).includes('Не хватает: 2 порошковых (ОП) и 1 углекислотного (ОУ).'), text(q('.verdict p')));
+
+      // --- параметры расчёта ---
+      const block = sec(3).querySelector('input[type=radio][value=block]');
+      await click(block);
+      eq('округление «полными комплектами»: 450 м² — 4 шт.', text(units()[0].querySelector('.unit__need')), '4 × ОП-5 (ABC(E))');
+      await click(sec(3).querySelector('input[type=radio][value=proportional]'));
+      eq('округление пропорциональное восстановлено', text(units()[0].querySelector('.unit__need')), '3 × ОП-5 (ABC(E))');
+
+      // --- сохранение ---
+      await sleep(500);
+      const savedRaw = window.localStorage.getItem(KEY) || '';
+      ok('данные сохранены в браузере', savedRaw.includes('Тестовый объект'));
+      await open();
+      eq('после перезагрузки название на месте', sec(1).querySelector('.grid2 input').value, 'Тестовый объект');
+      eq('после перезагрузки этажи на месте', floors().length, 2);
+      eq('после перезагрузки итог тот же', bar(), '6 × ОП-5 · 2 × ОУ-3');
+
+      // --- очистка ---
+      await click(q('.top .btn'));
+      eq('очистка требует подтверждения', text(q('.top .btn')), 'Точно очистить?');
+      await click(q('.top .btn'));
+      eq('после очистки: шаг 1, один этаж, пустое название', [activeStep(), floors().length, sec(1).querySelector('.grid2 input').value], [1, 1, '']);
+
+      // --- общественное здание: минимум на этаж ---
+      await goStep(2);
+      await setValue(rooms(floors()[0])[0].querySelector('.f-area input'), '30');
+      eq('кабинет 30 м² в общественном здании — не менее двух на этаж', need(floors()[0]), '2 × ОП-5');
+
+      // --- объекты по таблице 5 ---
+      await setValue(rooms(floors()[0])[0].querySelector('.f-purpose select'), 't5_sto', 'change');
+      let r = rooms(floors()[0])[0];
+      ok('для табл. 5 категория и классы скрыты', !r.querySelector('.f-cat') && !!r.querySelector('.room__t5'));
+      await setValue(r.querySelector('.f-area input'), '250');
+      eq('СТО 250 м²', need(floors()[0]), '6 × ОП-5, 3 × ОУ-2');
+      await setValue(rooms(floors()[0])[0].querySelector('.f-purpose select'), 't5_garage', 'change');
+      r = rooms(floors()[0])[0];
+      eq('для гаражей вместо площади — количество', text(r.querySelector('.f-area span')), 'Гаражей, шт.');
+      await setValue(r.querySelector('.f-area input'), '12');
+      eq('12 гаражей (плюс минимум на этаж не нужен)', need(floors()[0]), '12 × ОП-2');
+      await setValue(rooms(floors()[0])[0].querySelector('.f-purpose select'), 't5_azs_small', 'change');
+      r = rooms(floors()[0])[0];
+      ok('для АЗС площадь не нужна', r.querySelector('.f-area input').disabled);
+      eq('АЗС менее 500 заправок', need(floors()[0]), '2 × ОП-5, 1 × ОП-10, 1 × ОП-100, 2 × ОУ-2');
+
+      // --- пример ---
+      await goStep(1);
+      await click(sec(1).querySelector('.quick .btn'));
+      eq('пример открывает шаг 2', activeStep(), 2);
+      eq('пример: этажи и помещения', [floors().length, rooms(floors()[0]).length], [2, 7]);
+      eq('пример: итог', bar(), '6 × ОП-5 · 1 × ОУ-3');
+      ok('пример: показано уведомление', text(q('.toast')).includes('Загружен пример'));
+
+      // --- ссылка на пример ---
+      await open('&demo=factory&step=3');
+      eq('ссылка ?demo=factory&step=3', [activeStep(), totals().length], [3, 5]);
+    } catch (e) {
+      log(false, 'проверка прервана ошибкой', e && e.stack ? e.stack : String(e));
+    }
+
+    window.localStorage.removeItem(KEY);
+    const summary = 'RESULT: пройдено ' + passed + ', не пройдено ' + failed;
+    document.getElementById('summary').textContent = summary;
+    document.getElementById('summary').className = failed ? 'fail' : 'pass';
+    document.title = summary;
+  }());
+  </script>
+</body>
+</html>
