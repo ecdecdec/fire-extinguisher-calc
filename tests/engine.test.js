@@ -314,6 +314,25 @@ test('каждое назначение из справочника даёт р�
   });
 });
 
+test('строка нормативной таблицы для расчётной группы', () => {
+  const u = one('industrial', room('Офисы', 450)).floors[0].units[0];
+  assert.deepEqual(u.matrix.columns.map(c => c.code), ['ОП-2', 'ОП-5', 'ОП-10', 'ОУ-2', 'ОУ-3']);
+  assert.deepEqual(u.matrix.rows.map(r => r.cls), ['A', 'E']);
+  const a = u.matrix.rows[0];
+  assert.deepEqual(a.cells.map(c => c.mark === '-' ? '-' : c.n + c.mark), ['8+', '4++', '2+', '-', '4+']);
+  assert.deepEqual(a.cells.map(c => c.chosen), [false, true, false, false, false]);
+  assert.equal(a.area, 800);
+  // в объединённой группе пояснение строится по помещению с полным набором классов
+  const pooled = one('industrial', [room('Коридор', 300, { classes: ['A'] }), room('Офисы', 450)]).floors[0].units[0];
+  assert.deepEqual(pooled.matrix.rows.map(r => r.cls), ['A', 'E']);
+  assert.ok(pooled.steps.some(s => s.text.includes('класс E')));
+  // класс вне строки помещения показан со своей строкой и площадью
+  const lab = one('industrial', room('Лаборатория', 300, { classes: ['A', 'B'] })).floors[0].units[0];
+  assert.deepEqual(lab.matrix.rows.map(r => [r.cls, r.area, r.fallback]), [['A', 800, false], ['B', 200, true]]);
+  // для объектов по табл. 5 и освобождённых помещений строки нет
+  assert.equal(one('industrial', { name: 'СТО', area: 250, t5: 'sto' }).floors[0].units[0].matrix, null);
+});
+
 test('в допущения попадает только применённое, methodology даёт полный перечень', () => {
   const office = one('public', room('Кабинет', 30));
   assert.ok(!office.assumptions.some(a => a.includes('Передвижные')));

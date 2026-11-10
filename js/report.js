@@ -265,7 +265,7 @@
       content: content,
       defaultStyle: { font: 'Roboto', fontSize: 9.5, color: C.text, lineHeight: 1.15 },
       styles: {
-        title: { fontSize: 20, bold: true, color: C.accent, characterSpacing: 1 },
+        title: { fontSize: 20, bold: true, characterSpacing: 1 },
         subtitle: { fontSize: 13, bold: true },
         h2: { fontSize: 11.5, bold: true, margin: [0, 12, 0, 5] },
         h3: { fontSize: 10, margin: [0, 6, 0, 4] },

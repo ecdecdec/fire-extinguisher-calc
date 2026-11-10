@@ -10,7 +10,7 @@
     #report div { padding: 1px 0; }
     .pass { color: #17794d; }
     .fail { color: #b3261e; font-weight: 700; }
-    iframe { width: 1100px; height: 640px; border: 1px solid #c9ced6; margin-top: 12px; }
+    iframe { width: 1320px; height: 720px; border: 1px solid #c9ced6; margin-top: 12px; }
   </style>
 </head>
 <body>
@@ -48,10 +48,13 @@
     const qa = sel => Array.from(doc().querySelectorAll(sel));
     const text = el => (el ? el.textContent.replace(/\s+/g, ' ').trim() : '');
     const sec = n => qa('main > section')[n - 1];
-    const floors = () => Array.from(sec(2).querySelectorAll(':scope > .card'));
+    const floors = () => Array.from(sec(2).querySelectorAll(':scope > .floor'));
     const rooms = floorEl => Array.from(floorEl.querySelectorAll('.room'));
     const need = floorEl => text(floorEl.querySelector('.floor__need b'));
     const bar = () => text(q('.bar__sum b'));
+    const sideRows = () => qa('.side__row').map(r => Array.from(r.children).map(text).join(' '));
+    const next = n => sec(n).querySelector('[data-test=next]');
+    const resetBtn = () => q('[data-test=reset]');
     const units = () => Array.from(sec(3).querySelectorAll('.unit'));
     const totals = () => qa('.total').map(t => text(t.querySelector('.total__code')) + ':' + parseInt(text(t.querySelector('.total__n')), 10));
     const activeStep = () => qa('.steps .step').findIndex(s => s.classList.contains('step--on')) + 1;
@@ -84,7 +87,7 @@
       await setValue(sec(1).querySelector('.grid2 input'), 'Тестовый объект');
       await click(sec(1).querySelector('input[type=radio][value=industrial]'));
       ok('назначение здания меняет подсказку', text(sec(1).querySelector('.kinds + .hint')).includes('30, 40 или 70'));
-      await click(q('.bar .btn--primary'));
+      await click(next(1));
       eq('кнопка «К помещениям» открывает шаг 2', activeStep(), 2);
 
       // --- шаг 2: помещения ---
@@ -126,14 +129,17 @@
       eq('итог удвоился', bar(), '6 × ОП-5 · 2 × ОУ-3');
 
       // --- шаг 3: результат ---
-      await click(q('.bar .btn--primary'));
-      eq('кнопка «Показать результат» открывает шаг 3', activeStep(), 3);
+      await click(next(2));
+      eq('кнопка «К результату» открывает шаг 3', activeStep(), 3);
+      eq('итог в боковой панели', sideRows(), ['ОП-5 6', 'ОУ-3 2']);
       eq('карточки итога', totals(), ['ОП-5:6', 'ОУ-3:2']);
       ok('без фактических данных — подсказка о сверке', text(sec(3)).includes('Чтобы сверить расчёт с фактом') && !q('.verdict'));
       eq('первая расчётная группа', text(units()[0].querySelector('.unit__need')), '3 × ОП-5 (ABC(E))');
 
       await click(units()[0].querySelector('.link'));
       ok('расчёт раскрывается, есть шаги со ссылками на нормы', units()[0].querySelectorAll('.why').length >= 2 && text(units()[0].querySelector('.ref')).includes('Прил. 3'));
+      eq('в строке нормативной таблицы отмечены выбранные ячейки', Array.from(units()[0].querySelectorAll('.matrix td.on')).map(text), ['4 ++', '4 ++']);
+      eq('столбцы таблицы — типы огнетушителей', Array.from(units()[0].querySelectorAll('.matrix thead th')).map(text), ['Класс', 'ОП-2', 'ОП-5', 'ОП-10', 'ОУ-2', 'ОУ-3']);
       // по площади хватило бы 2 × ОП-10, но помещение 100 × 3 м требует трёх мест размещения (п. 4)
       const alt = Array.from(units()[0].querySelectorAll('.chip--alt')).find(c => text(c).includes('ОП-10'));
       ok('предложена замена на ОП-10 с учётом расстояния', !!alt && text(alt).startsWith('3 × ОП-10'), alt ? text(alt) : 'нет');
@@ -170,9 +176,9 @@
       eq('после перезагрузки итог тот же', bar(), '6 × ОП-5 · 2 × ОУ-3');
 
       // --- очистка ---
-      await click(q('.top .btn'));
-      eq('очистка требует подтверждения', text(q('.top .btn')), 'Точно очистить?');
-      await click(q('.top .btn'));
+      await click(resetBtn());
+      eq('очистка требует подтверждения', text(resetBtn()), 'Точно очистить?');
+      await click(resetBtn());
       eq('после очистки: шаг 1, один этаж, пустое название', [activeStep(), floors().length, sec(1).querySelector('.grid2 input').value], [1, 1, '']);
 
       // --- общественное здание: минимум на этаж ---
@@ -198,7 +204,7 @@
 
       // --- пример ---
       await goStep(1);
-      await click(sec(1).querySelector('.quick .btn'));
+      await click(sec(1).querySelector('[data-test=example]'));
       eq('пример открывает шаг 2', activeStep(), 2);
       eq('пример: этажи и помещения', [floors().length, rooms(floors()[0]).length], [2, 7]);
       eq('пример: итог', bar(), '6 × ОП-5 · 1 × ОУ-3');

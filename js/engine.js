@@ -321,15 +321,36 @@
     }).join('; ');
   }
 
+  // Строки табл. 1 для классов пожара помещения: что допускает таблица и что выбрано.
+  // Показывается в интерфейсе рядом с расчётом — видно, из какой ячейки взята норма.
+  function buildMatrix(plan) {
+    const cols = plan.allowed;
+    return {
+      columns: cols.map(function (t) { return { id: t, code: N.PORTABLE_TYPES[t].code }; }),
+      rows: plan.classes.filter(function (k) { return plan.info[k]; }).map(function (k) {
+        const info = plan.info[k];
+        return {
+          cls: k, area: info.area, rowTitle: N.TABLE1[info.rowKey].title, fallback: info.fallback,
+          cells: cols.map(function (t) {
+            const c = parseCell(info.cells[N.T1_COLUMNS.indexOf(t)]);
+            const chosen = plan.picks.some(function (p) { return p.typeId === t && p.classes.indexOf(k) >= 0; });
+            return c ? { n: c.n, mark: c.mark, chosen: chosen } : { n: 0, mark: '-', chosen: false };
+          })
+        };
+      })
+    };
+  }
+
   function computeUnit(group, building, opts) {
-    const rep = group.rooms[0];
+    // Пояснения строятся по помещению с самым полным набором классов пожара.
+    const rep = group.planRoom || group.rooms[0];
     const plan = group.plan;
     const row = N.TABLE1[plan.rowKey];
     const area = group.area;
     const classSet = {};
     group.rooms.forEach(function (r) { (r.classes.length ? r.classes : ['A']).forEach(function (k) { classSet[k] = true; }); });
     const unit = {
-      id: 'u_' + rep.id,
+      id: 'u_' + group.rooms[0].id,
       kind: 'table1',
       title: group.rooms.map(function (r) { return r.name; }).join(', '),
       rooms: group.rooms.map(function (r) { return { id: r.id, name: r.name, area: r.area }; }),
@@ -343,6 +364,7 @@
       classes: CLASS_ORDER.filter(function (k) { return classSet[k]; }),
       fallback: plan.fallback.slice(),
       autoSuppression: !!rep.autoSuppression,
+      matrix: buildMatrix(plan),
       lines: [], steps: [], warnings: [], notes: [], alternatives: [], placement: []
     };
 
@@ -499,7 +521,7 @@
       rooms: [{ id: room.id, name: room.name, area: area }], pooled: false, area: area,
       category: null, categoryLabel: '—', rowTitle: e.title, rowArea: null,
       norm: 'Табл. 5: ' + e.title, classes: [],
-      fallback: [], autoSuppression: !!room.autoSuppression,
+      fallback: [], autoSuppression: !!room.autoSuppression, matrix: null,
       lines: [], steps: [], warnings: [], notes: [], alternatives: [], placement: []
     };
     let blocks = 1, basis;
@@ -554,7 +576,7 @@
       id: 'u_' + room.id, kind: 'exempt', title: room.name,
       rooms: [{ id: room.id, name: room.name, area: room.area }], pooled: false, area: room.area,
       category: 'CD', categoryLabel: 'Д', rowTitle: '', rowArea: null, norm: 'Прил. 3, п. 6',
-      classes: room.classes.slice(), fallback: [], autoSuppression: false, lines: [],
+      classes: room.classes.slice(), fallback: [], autoSuppression: false, matrix: null, lines: [],
       steps: [step('Прил. 3, п. 6', 'Помещение категории Д площадью ' + fmt(room.area) + ' м² (менее 100 м²) допускается не оснащать ручными огнетушителями.')],
       warnings: [], notes: [], alternatives: [], placement: []
     };
@@ -564,7 +586,7 @@
     return {
       id: 'u_min_' + floor.id, kind: 'floorMin', title: 'Минимум на этаж',
       rooms: [], pooled: false, area: 0, category: null, categoryLabel: '—', rowTitle: '', rowArea: null,
-      norm: 'Прил. 3, п. 5', classes: ['A', 'E'], fallback: [], autoSuppression: false,
+      norm: 'Прил. 3, п. 5', classes: ['A', 'E'], fallback: [], autoSuppression: false, matrix: null,
       lines: [{
         kind: 'portable', typeId: 'P5', code: N.PORTABLE_TYPES.P5.code, name: N.PORTABLE_TYPES.P5.name, agent: 'powder', charge: 'ABC(E)',
         classes: ['A', 'E'], marks: { A: '++', E: '++' }, recommended: true, viaP9: false, forced: false,
@@ -646,11 +668,17 @@
         const small = room.area < N.TABLE1[plan.rowKey].area && !(opts.wheeled && wKey && room.area > N.TABLE2[wKey].area);
         if (opts.poolSmallRooms && small) {
           const key = poolKey(room, plan);
-          if (byKey[key]) { byKey[key].rooms.push(room); byKey[key].area += room.area; return; }
-          byKey[key] = { rooms: [room], area: room.area, plan: plan };
+          const g = byKey[key];
+          if (g) {
+            g.rooms.push(room);
+            g.area += room.area;
+            if (plan.classes.length > g.plan.classes.length) { g.plan = plan; g.planRoom = room; }
+            return;
+          }
+          byKey[key] = { rooms: [room], area: room.area, plan: plan, planRoom: room };
           groups.push(byKey[key]);
         } else {
-          groups.push({ rooms: [room], area: room.area, plan: plan });
+          groups.push({ rooms: [room], area: room.area, plan: plan, planRoom: room });
         }
       });
       groups.forEach(function (g) { placed.push({ pos: position[g.rooms[0].id], unit: computeUnit(g, building, opts) }); });

@@ -1,12 +1,13 @@
 /*
- * Интерфейс: три шага — объект, этажи и помещения, результат.
- * Vue 3 без сборки; расчёт — FireEngine, отчёт — FireReport.
+ * Интерфейс: боковая панель с тремя разделами — объект, этажи и помещения,
+ * результат. Vue 3 без сборки; расчёт — FireEngine, отчёт — FireReport.
  * Введённые данные хранятся только в браузере (localStorage).
  */
 (function () {
   'use strict';
 
   const N = window.FireNorms, E = window.FireEngine, P = window.FirePresets, R = window.FireReport;
+
   // ?ns=имя — отдельное хранилище (им пользуется страница проверки интерфейса,
   // чтобы не трогать рабочие данные).
   const NS = new URLSearchParams(window.location.search).get('ns');
@@ -89,293 +90,339 @@
   const ICON_TRASH = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>';
 
   const TEMPLATE = `
-<header class="top">
-  <div class="wrap">
-    <div class="top__in">
-      <div class="brand">
-        <div class="brand__mark"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2c1 4 6 6 6 12a6 6 0 0 1-12 0c0-2 1-4 2-5 0 2 1 3 2 3 0-4 1-7 2-10z"/></svg></div>
-        <div style="min-width:0">
-          <div class="brand__name">Расчёт огнетушителей</div>
-          <div class="brand__sub">Приложение 3 к Правилам пожарной безопасности РК · СТ РК 1487-2006</div>
-        </div>
-      </div>
-      <span class="spacer"></span>
-      <button type="button" class="btn btn--sm" :class="confirmReset ? 'btn--danger' : 'btn--ghost'" @click="reset">{{ confirmReset ? 'Точно очистить?' : 'Очистить' }}</button>
+<div class="shell">
+  <aside class="side">
+    <div class="side__top">
+      <div class="brand__name">Расчёт огнетушителей</div>
+      <button type="button" :class="['btn', 'btn--sm', 'btn--quiet', 'side__reset-top', { 'btn--danger': confirmReset }]" @click="reset">{{ confirmReset ? 'Точно очистить?' : 'Очистить' }}</button>
     </div>
-    <nav class="steps" aria-label="Шаги">
-      <button type="button" v-for="s in steps" :key="s.n" :class="['step', { 'step--on': step === s.n, 'step--done': step > s.n }]" :aria-current="step === s.n ? 'step' : null" @click="go(s.n)">
-        <span class="step__n">{{ s.n }}</span><span class="step__t"><span class="step__full">{{ s.title }}</span><span class="step__short">{{ s.short }}</span></span>
+
+    <nav class="steps" aria-label="Разделы">
+      <button type="button" v-for="s in steps" :key="s.n" :class="['step', { 'step--on': step === s.n }]" :aria-current="step === s.n ? 'step' : null" @click="go(s.n)">
+        <span class="step__n">{{ s.n }}</span>
+        <span class="step__t"><span class="step__full">{{ s.title }}</span><span class="step__short">{{ s.short }}</span></span>
+        <span class="step__meta" v-if="navMeta(s.n)">{{ navMeta(s.n) }}</span>
       </button>
     </nav>
-  </div>
-</header>
 
-<main class="wrap">
-
-  <!-- ШАГ 1: ОБЪЕКТ -->
-  <section v-show="step === 1">
-    <div class="card">
-      <h2>Объект</h2>
-      <div class="grid2">
-        <label class="field"><span>Название объекта</span><input type="text" v-model.trim="building.name" placeholder="Например: Школа № 12"></label>
-        <label class="field"><span>Адрес</span><input type="text" v-model.trim="building.address" placeholder="Город, улица, дом"></label>
-        <label class="field"><span>Собственник или организация</span><input type="text" v-model.trim="building.owner"></label>
-        <label class="field"><span>Расчёт выполнил</span><input type="text" v-model.trim="building.inspector" placeholder="Фамилия И. О., должность"></label>
-        <label class="field"><span>Дата расчёта</span><input type="date" v-model="building.date"></label>
+    <div class="side__totals">
+      <div class="side__label">Требуется по нормам</div>
+      <div class="side__empty" v-if="!result.totals.length">нет данных</div>
+      <div class="side__row" v-for="t in result.totals" :key="t.kind + t.code + t.charge">
+        <span>{{ t.code }}{{ t.charge === 'D' ? ' (D)' : '' }}</span><span>{{ t.count }}</span>
       </div>
+      <button type="button" class="btn btn--primary side__pdf" data-test="pdf" :disabled="!result.totals.length || pdfBusy" @click="downloadPdf">{{ pdfBusy ? 'Формирую…' : 'Скачать PDF' }}</button>
+    </div>
 
-      <div class="block">
-        <h3>Назначение здания</h3>
-        <div class="kinds">
-          <label v-for="k in kinds" :key="k.id" :class="['kind', { 'kind--on': building.kind === k.id }]">
-            <input type="radio" name="kind" :value="k.id" v-model="building.kind">
-            <b>{{ k.label }}</b><small>{{ k.hint }}</small>
-          </label>
+    <div class="side__foot">
+      <button type="button" data-test="reset" :class="['link', 'side__reset', { 'side__reset--sure': confirmReset }]" @click="reset">{{ confirmReset ? 'Точно очистить?' : 'Очистить данные' }}</button>
+      <div>Приложение 3 к Правилам пожарной безопасности РК (приказ МЧС РК № 55) и СТ РК 1487-2006</div>
+    </div>
+  </aside>
+
+  <main class="main">
+
+    <!-- 1. ОБЪЕКТ -->
+    <section v-show="step === 1">
+      <div class="page-head"><h1>Объект</h1></div>
+      <div class="form">
+        <div class="grid2">
+          <label class="field"><span>Название объекта</span><input type="text" v-model.trim="building.name" placeholder="Школа № 12"></label>
+          <label class="field"><span>Адрес</span><input type="text" v-model.trim="building.address" placeholder="Город, улица, дом"></label>
+          <label class="field"><span>Собственник или организация</span><input type="text" v-model.trim="building.owner"></label>
+          <label class="field"><span>Расчёт выполнил</span><input type="text" v-model.trim="building.inspector" placeholder="Фамилия И. О., должность"></label>
+          <label class="field"><span>Дата расчёта</span><input type="date" v-model="building.date"></label>
         </div>
-        <p class="hint">{{ kindHint }}</p>
-      </div>
 
-      <div class="block">
+        <div class="group">
+          <h2>Назначение здания</h2>
+          <div class="kinds">
+            <label v-for="k in kinds" :key="k.id" :class="['kind', { 'kind--on': building.kind === k.id }]">
+              <input type="radio" name="kind" :value="k.id" v-model="building.kind">
+              <b>{{ k.label }}</b><small>{{ k.hint }}</small>
+            </label>
+          </div>
+          <p class="hint">{{ kindHint }}</p>
+        </div>
+
         <label class="check">
           <input type="checkbox" v-model="building.autoSuppressionAll">
-          <span>Всё здание оборудовано автоматической установкой пожаротушения (АУПТ)<small>ручных огнетушителей нужно 50 % от нормы (п. 10 Приложения 3)</small></span>
+          <span>Всё здание оборудовано автоматической установкой пожаротушения<small>Ручных огнетушителей нужно 50 % от нормы (п. 10)</small></span>
         </label>
-      </div>
-    </div>
 
-    <div class="card card--hint">
-      <div class="quick">
-        <span>Посмотреть на готовом примере:</span>
-        <button type="button" class="btn btn--sm" v-for="(ex, key) in examples" :key="key" @click="loadExample(key)">{{ ex.title }}</button>
-      </div>
-    </div>
-  </section>
+        <div class="next"><button type="button" class="btn" data-test="next" @click="go(2)">К помещениям</button></div>
 
-  <!-- ШАГ 2: ЭТАЖИ И ПОМЕЩЕНИЯ -->
-  <section v-show="step === 2">
-    <p class="legend">
-      Классы пожара: <b>A</b> — твёрдые материалы, <b>B</b> — горючие жидкости, <b>C</b> — газы, <b>D</b> — металлы, <b>E</b> — электрооборудование под напряжением.
-      Назначение подставляет типичные категорию и классы — их можно исправить.
-    </p>
-
-    <div class="card" v-for="(floor, fi) in floors" :key="floor.id">
-      <div class="floor__head">
-        <input type="text" class="floor__name" v-model.trim="floor.name" aria-label="Название этажа">
-        <span class="floor__meta">{{ floor.rooms.length }} {{ plural(floor.rooms.length, 'помещение', 'помещения', 'помещений') }} · {{ fmt(floorArea(floor)) }} м²</span>
-        <span class="spacer"></span>
-        <button type="button" class="btn btn--sm" @click="duplicateFloor(fi)">Дублировать этаж</button>
-        <button type="button" class="btn btn--sm btn--danger" :disabled="floors.length === 1" @click="removeFloor(fi)">Удалить</button>
-      </div>
-
-      <div class="rooms">
-        <div class="room" v-for="(room, ri) in floor.rooms" :key="room.id">
-          <div class="room__main">
-            <label class="field f-name"><span>Помещение</span>
-              <input type="text" v-model.trim="room.name" :placeholder="'Помещение ' + (ri + 1)"></label>
-            <label class="field f-purpose"><span>Назначение</span>
-              <select v-model="room.purpose" @change="onPurpose(room)">
-                <optgroup v-for="g in purposeGroups" :key="g.group" :label="g.group">
-                  <option v-for="p in g.items" :key="p.id" :value="p.id">{{ p.label }}</option>
-                </optgroup>
-              </select></label>
-
-            <label class="field f-area" v-if="areaMode(room) === 'area'"><span>Площадь, м²</span>
-              <input type="number" min="0" step="any" inputmode="decimal" v-model="room.area" placeholder="0"></label>
-            <label class="field f-area" v-else-if="areaMode(room) === 'units'"><span>Гаражей, шт.</span>
-              <input type="number" min="1" step="1" inputmode="numeric" v-model="room.units"></label>
-            <div class="field f-area" v-else><span>Площадь</span><input type="text" value="не нужна" disabled></div>
-
-            <template v-if="!room.t5">
-              <label class="field f-cat"><span>Категория</span>
-                <select v-model="room.category" @change="room.forceType = ''">
-                  <option v-for="c in categories" :key="c.id" :value="c.id" :title="c.title">{{ c.label }}</option>
-                </select></label>
-              <div class="field f-classes"><span>Классы пожара</span>
-                <div class="chips">
-                  <button type="button" v-for="k in fireClasses" :key="k.id"
-                    :class="['chip', { 'chip--on': room.classes.indexOf(k.id) >= 0 }]"
-                    :title="k.id + ' — ' + k.name" :aria-pressed="room.classes.indexOf(k.id) >= 0"
-                    @click="toggleClass(room, k.id)">{{ k.id }}</button>
-                </div>
-              </div>
-            </template>
-            <div class="room__t5" v-else>Норма по табл. 5 — категория и классы пожара не нужны</div>
-
-            <div class="room__tools">
-              <button type="button" :class="['icon', 'icon--more', { 'icon--on': room.more }]" @click="room.more = !room.more" :aria-expanded="room.more">Ещё</button>
-              <button type="button" class="icon" title="Дублировать помещение" aria-label="Дублировать помещение" @click="duplicateRoom(floor, ri)" v-html="iconCopy"></button>
-              <button type="button" class="icon icon--danger" title="Удалить помещение" aria-label="Удалить помещение" @click="removeRoom(floor, ri)" v-html="iconTrash"></button>
-            </div>
-          </div>
-
-          <div class="room__more" v-if="room.more">
-            <template v-if="!room.t5">
-              <label class="field"><span>Длина, м</span><input type="number" min="0" step="any" inputmode="decimal" v-model="room.length" @change="onDims(room)"></label>
-              <label class="field"><span>Ширина, м</span><input type="number" min="0" step="any" inputmode="decimal" v-model="room.width" @change="onDims(room)"></label>
-            </template>
-            <label class="check">
-              <input type="checkbox" v-model="room.autoSuppression" :disabled="building.autoSuppressionAll">
-              <span>Автоматическое пожаротушение (АУПТ)<small>{{ building.autoSuppressionAll ? 'уже отмечено для всего здания' : 'ручных огнетушителей — 50 % от нормы (п. 10)' }}</small></span>
-            </label>
-            <label class="check" v-if="!room.t5">
-              <input type="checkbox" v-model="room.sensitive" @change="room.forceType = ''">
-              <span>Дорогая электроника или ценности<small>выбирается углекислотный огнетушитель (п. 9)</small></span>
-            </label>
-            <div class="room__note" v-if="!room.t5">
-              Длина и ширина нужны, чтобы проверить расстояние до огнетушителя (п. 4). Без них расчёт идёт только по площади.
-              <template v-if="dimsMismatch(room)"> <b>Длина × ширина = {{ dimsMismatch(room) }} м², а площадь указана {{ fmt(room.area) }} м².</b></template>
-            </div>
-          </div>
+        <div class="quick">
+          <span class="muted">Открыть пример</span>
+          <button type="button" class="link" data-test="example" v-for="(ex, key) in examples" :key="key" @click="loadExample(key)">{{ ex.title }}</button>
         </div>
       </div>
+    </section>
 
-      <button type="button" class="btn btn--add" style="margin-top:10px" @click="addRoom(floor)">+ Добавить помещение</button>
+    <!-- 2. ЭТАЖИ И ПОМЕЩЕНИЯ -->
+    <section v-show="step === 2">
+      <div class="page-head"><h1>Этажи и помещения</h1></div>
+      <p class="legend">
+        Назначение подставляет типичные категорию и классы пожара, их можно исправить.
+        Классы: <span class="mono">A</span> твёрдые материалы, <span class="mono">B</span> горючие жидкости, <span class="mono">C</span> газы,
+        <span class="mono">D</span> металлы, <span class="mono">E</span> электрооборудование под напряжением.
+      </p>
 
-      <div class="floor__foot">
-        <div class="floor__need"><span class="muted">По расчёту на этаже: </span><b>{{ floorNeed(floor.id) }}</b></div>
-        <div class="floor__fact">
-          <span>Фактически установлено <small>(необязательно)</small>:</span>
-          <label>ОП <input type="number" min="0" step="1" inputmode="numeric" v-model="floor.installedOP" placeholder="—" aria-label="Фактически порошковых"></label>
-          <label>ОУ <input type="number" min="0" step="1" inputmode="numeric" v-model="floor.installedOU" placeholder="—" aria-label="Фактически углекислотных"></label>
-        </div>
-      </div>
-    </div>
-
-    <button type="button" class="btn btn--add" @click="addFloor">+ Добавить этаж</button>
-  </section>
-
-  <!-- ШАГ 3: РЕЗУЛЬТАТ -->
-  <section v-show="step === 3">
-    <div class="card">
-      <h2>Требуется по нормам</h2>
-      <div class="empty" v-if="!result.totals.length">Добавьте на шаге 2 помещения с площадью — результат появится здесь.</div>
-      <template v-else>
-        <div class="totals">
-          <div v-for="t in result.totals" :key="t.kind + t.code + t.charge" :class="['total', 'total--' + t.agent]">
-            <div class="total__n">{{ t.count }}<small>{{ t.kind === 'shield' ? 'компл.' : 'шт.' }}</small></div>
-            <div class="total__code">{{ t.code }}</div>
-            <div class="total__name">{{ t.name }}<template v-if="t.charge">, порошок {{ t.charge }}</template></div>
-          </div>
-        </div>
-        <p class="summary">{{ summaryLine }}</p>
-      </template>
-    </div>
-
-    <div :class="['card', 'verdict', { 'verdict--bad': !result.check.ok }]" v-if="result.check">
-      <div class="verdict__title">{{ result.check.ok ? 'Соответствует' : 'Не соответствует' }}</div>
-      <p>{{ result.check.text }}</p>
-      <div class="scroll">
-        <table class="table">
-          <thead>
-            <tr><th rowspan="2">Этаж</th><th colspan="3" class="grp">Порошковые (ОП)</th><th colspan="3" class="grp">Углекислотные (ОУ)</th></tr>
-            <tr><th>нужно</th><th>есть</th><th>не хватает</th><th>нужно</th><th>есть</th><th>не хватает</th></tr>
-          </thead>
-          <tbody>
-            <tr v-for="f in result.floors" :key="f.id">
-              <td>{{ f.name }}</td>
-              <template v-if="f.check">
-                <td>{{ f.check.requiredOP }}</td><td>{{ f.check.installedOP }}</td><td :class="{ bad: f.check.deficitOP > 0 }">{{ f.check.deficitOP }}</td>
-                <td>{{ f.check.requiredOU }}</td><td>{{ f.check.installedOU }}</td><td :class="{ bad: f.check.deficitOU > 0 }">{{ f.check.deficitOU }}</td>
-              </template>
-              <td v-else colspan="6" class="muted" style="text-align:left">фактическое наличие не указано</td>
-            </tr>
-          </tbody>
-          <tfoot><tr>
-            <td>Итого</td>
-            <td>{{ result.check.requiredOP }}</td><td>{{ result.check.installedOP }}</td><td :class="{ bad: result.check.deficitOP > 0 }">{{ result.check.deficitOP }}</td>
-            <td>{{ result.check.requiredOU }}</td><td>{{ result.check.installedOU }}</td><td :class="{ bad: result.check.deficitOU > 0 }">{{ result.check.deficitOU }}</td>
-          </tr></tfoot>
-        </table>
-      </div>
-      <p class="hint" style="margin-top:8px">Сверяется количество ручных ОП и ОУ по этажам. Типоразмер, заряд, исправность и размещение проверяются при осмотре.</p>
-    </div>
-    <div class="card card--hint" v-else-if="result.totals.length">
-      Чтобы сверить расчёт с фактом, укажите на шаге 2, сколько ОП и ОУ установлено на каждом этаже.
-      <button type="button" class="link" @click="go(2)">Перейти к помещениям</button>
-    </div>
-
-    <div class="card card--warn" v-if="result.warnings.length">
-      <h3>Требует внимания</h3>
-      <ul><li v-for="(w, i) in result.warnings" :key="i">{{ w }}</li></ul>
-    </div>
-
-    <template v-for="f in result.floors" :key="f.id">
-      <div class="card" v-if="f.units.length">
-        <div class="floorres__head">
-          <h3>{{ f.name }}</h3>
-          <span class="muted">{{ floorSummary(f) }}</span>
+      <div class="floor" v-for="(floor, fi) in floors" :key="floor.id">
+        <div class="floor__head">
+          <input type="text" class="floor__name" v-model.trim="floor.name" aria-label="Название этажа">
+          <span class="floor__meta">{{ floor.rooms.length }} пом. · {{ fmt(floorArea(floor)) }} м²</span>
           <span class="spacer"></span>
-          <button type="button" class="link" @click="toggleFloor(f)">{{ floorOpen(f) ? 'Скрыть расчёты' : 'Показать все расчёты' }}</button>
+          <button type="button" class="btn btn--sm btn--quiet" @click="duplicateFloor(fi)">Дублировать этаж</button>
+          <button type="button" class="btn btn--sm btn--quiet" :disabled="floors.length === 1" @click="removeFloor(fi)">Удалить</button>
         </div>
-        <div class="unit" v-for="u in f.units" :key="u.id">
-          <div>
-            <div class="unit__title">{{ u.title }}</div>
-            <div class="unit__meta">{{ unitMeta(u) }}</div>
-            <button type="button" class="link" @click="toggle(u.id)" :aria-expanded="!!open[u.id]">{{ open[u.id] ? 'Скрыть расчёт' : 'Показать расчёт' }}</button>
+
+        <div class="rooms">
+          <div class="rooms__head" aria-hidden="true">
+            <span>Помещение</span><span>Назначение</span><span>Площадь, м²</span><span>Категория</span><span>Классы пожара</span><span></span>
           </div>
-          <div class="unit__need">
-            <span class="need" v-for="(l, li) in u.lines" :key="li">{{ l.count }} × {{ lineTitle(l) }}</span>
-            <span class="need need--none" v-if="!u.lines.length">не требуется</span>
+          <div class="room" v-for="(room, ri) in floor.rooms" :key="room.id">
+            <div class="room__main">
+              <label class="field f-name"><span class="sr">Помещение</span>
+                <input type="text" v-model.trim="room.name" :placeholder="'Помещение ' + (ri + 1)"></label>
+              <label class="field f-purpose"><span class="sr">Назначение</span>
+                <select v-model="room.purpose" @change="onPurpose(room)">
+                  <optgroup v-for="g in purposeGroups" :key="g.group" :label="g.group">
+                    <option v-for="p in g.items" :key="p.id" :value="p.id">{{ p.label }}</option>
+                  </optgroup>
+                </select></label>
+
+              <label class="field f-area" v-if="areaMode(room) === 'area'"><span class="sr">Площадь, м²</span>
+                <input type="number" min="0" step="any" inputmode="decimal" v-model="room.area" placeholder="0"></label>
+              <label class="field f-area" v-else-if="areaMode(room) === 'units'"><span class="sr">Гаражей, шт.</span>
+                <input type="number" min="1" step="1" inputmode="numeric" v-model="room.units"></label>
+              <div class="field f-area" v-else><span class="sr">Площадь</span><input type="text" value="не нужна" disabled></div>
+
+              <template v-if="!room.t5">
+                <label class="field f-cat"><span class="sr">Категория</span>
+                  <select v-model="room.category" @change="room.forceType = ''">
+                    <option v-for="c in categories" :key="c.id" :value="c.id" :title="c.title">{{ c.label }}</option>
+                  </select></label>
+                <div class="field f-classes"><span class="sr">Классы пожара</span>
+                  <div class="chips">
+                    <button type="button" v-for="k in fireClasses" :key="k.id"
+                      :class="['chip', { 'chip--on': room.classes.indexOf(k.id) >= 0 }]"
+                      :title="k.id + ' — ' + k.name" :aria-pressed="room.classes.indexOf(k.id) >= 0"
+                      @click="toggleClass(room, k.id)">{{ k.id }}</button>
+                  </div>
+                </div>
+              </template>
+              <div class="room__t5" v-else>{{ t5Note(room) }}</div>
+
+              <div class="room__tools">
+                <button type="button" :class="['icon', 'icon--more', { 'icon--on': room.more }]" @click="room.more = !room.more" :aria-expanded="room.more">Ещё</button>
+                <button type="button" class="icon" title="Дублировать помещение" aria-label="Дублировать помещение" @click="duplicateRoom(floor, ri)" v-html="iconCopy"></button>
+                <button type="button" class="icon icon--danger" title="Удалить помещение" aria-label="Удалить помещение" @click="removeRoom(floor, ri)" v-html="iconTrash"></button>
+              </div>
+            </div>
+
+            <div class="room__more" v-if="room.more">
+              <template v-if="!room.t5">
+                <label class="field"><span>Длина, м</span><input type="number" min="0" step="any" inputmode="decimal" v-model="room.length" @change="onDims(room)"></label>
+                <label class="field"><span>Ширина, м</span><input type="number" min="0" step="any" inputmode="decimal" v-model="room.width" @change="onDims(room)"></label>
+              </template>
+              <label class="check">
+                <input type="checkbox" v-model="room.autoSuppression" :disabled="building.autoSuppressionAll">
+                <span>Автоматическое пожаротушение<small>{{ building.autoSuppressionAll ? 'Уже отмечено для всего здания' : 'Ручных огнетушителей 50 % от нормы (п. 10)' }}</small></span>
+              </label>
+              <label class="check" v-if="!room.t5">
+                <input type="checkbox" v-model="room.sensitive" @change="room.forceType = ''">
+                <span>Дорогая электроника или ценности<small>Выбирается углекислотный огнетушитель (п. 9)</small></span>
+              </label>
+              <div class="room__note" v-if="!room.t5">
+                Длина и ширина нужны, чтобы проверить расстояние до огнетушителя (п. 4). Без них расчёт идёт только по площади.
+                <template v-if="dimsMismatch(room)"> <b>Длина × ширина = {{ dimsMismatch(room) }} м², а площадь указана {{ fmt(room.area) }} м².</b></template>
+              </div>
+            </div>
           </div>
-          <div class="unit__why" v-if="open[u.id]">
-            <div class="why" v-for="(s, si) in u.steps" :key="si"><span class="ref">{{ s.ref }}</span><span>{{ s.text }}</span></div>
-            <div class="note" v-for="(n, ni) in u.notes" :key="'n' + ni">{{ n }}</div>
-            <div class="alts" v-if="u.kind === 'table1' && (u.alternatives.length || isForced(u))">
-              <span class="muted">Заменить на:</span>
-              <button type="button" class="chip chip--alt" v-for="a in u.alternatives" :key="a.typeId" @click="force(u, a.typeId)">{{ a.text }}</button>
-              <button type="button" class="link" v-if="isForced(u)" @click="force(u, '')">Вернуть автоматический выбор</button>
-            </div>
-            <div class="alts" v-if="u.kind === 'table5' && u.alternatives.length">
-              <span class="muted">Заменить на:</span>
-              <button type="button" class="chip chip--alt" @click="swapT5(u)">{{ u.alternatives[0].text }}</button>
-            </div>
+        </div>
+
+        <div class="floor__foot">
+          <button type="button" class="btn btn--sm btn--add" @click="addRoom(floor)">Добавить помещение</button>
+          <div class="floor__need">По расчёту на этаже <b>{{ floorNeed(floor.id) }}</b></div>
+          <div class="floor__fact">
+            <span>Установлено фактически</span>
+            <label>ОП <input type="number" min="0" step="1" inputmode="numeric" v-model="floor.installedOP" placeholder="—" aria-label="Фактически порошковых"></label>
+            <label>ОУ <input type="number" min="0" step="1" inputmode="numeric" v-model="floor.installedOU" placeholder="—" aria-label="Фактически углекислотных"></label>
           </div>
         </div>
       </div>
-    </template>
 
-    <div class="card" v-if="result.totals.length">
-      <h3>Размещение и содержание</h3>
-      <ul><li v-for="(p, i) in result.placement" :key="i">{{ p }}</li></ul>
-    </div>
+      <div class="section-foot">
+        <button type="button" class="btn" data-test="add-floor" @click="addFloor">Добавить этаж</button>
+        <span class="next"><button type="button" class="btn" data-test="next" @click="go(3)">К результату</button></span>
+      </div>
+    </section>
 
-    <details class="card">
-      <summary>Параметры расчёта</summary>
-      <div class="fold">
+    <!-- 3. РЕЗУЛЬТАТ -->
+    <section v-show="step === 3">
+      <div class="page-head"><h1>Результат</h1></div>
+
+      <div class="result-top">
         <div>
-          <div class="muted" style="margin-bottom:6px">Как округлять количество</div>
-          <label class="radio"><input type="radio" name="rounding" value="proportional" v-model="options.rounding">
-            <span>Пропорционально площади<small>450 м² × 4 шт. / 800 м² = 2,25 — нужно 3 шт.</small></span></label>
-          <label class="radio" style="margin-top:6px"><input type="radio" name="rounding" value="block" v-model="options.rounding">
-            <span>Полными комплектами<small>на каждые начатые 800 м² — все 4 шт. Строже: 450 м² — 4 шт.</small></span></label>
+          <div class="empty" v-if="!result.totals.length">Добавьте в разделе 2 помещения с площадью, и здесь появится расчёт</div>
+          <template v-else>
+            <div class="ledger">
+              <div v-for="t in result.totals" :key="t.kind + t.code + t.charge" :class="['total', 'total--' + t.agent]">
+                <span class="total__sw"></span>
+                <div>
+                  <div class="total__code">{{ t.code }}</div>
+                  <div class="total__name">{{ t.name }}<template v-if="t.charge">, порошок {{ t.charge }}</template></div>
+                </div>
+                <div class="total__n">{{ t.count }}<small>{{ t.kind === 'shield' ? 'компл.' : 'шт.' }}</small></div>
+              </div>
+            </div>
+            <p class="summary">{{ summaryLine }}</p>
+          </template>
         </div>
-        <label class="check"><input type="checkbox" v-model="options.poolSmallRooms"><span>Считать небольшие помещения одной категории по суммарной площади (п. 7)</span></label>
-        <label class="check"><input type="checkbox" v-model="options.onlyPowderAndCO2"><span>Предлагать только порошковые (ОП) и углекислотные (ОУ)</span></label>
-        <label class="check"><input type="checkbox" v-model="options.wheeled"><span>Добавлять передвижные огнетушители большим помещениям (табл. 2)</span></label>
-      </div>
-    </details>
 
-    <details class="card">
-      <summary>Как считаем: правила и допущения</summary>
-      <div class="fold">
-        <p class="muted">Правила не определяют некоторые детали расчёта. Здесь перечислено, как они решены. В PDF попадают только те пункты, которые повлияли на расчёт.</p>
-        <ul><li v-for="(a, i) in methodology" :key="i">{{ a }}</li></ul>
-        <div class="muted">Нормативные источники</div>
-        <ul><li v-for="s in sources" :key="s.id">{{ s.title }}</li></ul>
+        <div>
+          <div :class="['verdict', { 'verdict--bad': !result.check.ok }]" v-if="result.check">
+            <div class="verdict__label">Сверка с фактическим наличием</div>
+            <div class="verdict__title">{{ result.check.ok ? 'Соответствует' : 'Не соответствует' }}</div>
+            <p>{{ result.check.text }}</p>
+            <div class="scroll">
+              <table class="table">
+                <thead>
+                  <tr><th rowspan="2">Этаж</th><th colspan="3" class="grp">Порошковые, ОП</th><th colspan="3" class="grp">Углекислотные, ОУ</th></tr>
+                  <tr><th>нужно</th><th>есть</th><th>не хватает</th><th>нужно</th><th>есть</th><th>не хватает</th></tr>
+                </thead>
+                <tbody>
+                  <tr v-for="f in result.floors" :key="f.id">
+                    <td>{{ f.name }}</td>
+                    <template v-if="f.check">
+                      <td>{{ f.check.requiredOP }}</td><td>{{ f.check.installedOP }}</td><td :class="{ bad: f.check.deficitOP > 0 }">{{ f.check.deficitOP }}</td>
+                      <td>{{ f.check.requiredOU }}</td><td>{{ f.check.installedOU }}</td><td :class="{ bad: f.check.deficitOU > 0 }">{{ f.check.deficitOU }}</td>
+                    </template>
+                    <td v-else colspan="6" class="muted" style="text-align:left">фактическое наличие не указано</td>
+                  </tr>
+                </tbody>
+                <tfoot><tr>
+                  <td>Итого</td>
+                  <td>{{ result.check.requiredOP }}</td><td>{{ result.check.installedOP }}</td><td :class="{ bad: result.check.deficitOP > 0 }">{{ result.check.deficitOP }}</td>
+                  <td>{{ result.check.requiredOU }}</td><td>{{ result.check.installedOU }}</td><td :class="{ bad: result.check.deficitOU > 0 }">{{ result.check.deficitOU }}</td>
+                </tr></tfoot>
+              </table>
+            </div>
+          </div>
+          <p class="aside-note" v-else-if="result.totals.length">
+            Чтобы сверить расчёт с фактом, укажите в разделе 2, сколько ОП и ОУ установлено на каждом этаже.
+            <button type="button" class="link" @click="go(2)">Перейти к помещениям</button>
+          </p>
+        </div>
       </div>
-    </details>
 
-    <p class="hint" v-if="selfcheck" id="selfcheck">{{ selfcheck }}</p>
-  </section>
-</main>
+      <div class="block notice" v-if="result.warnings.length">
+        <h2>Требует внимания</h2>
+        <ul><li v-for="(w, i) in result.warnings" :key="i">{{ w }}</li></ul>
+      </div>
+
+      <template v-for="f in result.floors" :key="f.id">
+        <div class="block" v-if="f.units.length">
+          <div class="floorres__head">
+            <h2>{{ f.name }}</h2>
+            <span class="floorres__meta">{{ floorSummary(f) }}</span>
+            <span class="spacer"></span>
+            <button type="button" class="link" @click="toggleFloor(f)">{{ floorOpen(f) ? 'Скрыть расчёты' : 'Показать все расчёты' }}</button>
+          </div>
+
+          <div class="unit" v-for="u in f.units" :key="u.id">
+            <div>
+              <div class="unit__title">{{ u.title }}</div>
+              <div class="unit__meta">{{ unitMeta(u) }}<button type="button" class="link" @click="toggle(u.id)" :aria-expanded="!!open[u.id]">{{ open[u.id] ? 'Скрыть расчёт' : 'Показать расчёт' }}</button></div>
+            </div>
+            <div class="unit__need">
+              <span class="need" v-for="(l, li) in u.lines" :key="li">{{ l.count }} × {{ lineTitle(l) }}</span>
+              <span class="need need--none" v-if="!u.lines.length">не требуется</span>
+            </div>
+
+            <div class="unit__why" v-if="open[u.id]">
+              <div v-if="u.matrix && u.matrix.rows.length">
+                <div class="matrix__cap">{{ matrixCaption(u) }}</div>
+                <div class="scroll">
+                  <table class="matrix">
+                    <thead><tr>
+                      <th class="rowh">Класс</th>
+                      <th v-for="c in u.matrix.columns" :key="c.id">{{ c.code }}</th>
+                      <th v-if="matrixMixed(u)"></th>
+                    </tr></thead>
+                    <tbody>
+                      <tr v-for="r in u.matrix.rows" :key="r.cls">
+                        <th class="rowh">{{ r.cls }}</th>
+                        <td v-for="(c, ci) in r.cells" :key="ci" :class="cellClass(c)">{{ c.mark === '-' ? '—' : c.n + ' ' + c.mark }}</td>
+                        <td class="where" v-if="matrixMixed(u)">на {{ r.area }} м²{{ r.fallback ? ', строка «' + r.rowTitle + '»' : '' }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="matrix__legend">++ рекомендуется · + допускается при обосновании · — не допускается</div>
+              </div>
+
+              <div class="whys">
+                <div class="why" v-for="(s, si) in u.steps" :key="si"><span class="ref">{{ s.ref }}</span><span>{{ s.text }}</span></div>
+              </div>
+              <div class="note" v-for="(n, ni) in u.notes" :key="'n' + ni">{{ n }}</div>
+
+              <div class="alts" v-if="u.kind === 'table1' && (u.alternatives.length || isForced(u))">
+                <span>Заменить на</span>
+                <button type="button" class="chip chip--alt" v-for="a in u.alternatives" :key="a.typeId" @click="force(u, a.typeId)">{{ a.text }}</button>
+                <button type="button" class="link" v-if="isForced(u)" @click="force(u, '')">Вернуть автоматический выбор</button>
+              </div>
+              <div class="alts" v-if="u.kind === 'table5' && u.alternatives.length">
+                <span>Заменить на</span>
+                <button type="button" class="chip chip--alt" @click="swapT5(u)">{{ u.alternatives[0].text }}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <div class="block" v-if="result.totals.length">
+        <h2>Размещение и содержание</h2>
+        <ul class="prose"><li v-for="(p, i) in result.placement" :key="i">{{ p }}</li></ul>
+      </div>
+
+      <div class="block">
+        <details class="fold">
+          <summary>Параметры расчёта</summary>
+          <div class="fold__body">
+            <div>Как округлять количество</div>
+            <label class="radio"><input type="radio" name="rounding" value="proportional" v-model="options.rounding">
+              <span>Пропорционально площади<small>450 м² × 4 шт. / 800 м² = 2,25, нужно 3 шт.</small></span></label>
+            <label class="radio"><input type="radio" name="rounding" value="block" v-model="options.rounding">
+              <span>Полными комплектами<small>На каждые начатые 800 м² все 4 шт. Строже: на 450 м² нужно 4 шт.</small></span></label>
+            <label class="check"><input type="checkbox" v-model="options.poolSmallRooms"><span>Считать небольшие помещения одной категории по суммарной площади (п. 7)</span></label>
+            <label class="check"><input type="checkbox" v-model="options.onlyPowderAndCO2"><span>Предлагать только порошковые (ОП) и углекислотные (ОУ)</span></label>
+            <label class="check"><input type="checkbox" v-model="options.wheeled"><span>Добавлять передвижные огнетушители большим помещениям (табл. 2)</span></label>
+          </div>
+        </details>
+        <details class="fold">
+          <summary>Как считаем: правила и допущения</summary>
+          <div class="fold__body">
+            <p>Правила не определяют некоторые детали расчёта. Здесь перечислено, как они решены. В PDF попадают только те пункты, которые повлияли на расчёт.</p>
+            <ul><li v-for="(a, i) in methodology" :key="i">{{ a }}</li></ul>
+            <div>Нормативные источники</div>
+            <ul><li v-for="s in sources" :key="s.id">{{ s.title }}</li></ul>
+          </div>
+        </details>
+      </div>
+
+      <p class="hint" style="margin-top:16px" v-if="selfcheck" id="selfcheck">{{ selfcheck }}</p>
+    </section>
+  </main>
+</div>
 
 <div class="toast" v-if="notice" role="status">{{ notice }}</div>
 
 <footer class="bar">
-  <div class="wrap bar__in">
+  <div class="bar__in">
     <div class="bar__sum"><span class="bar__label">Требуется по нормам</span><b>{{ totalsLine }}</b></div>
-    <button type="button" class="btn btn--back" v-if="step > 1" @click="go(step - 1)">Назад</button>
-    <button type="button" class="btn btn--primary" v-if="step < 3" @click="go(step + 1)">{{ step === 1 ? 'К помещениям' : 'Показать результат' }}</button>
+    <button type="button" class="btn btn--primary" v-if="step < 3" @click="go(step + 1)">{{ step === 1 ? 'К помещениям' : 'К результату' }}</button>
     <button type="button" class="btn btn--primary" v-if="step === 3" :disabled="!result.totals.length || pdfBusy" @click="downloadPdf">{{ pdfBusy ? 'Формирую…' : 'Скачать PDF' }}</button>
   </div>
 </footer>
@@ -433,8 +480,8 @@
       },
       kindHint: function () {
         return this.building.kind === 'public'
-          ? 'В общественном здании на каждом этаже нужно не менее двух огнетушителей (п. 5), а до огнетушителя должно быть не более 20 м (п. 4).'
-          : 'В производственном и складском здании норма зависит от категории помещения (А–Д) и класса пожара; до огнетушителя — не более 30, 40 или 70 м (п. 4).';
+          ? 'В общественном здании на каждом этаже нужно не менее двух огнетушителей (п. 5), а до огнетушителя должно быть не более 20 м (п. 4)'
+          : 'В производственном и складском здании норма зависит от категории помещения (А–Д) и класса пожара, до огнетушителя не более 30, 40 или 70 м (п. 4)';
       },
       totalsLine: function () {
         if (!this.result.totals.length) return 'пока нет данных';
@@ -442,11 +489,13 @@
       },
       summaryLine: function () {
         const s = this.result.summary;
-        const parts = ['Переносных: ' + s.portable];
-        if (s.wheeled) parts.push('передвижных: ' + s.wheeled);
-        if (s.shields) parts.push('пожарных щитов: ' + s.shields);
-        return parts.join(', ') + '. Учтено ' + s.rooms + ' ' + E.plural(s.rooms, 'помещение', 'помещения', 'помещений') +
-          ' общей площадью ' + E.fmt(s.area) + ' м², этажей: ' + s.floors + '.';
+        const parts = [s.portable + ' ' + E.plural(s.portable, 'переносной', 'переносных', 'переносных')];
+        if (s.wheeled) parts.push(s.wheeled + ' ' + E.plural(s.wheeled, 'передвижной', 'передвижных', 'передвижных'));
+        if (s.shields) parts.push(s.shields + ' ' + E.plural(s.shields, 'пожарный щит', 'пожарных щита', 'пожарных щитов'));
+        parts.push(s.rooms + ' ' + E.plural(s.rooms, 'помещение', 'помещения', 'помещений'));
+        parts.push(E.fmt(s.area) + ' м²');
+        parts.push(s.floors + ' ' + E.plural(s.floors, 'этаж', 'этажа', 'этажей'));
+        return parts.join(' · ');
       }
     },
     watch: {
@@ -506,6 +555,13 @@
         this.step = 2;
         this.say('Загружен пример: ' + P.EXAMPLES[key].title);
       },
+      // Счётчик справа от названия раздела в боковой панели.
+      navMeta: function (n) {
+        const s = this.result.summary;
+        if (n === 2) return s.rooms ? String(s.rooms) : '';
+        if (n === 3) return s.portable + s.wheeled ? String(s.portable + s.wheeled) : '';
+        return '';
+      },
 
       // ----- этажи и помещения -----
       addFloor: function () { this.floors.push(newFloor(this.nextFloorNumber(), this.defaultPurpose)); },
@@ -544,6 +600,12 @@
         const basis = N.TABLE5[room.t5].basis;
         return basis === 'perUnit' ? 'units' : basis === 'fixed' ? 'none' : 'area';
       },
+      t5Note: function (room) {
+        const mode = this.areaMode(room);
+        if (mode === 'units') return 'Норма по табл. 5: вместо площади укажите число гаражей';
+        if (mode === 'none') return 'Норма по табл. 5: постоянный набор на объект';
+        return 'Норма по табл. 5: категория и классы пожара не нужны';
+      },
       onDims: function (room) {
         const L = toNum(room.length), W = toNum(room.width);
         if (L && W && !toNum(room.area)) room.area = Math.round(L * W * 100) / 100;
@@ -574,10 +636,10 @@
 
       // ----- результат -----
       floorSummary: function (f) {
-        const p = f.portable;
-        const parts = ['переносных: ' + (p.powder + p.co2 + p.other)];
-        if (f.wheeled) parts.push('передвижных: ' + f.wheeled);
-        return parts.join(', ');
+        const p = f.portable, n = p.powder + p.co2 + p.other;
+        const parts = [n + ' ' + E.plural(n, 'переносной', 'переносных', 'переносных')];
+        if (f.wheeled) parts.push(f.wheeled + ' ' + E.plural(f.wheeled, 'передвижной', 'передвижных', 'передвижных'));
+        return parts.join(' · ');
       },
       unitMeta: function (u) {
         if (u.kind === 'floorMin') return 'п. 5: не менее двух огнетушителей на этаже общественного здания';
@@ -591,6 +653,20 @@
           parts.push((u.classes.length > 1 ? 'классы ' : 'класс ') + u.classes.join(', '));
         }
         return parts.join(' · ');
+      },
+      // Строка нормативной таблицы: подпись и оформление ячеек.
+      matrixMixed: function (u) {
+        const rows = u.matrix.rows;
+        return rows.some(function (r) { return r.fallback || r.area !== rows[0].area; });
+      },
+      matrixCaption: function (u) {
+        if (this.matrixMixed(u)) return 'Табл. 1 · число огнетушителей на предельную площадь';
+        return 'Табл. 1 · ' + u.matrix.rows[0].rowTitle + ' · число огнетушителей на ' + u.matrix.rows[0].area + ' м²';
+      },
+      cellClass: function (c) {
+        if (c.chosen) return 'on';
+        if (c.mark === '-') return 'no';
+        return c.mark === '++' ? 'rec' : 'ok';
       },
       toggle: function (id) { this.open[id] = !this.open[id]; },
       floorOpen: function (f) {
