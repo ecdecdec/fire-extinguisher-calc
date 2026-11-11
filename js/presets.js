@@ -4,6 +4,9 @@
  * Назначение — это подсказка: оно подставляет типичные категорию и классы
  * пожара. Категорию помещения по взрывопожарной и пожарной опасности инспектор
  * берёт из проекта или декларации и при необходимости исправляет вручную.
+ *
+ * short — короткое имя: им называется помещение, если своё имя не введено,
+ * и оно же стоит на кнопках быстрого добавления.
  */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
@@ -14,56 +17,56 @@
   const PURPOSE_GROUPS = [
     {
       group: 'Общественные помещения', items: [
-        { id: 'office', label: 'Кабинет, офис', category: 'PUB', classes: ['A', 'E'] },
-        { id: 'classroom', label: 'Учебный класс, аудитория', category: 'PUB', classes: ['A', 'E'] },
-        { id: 'corridor', label: 'Коридор, холл, вестибюль', category: 'PUB', classes: ['A'] },
-        { id: 'hall', label: 'Зал: актовый, зрительный, спортивный', category: 'PUB', classes: ['A', 'E'] },
-        { id: 'shopfloor', label: 'Торговый зал', category: 'PUB', classes: ['A', 'E'] },
-        { id: 'canteen', label: 'Столовая, обеденный зал', category: 'PUB', classes: ['A', 'E'] },
-        { id: 'ward', label: 'Палата, номер, жилая комната', category: 'PUB', classes: ['A', 'E'] }
+        { id: 'office', label: 'Кабинет, офис', short: 'Кабинет', category: 'PUB', classes: ['A', 'E'] },
+        { id: 'classroom', label: 'Учебный класс, аудитория', short: 'Класс', category: 'PUB', classes: ['A', 'E'] },
+        { id: 'corridor', label: 'Коридор, холл, вестибюль', short: 'Коридор', category: 'PUB', classes: ['A'] },
+        { id: 'hall', label: 'Зал: актовый, зрительный, спортивный', short: 'Зал', category: 'PUB', classes: ['A', 'E'] },
+        { id: 'shopfloor', label: 'Торговый зал', short: 'Торговый зал', category: 'PUB', classes: ['A', 'E'] },
+        { id: 'canteen', label: 'Столовая, обеденный зал', short: 'Столовая', category: 'PUB', classes: ['A', 'E'] },
+        { id: 'ward', label: 'Палата, номер, жилая комната', short: 'Палата', category: 'PUB', classes: ['A', 'E'] }
       ]
     },
     {
       group: 'Электроника и ценности (п. 9)', items: [
-        { id: 'server', label: 'Серверная, узел связи', category: 'PUB', classes: ['A', 'E'], sensitive: true },
-        { id: 'archive', label: 'Архив, книгохранилище', category: 'CV3', classes: ['A'], sensitive: true },
-        { id: 'museum', label: 'Музейный, выставочный зал', category: 'PUB', classes: ['A', 'E'], sensitive: true }
+        { id: 'server', label: 'Серверная, узел связи', short: 'Серверная', category: 'PUB', classes: ['A', 'E'], sensitive: true },
+        { id: 'archive', label: 'Архив, книгохранилище', short: 'Архив', category: 'CV3', classes: ['A'], sensitive: true },
+        { id: 'museum', label: 'Музейный, выставочный зал', short: 'Выставочный зал', category: 'PUB', classes: ['A', 'E'], sensitive: true }
       ]
     },
     {
       group: 'Технические помещения', items: [
-        { id: 'electro', label: 'Электрощитовая', category: 'CV4', classes: ['A', 'E'] },
-        { id: 'vent', label: 'Венткамера, насосная, тепловой пункт', category: 'CD', classes: ['A'] },
-        { id: 'storeroom', label: 'Кладовая, подсобное помещение', category: 'CV3', classes: ['A'] },
-        { id: 'boiler', label: 'Котельная', category: 'CG', classes: ['A', 'E'] }
+        { id: 'electro', label: 'Электрощитовая', short: 'Электрощитовая', category: 'CV4', classes: ['A', 'E'] },
+        { id: 'vent', label: 'Венткамера, насосная, тепловой пункт', short: 'Венткамера', category: 'CD', classes: ['A'] },
+        { id: 'storeroom', label: 'Кладовая, подсобное помещение', short: 'Кладовая', category: 'CV3', classes: ['A'] },
+        { id: 'boiler', label: 'Котельная', short: 'Котельная', category: 'CG', classes: ['A', 'E'] }
       ]
     },
     {
       group: 'Производство и склады', items: [
-        { id: 'store_solid', label: 'Склад твёрдых горючих материалов', category: 'CV3', classes: ['A'] },
-        { id: 'store_liquid', label: 'Склад ЛВЖ, ГЖ, горючих газов', category: 'CB', classes: ['A', 'B'] },
-        { id: 'workshop', label: 'Производственный цех', category: 'CV4', classes: ['A', 'E'] },
-        { id: 'noncomb', label: 'Помещение с негорючими материалами', category: 'CD', classes: ['A'] }
+        { id: 'store_solid', label: 'Склад твёрдых горючих материалов', short: 'Склад', category: 'CV3', classes: ['A'] },
+        { id: 'store_liquid', label: 'Склад ЛВЖ, ГЖ, горючих газов', short: 'Склад ЛВЖ', category: 'CB', classes: ['A', 'B'] },
+        { id: 'workshop', label: 'Производственный цех', short: 'Цех', category: 'CV4', classes: ['A', 'E'] },
+        { id: 'noncomb', label: 'Помещение с негорючими материалами', short: 'Помещение без горючих материалов', category: 'CD', classes: ['A'] }
       ]
     },
     {
       group: 'Объекты обслуживания (табл. 5)', items: [
-        { id: 't5_sto', label: 'Станция техобслуживания (СТО)', t5: 'sto' },
-        { id: 't5_parking', label: 'Открытая стоянка транспорта', t5: 'parking_open' },
-        { id: 't5_garage', label: 'Гаражи (боксы)', t5: 'garage_box' },
-        { id: 't5_admin', label: 'Помещение охраны стоянки, гаража', t5: 'parking_admin' },
-        { id: 't5_garage_terr', label: 'Территория гаража', t5: 'garage_territory' },
-        { id: 't5_azs_big', label: 'АЗС: 500 и более заправок в сутки', t5: 'azs_big' },
-        { id: 't5_azs_small', label: 'АЗС: менее 500 заправок в сутки', t5: 'azs_small' },
-        { id: 't5_azs_shop', label: 'Операторная, магазин, кафе при АЗС', t5: 'azs_shop' },
-        { id: 't5_kiosk', label: 'Отдельный павильон, киоск', t5: 'kiosk' },
-        { id: 't5_builtin_trade', label: 'Встроенный магазин, кафе, аптека, салон', t5: 'builtin_trade' },
-        { id: 't5_builtin_office', label: 'Встроенный офис, зал, клуб, мастерская', t5: 'builtin_office' }
+        { id: 't5_sto', label: 'Станция техобслуживания (СТО)', short: 'СТО', t5: 'sto' },
+        { id: 't5_parking', label: 'Открытая стоянка транспорта', short: 'Открытая стоянка', t5: 'parking_open' },
+        { id: 't5_garage', label: 'Гаражи (боксы)', short: 'Гараж', t5: 'garage_box' },
+        { id: 't5_admin', label: 'Помещение охраны стоянки, гаража', short: 'Помещение охраны', t5: 'parking_admin' },
+        { id: 't5_garage_terr', label: 'Территория гаража', short: 'Территория гаража', t5: 'garage_territory' },
+        { id: 't5_azs_big', label: 'АЗС: 500 и более заправок в сутки', short: 'АЗС', t5: 'azs_big' },
+        { id: 't5_azs_small', label: 'АЗС: менее 500 заправок в сутки', short: 'АЗС', t5: 'azs_small' },
+        { id: 't5_azs_shop', label: 'Операторная, магазин, кафе при АЗС', short: 'Магазин при АЗС', t5: 'azs_shop' },
+        { id: 't5_kiosk', label: 'Отдельный павильон, киоск', short: 'Киоск', t5: 'kiosk' },
+        { id: 't5_builtin_trade', label: 'Встроенный магазин, кафе, аптека, салон', short: 'Встроенный магазин', t5: 'builtin_trade' },
+        { id: 't5_builtin_office', label: 'Встроенный офис, зал, клуб, мастерская', short: 'Встроенный офис', t5: 'builtin_office' }
       ]
     },
     {
       group: 'Другое', items: [
-        { id: 'custom', label: 'Другое (задать вручную)', category: 'PUB', classes: ['A'] }
+        { id: 'custom', label: 'Другое (задать вручную)', short: 'Помещение', category: 'PUB', classes: ['A'] }
       ]
     }
   ];
@@ -71,11 +74,18 @@
   const BY_ID = {};
   PURPOSE_GROUPS.forEach(function (g) { g.items.forEach(function (p) { BY_ID[p.id] = p; }); });
 
+  // quick — назначения на кнопках быстрого добавления; первое подставляется в новую строку.
   const BUILDING_KINDS = [
-    { id: 'public', label: 'Общественное', hint: 'офисы, школы, больницы, торговые центры, гостиницы', purpose: 'office' },
-    { id: 'industrial', label: 'Производственное', hint: 'цеха, мастерские, котельные', purpose: 'workshop' },
-    { id: 'warehouse', label: 'Складское', hint: 'склады, базы, хранилища', purpose: 'store_solid' }
+    { id: 'public', label: 'Общественное', hint: 'офисы, школы, больницы, торговые центры, гостиницы',
+      quick: ['office', 'corridor', 'storeroom', 'server', 'electro', 'hall'] },
+    { id: 'industrial', label: 'Производственное', hint: 'цеха, мастерские, котельные',
+      quick: ['workshop', 'store_solid', 'store_liquid', 'electro', 'office', 'storeroom'] },
+    { id: 'warehouse', label: 'Складское', hint: 'склады, базы, хранилища',
+      quick: ['store_solid', 'store_liquid', 'office', 'electro', 'storeroom'] }
   ];
+  BUILDING_KINDS.forEach(function (k) { k.purpose = k.quick[0]; });
+
+  function shortName(purposeId) { return (BY_ID[purposeId] || BY_ID.custom).short; }
 
   // Подставляет в помещение категорию и классы пожара по назначению.
   function applyPurpose(room, purposeId) {
@@ -92,7 +102,7 @@
 
   function blankRoom(purposeId) {
     return applyPurpose({
-      name: '', area: '', length: '', width: '', autoSuppression: false, units: 1
+      name: '', area: '', count: 1, length: '', width: '', autoSuppression: false
     }, purposeId || 'office');
   }
 
@@ -113,10 +123,7 @@
               rooms: [
                 r('Офисы', 'office', 450, { length: 30, width: 15 }),
                 r('Серверная', 'server', 20),
-                r('Кладовая 1', 'storeroom', 10),
-                r('Кладовая 2', 'storeroom', 10),
-                r('Кладовая 3', 'storeroom', 10),
-                r('Кладовая 4', 'storeroom', 10),
+                r('Кладовая', 'storeroom', 10, { count: 4 }),
                 r('Венткамера', 'vent', 60)
               ]
             },
@@ -157,6 +164,6 @@
 
   return {
     PURPOSE_GROUPS: PURPOSE_GROUPS, BY_ID: BY_ID, BUILDING_KINDS: BUILDING_KINDS, EXAMPLES: EXAMPLES,
-    applyPurpose: applyPurpose, blankRoom: blankRoom
+    applyPurpose: applyPurpose, blankRoom: blankRoom, shortName: shortName
   };
 }));

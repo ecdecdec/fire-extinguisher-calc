@@ -314,6 +314,46 @@ test('каждое назначение из справочника даёт р�
   });
 });
 
+test('количество одинаковых помещений в строке', () => {
+  // небольшие помещения суммируются: 12 кабинетов по 150 м² = 1800 м², 9 × ОП-5
+  const pooled = one('industrial', room('Кабинет', 150, { count: 12 }));
+  assert.equal(total(pooled, 'ОП-5'), 9);
+  assert.equal(pooled.summary.rooms, 12);
+  assert.equal(pooled.summary.area, 1800);
+  const u = pooled.floors[0].units[0];
+  assert.equal(u.title, 'Кабинет × 12');
+  assert.equal(u.pooled, true);
+  assert.ok(u.steps.some(s => s.text.includes('150 × 12 = 1800 м²')));
+  // большие помещения считаются по одному и умножаются: 3 зала по 900 м², 5 × 3 = 15
+  const big = one('industrial', room('Зал', 900, { count: 3 }));
+  assert.equal(total(big, 'ОП-5'), 15);
+  assert.equal(big.floors[0].units[0].areaLabel, '900 × 3');
+  assert.ok(big.floors[0].units[0].steps.some(s => s.ref === 'Исходные данные'));
+  assert.ok(big.assumptions.some(a => a.includes('Одинаковые помещения')));
+  // то же, что три отдельные строки
+  assert.equal(total(one('industrial', [room('Зал', 900), room('Зал', 900), room('Зал', 900)]), 'ОП-5'), 15);
+  // категория Д менее 100 м² остаётся без огнетушителей при любом количестве
+  assert.equal(one('industrial', room('Венткамера', 60, { category: 'CD', classes: ['A'], count: 5 })).summary.portable, 0);
+  // объекты по табл. 5: две СТО по 250 м²; гаражи считаются количеством
+  const sto = one('industrial', { name: 'СТО', area: 250, t5: 'sto', count: 2 });
+  assert.equal(total(sto, 'ОП-5'), 12);
+  assert.equal(total(sto, 'ОУ-2'), 6);
+  assert.equal(total(one('industrial', { name: 'Гараж', t5: 'garage_box', count: 12 }), 'ОП-2'), 12);
+  // некорректное количество считается как одно помещение
+  assert.equal(one('industrial', room('Зал', 900, { count: 'abc' })).summary.rooms, 1);
+  assert.equal(one('industrial', room('Зал', 900, { count: 0 })).summary.rooms, 1);
+});
+
+test('имя помещения: своё, по назначению или по номеру', () => {
+  const r = one('industrial', [
+    { area: 20, category: 'PUB', classes: ['A'], fallbackName: 'Кабинет' },
+    { area: 20, category: 'PUB', classes: ['A'], fallbackName: 'Кабинет' },
+    { name: 'Приёмная', area: 20, category: 'PUB', classes: ['A'], fallbackName: 'Кабинет' },
+    { area: 20, category: 'PUB', classes: ['A'] }
+  ]);
+  assert.equal(r.floors[0].units[0].title, 'Кабинет × 2, Приёмная, Помещение 4');
+});
+
 test('строка нормативной таблицы для расчётной группы', () => {
   const u = one('industrial', room('Офисы', 450)).floors[0].units[0];
   assert.deepEqual(u.matrix.columns.map(c => c.code), ['ОП-2', 'ОП-5', 'ОП-10', 'ОУ-2', 'ОУ-3']);

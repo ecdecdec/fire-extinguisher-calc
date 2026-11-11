@@ -171,8 +171,8 @@
       f.units.forEach(function (u, i) {
         body.push([
           String(i + 1),
-          { text: u.title + (u.pooled ? ' (' + u.rooms.length + ' пом.)' : '') },
-          { text: u.area ? E.fmt(u.area) : '—', alignment: 'right' },
+          { text: u.title },
+          { text: u.areaLabel || '—', alignment: 'right' },
           { text: normShort(u), style: 'small' },
           u.classes.length ? u.classes.join(', ') : '—',
           { text: requiredText(u), bold: u.lines.length > 0, color: u.lines.length ? C.text : C.muted }

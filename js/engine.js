@@ -321,6 +321,16 @@
     }).join('; ');
   }
 
+  // Название расчётной группы: одинаковые имена сворачиваются в «Кабинет × 12».
+  function titleOf(rooms) {
+    const order = [], qty = {};
+    rooms.forEach(function (r) {
+      if (qty[r.name] === undefined) { qty[r.name] = 0; order.push(r.name); }
+      qty[r.name] += r.count;
+    });
+    return order.map(function (n) { return qty[n] > 1 ? n + ' × ' + qty[n] : n; }).join(', ');
+  }
+
   // Строки табл. 1 для классов пожара помещения: что допускает таблица и что выбрано.
   // Показывается в интерфейсе рядом с расчётом — видно, из какой ячейки взята норма.
   function buildMatrix(plan) {
@@ -349,13 +359,20 @@
     const area = group.area;
     const classSet = {};
     group.rooms.forEach(function (r) { (r.classes.length ? r.classes : ['A']).forEach(function (k) { classSet[k] = true; }); });
+    // mult — число одинаковых помещений, введённых одной строкой и не вошедших в
+    // общую группу: расчёт ведётся для одного помещения, итог умножается.
+    const mult = group.pool ? 1 : group.rooms[0].count;
+    const roomsInGroup = group.rooms.reduce(function (s, r) { return s + r.count; }, 0);
     const unit = {
       id: 'u_' + group.rooms[0].id,
       kind: 'table1',
-      title: group.rooms.map(function (r) { return r.name; }).join(', '),
-      rooms: group.rooms.map(function (r) { return { id: r.id, name: r.name, area: r.area }; }),
-      pooled: group.rooms.length > 1,
+      title: titleOf(group.rooms),
+      rooms: group.rooms.map(function (r) { return { id: r.id, name: r.name, area: r.area, count: r.count }; }),
+      roomCount: roomsInGroup,
+      count: mult,
+      pooled: !!group.pool && roomsInGroup > 1,
       area: area,
+      areaLabel: mult > 1 ? fmt(area) + ' × ' + mult : fmt(area),
       category: rep.category,
       categoryLabel: categoryLabel(rep.category),
       rowTitle: row.title,
@@ -371,8 +388,8 @@
     unit.steps.push(step('Прил. 3, п. 3; табл. 1', rowStep(rep, plan)));
     if (unit.pooled) {
       const parts = group.rooms.length <= 8
-        ? group.rooms.map(function (r) { return fmt(r.area); }).join(' + ') + ' = ' + fmt(area) + ' м²'
-        : fmt(area) + ' м² (' + group.rooms.length + ' помещений)';
+        ? group.rooms.map(function (r) { return r.count > 1 ? fmt(r.area) + ' × ' + r.count : fmt(r.area); }).join(' + ') + ' = ' + fmt(area) + ' м²'
+        : fmt(area) + ' м² (' + roomsInGroup + ' ' + plural(roomsInGroup, 'помещение', 'помещения', 'помещений') + ')';
       unit.steps.push(step('Прил. 3, п. 7', 'Небольшие помещения одной категории с одинаковой нормой считаются по суммарной площади: ' + parts + '.'));
     }
     if (group.rooms.some(function (r) { return !r.classes.length; })) {
@@ -459,7 +476,7 @@
 
     // п. 2, табл. 2 — передвижные огнетушители для больших производственных и складских помещений
     const wKey = wheeledRowKeyFor(rep.category, plan.classes);
-    if (opts.wheeled && wKey && !unit.pooled && area > N.TABLE2[wKey].area) {
+    if (opts.wheeled && wKey && !group.pool && area > N.TABLE2[wKey].area) {
       addWheeled(unit, rep, plan, wKey, opts);
     }
 
@@ -478,6 +495,20 @@
         unit.alternatives.push({ typeId: t, code: m.code, name: m.name, count: count, recommended: ev.recommended,
           text: count + ' × ' + m.code + (ev.recommended ? ' («++»)' : ' («+», при обосновании)') });
       });
+    }
+
+    if (mult > 1) {
+      unit.lines.forEach(function (l) {
+        const one = l.count;
+        l.count = one * mult;
+        l.basis += ' Одинаковых помещений ' + mult + ': ' + one + ' × ' + mult + ' = ' + l.count + ' шт.';
+      });
+      unit.alternatives.forEach(function (a) {
+        a.count *= mult;
+        a.text = a.count + ' × ' + a.code + (a.recommended ? ' («++»)' : ' («+», при обосновании)');
+      });
+      unit.steps.push(step('Исходные данные', 'Одинаковых помещений — ' + mult + ': расчёт выполнен для одного и умножен на ' + mult + '. Итого: ' +
+        unit.lines.map(function (l) { return l.count + ' × ' + lineTitle(l); }).join(', ') + '.'));
     }
     return unit;
   }
@@ -516,14 +547,17 @@
   function computeT5Unit(room) {
     const e = N.TABLE5[room.t5];
     const area = room.area;
+    const mult = room.count;
     const unit = {
-      id: 'u_' + room.id, kind: 'table5', title: room.name,
-      rooms: [{ id: room.id, name: room.name, area: area }], pooled: false, area: area,
+      id: 'u_' + room.id, kind: 'table5', title: titleOf([room]),
+      rooms: [{ id: room.id, name: room.name, area: area, count: mult }], roomCount: mult, count: mult, pooled: false,
+      area: area, areaLabel: area > 0 ? (mult > 1 ? fmt(area) + ' × ' + mult : fmt(area)) : '',
       category: null, categoryLabel: '—', rowTitle: e.title, rowArea: null,
       norm: 'Табл. 5: ' + e.title, classes: [],
       fallback: [], autoSuppression: !!room.autoSuppression, matrix: null,
       lines: [], steps: [], warnings: [], notes: [], alternatives: [], placement: []
     };
+    // blocks — число комплектов на один объект
     let blocks = 1, basis;
     if (e.basis === 'per100' || e.basis === 'upTo100') {
       if (!(area > 0)) unit.warnings.push('Не указана площадь — принят один комплект.');
@@ -534,28 +568,26 @@
         unit.warnings.push('Для помещения охраны норма задана только «до 100 м²» — для большей площади применён расчёт на каждые 100 м² (допущение).');
       }
     } else if (e.basis === 'perUnit') {
-      blocks = Math.max(1, toCount(room.units) || 1);
-      basis = 'на каждый гараж: ' + blocks + ' ' + plural(blocks, 'гараж', 'гаража', 'гаражей');
+      basis = 'норма на каждый гараж';
     } else {
-      basis = 'фиксированный набор на объект';
+      basis = 'постоянный набор на объект';
     }
     unit.steps.push(step('Прил. 3, табл. 5', '«' + e.title + '» — ' + basis + '.'));
 
+    const picked = [];
     e.items.forEach(function (it) {
       const idx = it.options.length > 1 && room.t5Alt ? 1 : 0;
       const o = it.options[idx];
       const kind = o.agent === 'shield' ? 'shield' : (o.wheeled ? 'wheeled' : 'portable');
-      const count = o.n * blocks;
+      const pcs = kind === 'shield' ? ' компл.' : ' шт.';
       const line = {
         kind: kind, typeId: o.code, code: o.code, name: '', agent: o.agent,
         charge: o.agent === 'powder' ? 'ABC(E)' : '',
-        classes: [], marks: {}, recommended: true, viaP9: false, forced: false, count: count,
-        basis: o.n + (kind === 'shield' ? ' компл.' : ' шт.') + ' × ' + blocks + ' = ' + count + (kind === 'shield' ? ' компл.' : ' шт.')
+        classes: [], marks: {}, recommended: true, viaP9: false, forced: false, count: o.n * blocks,
+        basis: o.n + pcs + ' × ' + blocks + ' = ' + (o.n * blocks) + pcs
       };
       unit.lines.push(line);
-      const other = it.options.filter(function (x, i) { return i !== idx; }).map(function (x) { return (x.n * blocks) + ' × ' + x.code; });
-      unit.steps.push(step('Прил. 3, табл. 5', lineTitle(line) + ': ' + line.basis + (other.length ? ' Допустимая замена: ' + other.join(' или ') + '.' : '')));
-      if (other.length) unit.alternatives.push({ t5Alt: idx ? 0 : 1, text: other.join(' или ') });
+      picked.push({ line: line, pcs: pcs, other: it.options.filter(function (x, i) { return i !== idx; }), altIdx: idx ? 0 : 1 });
     });
 
     if (room.autoSuppression) {
@@ -565,6 +597,19 @@
         l.count = Math.max(1, ceilSafe(before * 0.5));
         l.basis += ' АУПТ: ' + before + ' × 50 % — ' + l.count + ' шт.';
       });
+    }
+    picked.forEach(function (x) {
+      const l = x.line;
+      if (mult > 1) {
+        const one = l.count;
+        l.count = one * mult;
+        l.basis += ' Одинаковых объектов ' + mult + ': ' + one + ' × ' + mult + ' = ' + l.count + x.pcs;
+      }
+      const other = x.other.map(function (o) { return (o.n * blocks * mult) + ' × ' + o.code; });
+      unit.steps.push(step('Прил. 3, табл. 5', lineTitle(l) + ': ' + l.basis + (other.length ? ' Допустимая замена: ' + other.join(' или ') + '.' : '')));
+      if (other.length) unit.alternatives.push({ t5Alt: x.altIdx, text: other.join(' или ') });
+    });
+    if (room.autoSuppression) {
       unit.steps.push(step('Прил. 3, п. 10', 'Помещение оборудовано автоматической установкой пожаротушения — ручные огнетушители в размере 50 % от нормы.'));
     }
     unit.notes.push('Порошковые огнетушители допускается заменять воздушно-эмульсионными (прим. 3 к табл. 5).');
@@ -573,8 +618,9 @@
 
   function exemptUnit(room) {
     return {
-      id: 'u_' + room.id, kind: 'exempt', title: room.name,
-      rooms: [{ id: room.id, name: room.name, area: room.area }], pooled: false, area: room.area,
+      id: 'u_' + room.id, kind: 'exempt', title: titleOf([room]),
+      rooms: [{ id: room.id, name: room.name, area: room.area, count: room.count }], roomCount: room.count, count: room.count, pooled: false,
+      area: room.area, areaLabel: room.count > 1 ? fmt(room.area) + ' × ' + room.count : fmt(room.area),
       category: 'CD', categoryLabel: 'Д', rowTitle: '', rowArea: null, norm: 'Прил. 3, п. 6',
       classes: room.classes.slice(), fallback: [], autoSuppression: false, matrix: null, lines: [],
       steps: [step('Прил. 3, п. 6', 'Помещение категории Д площадью ' + fmt(room.area) + ' м² (менее 100 м²) допускается не оснащать ручными огнетушителями.')],
@@ -586,7 +632,7 @@
     return {
       id: 'u_min_' + floor.id, kind: 'floorMin', title: 'Минимум на этаж',
       rooms: [], pooled: false, area: 0, category: null, categoryLabel: '—', rowTitle: '', rowArea: null,
-      norm: 'Прил. 3, п. 5', classes: ['A', 'E'], fallback: [], autoSuppression: false, matrix: null,
+      norm: 'Прил. 3, п. 5', classes: ['A', 'E'], fallback: [], autoSuppression: false, matrix: null, roomCount: 0, count: 1, areaLabel: '',
       lines: [{
         kind: 'portable', typeId: 'P5', code: N.PORTABLE_TYPES.P5.code, name: N.PORTABLE_TYPES.P5.name, agent: 'powder', charge: 'ABC(E)',
         classes: ['A', 'E'], marks: { A: '++', E: '++' }, recommended: true, viaP9: false, forced: false,
@@ -599,6 +645,13 @@
   }
 
   // ---------- нормализация входных данных ----------
+
+  // Число одинаковых помещений в строке. Для гаражей раньше было отдельное поле units.
+  function countOf(r) {
+    let n = Math.round(toNumber(r.count));
+    if (!n && r.t5 === 'garage_box') n = toCount(r.units) || 0;
+    return Math.min(999, Math.max(1, n || 1));
+  }
 
   function normalize(input) {
     const b = input || {};
@@ -617,7 +670,8 @@
         rooms: (f.rooms || []).map(function (r, ri) {
           return {
             id: r.id || ('r' + fi + '_' + ri),
-            name: (r.name || '').trim() || ('Помещение ' + (ri + 1)),
+            name: (r.name || '').trim() || (r.fallbackName || '').trim() || ('Помещение ' + (ri + 1)),
+            count: countOf(r),
             purpose: r.purpose || '',
             category: r.t5 ? null : (N.CATEGORIES[r.category] ? r.category : 'PUB'),
             area: toNumber(r.area),
@@ -627,8 +681,7 @@
             length: toNumber(r.length), width: toNumber(r.width),
             forceType: N.PORTABLE_TYPES[r.forceType] ? r.forceType : '',
             t5: N.TABLE5[r.t5] ? r.t5 : '',
-            t5Alt: r.t5Alt ? 1 : 0,
-            units: r.units
+            t5Alt: r.t5Alt ? 1 : 0
           };
         })
       };
@@ -658,8 +711,8 @@
 
       floor.rooms.forEach(function (room, i) {
         position[room.id] = i;
-        result.summary.rooms += 1;
-        result.summary.area += room.area;
+        result.summary.rooms += room.count;
+        result.summary.area += room.area * room.count;
         if (room.t5) { placed.push({ pos: i, unit: computeT5Unit(room) }); return; }
         if (!(room.area > 0)) { fr.warnings.push('«' + room.name + '»: не указана площадь — помещение не рассчитано.'); return; }
         if (room.category === 'CD' && room.area < 100) { placed.push({ pos: i, unit: exemptUnit(room) }); return; }
@@ -671,14 +724,14 @@
           const g = byKey[key];
           if (g) {
             g.rooms.push(room);
-            g.area += room.area;
+            g.area += room.area * room.count;
             if (plan.classes.length > g.plan.classes.length) { g.plan = plan; g.planRoom = room; }
             return;
           }
-          byKey[key] = { rooms: [room], area: room.area, plan: plan, planRoom: room };
+          byKey[key] = { rooms: [room], area: room.area * room.count, plan: plan, planRoom: room, pool: true };
           groups.push(byKey[key]);
         } else {
-          groups.push({ rooms: [room], area: room.area, plan: plan, planRoom: room });
+          groups.push({ rooms: [room], area: room.area, plan: plan, planRoom: room, pool: false });
         }
       });
       groups.forEach(function (g) { placed.push({ pos: position[g.rooms[0].id], unit: computeUnit(g, building, opts) }); });
@@ -763,7 +816,7 @@
     });
     // В отчёт попадают только те допущения, которые повлияли на этот расчёт.
     const used = { table1: false, pooled: false, rowByClass: false, fallback: false, exempt: false, auto: false,
-      dims: false, wheeled: false, t5: false, sensitive: false, pub: false };
+      dims: false, wheeled: false, t5: false, sensitive: false, pub: false, multi: false };
     result.floors.forEach(function (fr) {
       fr.units.forEach(function (u) {
         if (u.kind === 'table1') {
@@ -778,6 +831,7 @@
         }
         if (u.kind === 'table5') used.t5 = true;
         if (u.kind === 'exempt') used.exempt = true;
+        if (u.rooms.some(function (r) { return r.count > 1; })) used.multi = true;
         if (u.autoSuppression) used.auto = true;
       });
     });
@@ -819,6 +873,9 @@
     }
     if (on('exempt')) {
       a.push('Пункт 6 применяется к каждому помещению категории Д отдельно, до суммирования площадей.');
+    }
+    if (on('multi')) {
+      a.push('Одинаковые помещения, введённые одной строкой с количеством, считаются как отдельные помещения: небольшие суммируются по п. 7, для остальных расчёт одного помещения умножается на количество.');
     }
     if (on('auto')) {
       a.push('Пункт 10 (АУПТ): 50 % от нормы с округлением вверх, не менее 1 шт.; минимум два огнетушителя на этаж (п. 5) проверяется после этой поправки.');
