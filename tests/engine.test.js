@@ -8,8 +8,11 @@ const P = require('../js/presets.js');
 function room(name, area, extra) {
   return Object.assign({ name: name, area: area, category: 'PUB', classes: ['A', 'E'] }, extra || {});
 }
+// Одно помещение (или несколько) на одном этаже. Чтобы каждое правило проверялось
+// отдельно, минимум «два на этаж» в производственных и складских зданиях здесь
+// выключен; сам он проверяется в тесте про п. 5.
 function one(kind, r, options) {
-  return E.calculate({ kind: kind, floors: [{ rooms: Array.isArray(r) ? r : [r] }] }, options);
+  return E.calculate({ kind: kind, floors: [{ rooms: Array.isArray(r) ? r : [r] }] }, Object.assign({ floorMinAll: false }, options));
 }
 function total(result, code, charge) {
   return result.totals.filter(t => t.code === code && (charge === undefined || t.charge === charge))
@@ -97,10 +100,39 @@ test('п. 5: на этаже общественного здания не мен
   const r = one('public', room('Кабинет', 30));
   assert.equal(r.floors[0].portable.powder, 2);
   assert.ok(r.floors[0].units.some(u => u.kind === 'floorMin'));
-  // в производственном здании п. 5 не применяется
+  assert.equal(r.floors[0].units.find(u => u.kind === 'floorMin').byRules, true);
+  // производственное и складское здание: по умолчанию тоже не менее двух (параметр расчёта),
+  // с пометкой, что Приложение 3 требует этого только в общественных
+  ['industrial', 'warehouse'].forEach(kind => {
+    const all = one(kind, room('Кабинет', 30), { floorMinAll: true });
+    assert.equal(all.floors[0].portable.powder, 2, kind);
+    const min = all.floors[0].units.find(u => u.kind === 'floorMin');
+    assert.equal(min.byRules, false);
+    assert.equal(min.steps[0].ref, 'Параметр расчёта');
+    assert.ok(all.assumptions.some(a => a.includes('применено и к производственным и складским зданиям')));
+  });
+  assert.equal(E.DEFAULT_OPTIONS.floorMinAll, true);
+  assert.equal(E.calculate({ kind: 'industrial', floors: [{ rooms: [room('Кабинет', 30)] }] }).summary.portable, 2);
+  // с выключенным параметром — строго по п. 5: только общественные здания
   const ind = one('industrial', room('Кабинет', 30));
   assert.equal(ind.floors[0].portable.powder, 1);
   assert.ok(!ind.floors[0].units.some(u => u.kind === 'floorMin'));
+  assert.equal(one('public', room('Кабинет', 30), { floorMinAll: false }).summary.portable, 2);
+  assert.ok(!r.assumptions.some(a => a.includes('применено и к производственным')));
+  // производственное здание: этаж без помещений по табл. 1 (только объекты табл. 5 или
+  // помещения Д менее 100 м²) расширенным правилом не дополняется — действуют табл. 5 и п. 6
+  const ind1 = rooms => E.calculate({ kind: 'industrial', floors: [{ rooms: rooms }] }).summary.portable;
+  const vent = { name: 'Венткамера', area: 60, category: 'CD', classes: ['A'] };
+  assert.equal(ind1([{ name: 'Гараж', t5: 'garage_box', count: 1 }]), 1);
+  assert.equal(ind1([{ name: 'Киоск', t5: 'kiosk', area: 20 }]), 1);
+  assert.equal(ind1([vent]), 0);
+  assert.equal(ind1([vent, { name: 'Гараж', t5: 'garage_box', count: 1 }]), 1);
+  assert.equal(ind1([vent, { name: 'Кладовая', area: 10, category: 'CV3', classes: ['A'] }]), 2);
+  // общественное здание: п. 5 — для любого этажа с данными, в том числе только с объектами табл. 5
+  const pub1 = rooms => E.calculate({ kind: 'public', floors: [{ rooms: rooms }] }).summary.portable;
+  assert.equal(pub1([{ name: 'Гараж', t5: 'garage_box', count: 1 }]), 2);
+  assert.equal(pub1([{ name: 'Встроенный магазин', t5: 'builtin_trade', area: 60, t5Alt: 1 }]), 2); // 1 × ОП-10 и 1 по п. 5
+  assert.equal(pub1([vent]), 2);
   // пустой этаж и этаж без введённых площадей не дополняются
   assert.equal(E.calculate({ kind: 'public', floors: [{ rooms: [] }] }).summary.portable, 0);
   assert.equal(E.calculate({ kind: 'public', floors: [{ rooms: [room('Кабинет', '')] }] }).summary.portable, 0);
@@ -265,7 +297,7 @@ test('сверка с фактическим наличием', () => {
   assert.equal(r.check.ok, false);
   assert.equal(r.check.deficitOP, 1);
   assert.equal(r.check.deficitOU, 1);
-  b.floors.forEach(f => { f.installedOP = ''; f.installedOU = ''; });
+  b.floors.forEach(f => { f.installedOP = ''; f.installedOU = ''; f.plan = null; });
   assert.equal(E.calculate(b).check, null);
   b.floors[0].installedOP = 0;
   assert.equal(E.calculate(b).check.deficitOP, 4);
@@ -308,9 +340,12 @@ test('итог сходится с суммой по этажам', () => {
 test('каждое назначение из справочника даёт расчёт', () => {
   Object.values(P.BY_ID).forEach(p => {
     const rm = Object.assign(P.blankRoom(p.id), { name: p.label, area: 120 });
-    const r = E.calculate({ kind: 'industrial', floors: [{ rooms: [rm] }] });
+    const r = E.calculate({ kind: 'industrial', floors: [{ rooms: [rm] }] }, { floorMinAll: false });
     assert.ok(r.floors[0].units.length === 1, p.id);
     assert.ok(r.summary.portable >= 1, p.id);
+    // с настройками по умолчанию на этаже всегда не менее двух, кроме объектов по табл. 5
+    const d = E.calculate({ kind: 'industrial', floors: [{ rooms: [rm] }] });
+    assert.ok(d.summary.portable >= (p.t5 ? 1 : 2), p.id);
   });
 });
 

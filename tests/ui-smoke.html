@@ -255,6 +255,134 @@
       await open('&demo=factory&step=3');
       eq('ссылка ?demo=factory&step=3', [title(), totals().length], ['Производственная база (пример)', 5]);
 
+      // --- схема этажа: что стоит на объекте ---
+      await open('&demo=business');
+      const W = () => doc().defaultView;
+      const svg = () => q('[data-test=plan-svg]');
+      const marks = () => svg().querySelectorAll('.plan__ext').length;
+      const finds = () => qa('[data-test=finds] .find').map(text);
+      const planRoom = name => Array.from(svg().querySelectorAll('.plan__room')).find(r => text(r.querySelector('title')) === name);
+      const verdict = () => text(q('.verdict__title'));
+      async function tap(el, fx, fy) {
+        const b = el.getBoundingClientRect();
+        el.dispatchEvent(new (W().MouseEvent)('click', { bubbles: true, cancelable: true, clientX: b.left + b.width * fx, clientY: b.top + b.height * fy }));
+        await sleep(60);
+      }
+      ok('в примере схема первого этажа раскрыта', qa('[data-test=plan-svg]').length === 1);
+      eq('на схеме семь помещений и три огнетушителя', [svg().querySelectorAll('.plan__room').length, marks()], [7, 3]);
+      eq('помещения без размеров показаны пунктиром', svg().querySelectorAll('.plan__room--approx').length, 6);
+      eq('три нарушения из примера', finds().length, 3);
+      ok('порошковый в серверной назван нарушением', finds().join(' ').includes('«Серверная»: стоит порошковый огнетушитель'));
+      eq('числа «есть» взяты со схемы', checkRows()[0], ['1 этаж', '4', '3', '1', '1', '0', '1']);
+      ok('под схемой — сводка отмеченного', text(q('[data-test=plan-stat]')) === 'Отмечено: ОП 3 · ОУ 0 · расстояние в норме', text(q('[data-test=plan-stat]')));
+
+      await tap(svg().querySelectorAll('.plan__ext')[2], 0.5, 0.5);
+      ok('нажатие на огнетушитель убирает его', marks() === 2 && toast().includes('убран'));
+      eq('нарушение по серверной снято, нехватка выросла', finds().length === 2 && checkRows()[0][2], '2');
+      await click(q('[data-test=plan-mode-ou]'));
+      await tap(planRoom('Серверная'), 0.5, 0.5);
+      eq('углекислотный отмечен в серверной', [marks(), checkRows()[0][5], finds().length], [3, '1', 1]);
+      await click(q('[data-test=plan-mode-op]'));
+      await tap(planRoom('Офисы'), 0.5, 0.05);
+      await tap(planRoom('Офисы'), 0.5, 0.95);
+      eq('после отметки недостающих — соответствует', [marks(), verdict(), finds().length], [5, 'Соответствует', 0]);
+      await tap(planRoom('Серверная'), 0.2, 0.3);
+      ok('порошковый в серверной сразу называется нарушением', toast().includes('нарушение') && verdict() === 'Не соответствует');
+      ok('количество в норме, нарушение по размещению', text(q('.verdict')).includes('Количество достаточное, но есть нарушения по размещению.'), text(q('.verdict')));
+      await tap(svg().querySelectorAll('.plan__ext')[5], 0.5, 0.5);
+      eq('лишний убран', [marks(), verdict()], [5, 'Соответствует']);
+
+      // «по нормам» — расчётная расстановка, факт не меняется
+      await click(q('[data-test=plan-view-want]'));
+      eq('расстановка по расчёту: 4 порошковых и 1 углекислотный', [svg().querySelectorAll('.plan__ext--op').length, svg().querySelectorAll('.plan__ext--ou').length], [4, 1]);
+      ok('подпись расчётной расстановки', text(q('.plan__hint')).includes('Расстановка по расчёту: 5 огнетушителей'));
+      eq('в расстановке по нормам нет мест дальше нормы', svg().querySelectorAll('.plan__gap').length, 0);
+      await tap(planRoom('Офисы'), 0.3, 0.3);
+      eq('нажатие на схему «по нормам» ничего не отмечает', marks(), 5);
+      await click(q('[data-test=plan-view-fact]'));
+
+      // перетаскивание помещений
+      await click(q('[data-test=plan-mode-move]'));
+      const office = planRoom('Офисы'), ob = office.getBoundingClientRect();
+      const pointer = (type, target, x, y) => target.dispatchEvent(new (W().PointerEvent)(type, { bubbles: true, cancelable: true, pointerId: 1, clientX: x, clientY: y }));
+      pointer('pointerdown', office, ob.left + ob.width / 2, ob.top + ob.height / 2); await sleep(40);
+      pointer('pointermove', svg(), ob.left + ob.width / 2 + 60, ob.top + ob.height / 2 + 30); await sleep(40);
+      pointer('pointerup', svg(), ob.left + ob.width / 2 + 60, ob.top + ob.height / 2 + 30); await sleep(80);
+      ok('перетаскивание закрепляет расположение помещений', !!q('[data-test=plan-reset]'));
+      eq('огнетушители переехали вместе с помещениями', [marks(), verdict()], [5, 'Соответствует']);
+      await click(q('[data-test=plan-reset]'));
+      ok('расположение можно вернуть', !q('[data-test=plan-reset]'));
+      await click(q('[data-test=plan-mode-op]'));
+
+      await open('&demo=business');
+      eq('отметки на схеме сохраняются', [marks(), verdict()], [5, 'Соответствует']);
+      await click(floors()[0].querySelector('[data-test=plan-toggle]'));
+      ok('схему можно свернуть', !svg());
+
+      // --- замер шагами ---
+      await click(q('[data-test=new]'));
+      await click(room(0, 0).querySelector('.norm__btn'));
+      await click(room(0, 0).querySelector('[data-test=steps-toggle]'));
+      await setValue(room(0, 0).querySelector('[data-test=steps-l]'), '10');
+      await setValue(room(0, 0).querySelector('[data-test=steps-w]'), '8');
+      const dimValues = () => Array.from(room(0, 0).querySelectorAll('.m-dim input')).map(i => i.value);
+      eq('шаги переведены в метры, площадь посчитана', [dimValues(), room(0, 0).querySelector('.f-area input').value], [['7.5', '6'], '45']);
+      await setValue(room(0, 0).querySelector('[data-test=steps-l]'), '12');
+      eq('поправка замера пересчитывает площадь', [dimValues(), room(0, 0).querySelector('.f-area input').value], [['9', '6'], '54']);
+      await click(floors()[0].querySelector('[data-test=plan-toggle]'));
+      eq('помещение с размерами на схеме — сплошной линией', [svg().querySelectorAll('.plan__room').length, svg().querySelectorAll('.plan__room--approx').length], [1, 0]);
+      eq('пока ничего не отмечено, красным ничего не закрашено', [marks(), svg().querySelectorAll('.plan__gap').length], [0, 0]);
+      ok('без отметок кнопки «Убрать все» нет', !q('[data-test=plan-clear]'));
+
+      // --- не менее двух на этаже: в общественном здании по п. 5, в остальных — параметр расчёта ---
+      eq('общественное здание: кабинет 54 м² — два огнетушителя', need(floors()[0]), '2 × ОП-5');
+      await click(q('.seg input[value=industrial]'));
+      eq('производственное здание: по умолчанию тоже два', need(floors()[0]), '2 × ОП-5');
+      ok('минимум в производственном здании подписан как параметр расчёта', units().some(u => text(u.querySelector('.unit__meta')).includes('параметр расчёта')));
+      await click(q('[data-test=opt-min-all]'));
+      eq('параметр выключен — строго по п. 5, один огнетушитель', need(floors()[0]), '1 × ОП-5');
+      await click(q('[data-test=opt-min-all]'));
+      eq('параметр включён обратно', need(floors()[0]), '2 × ОП-5');
+      await click(q('.seg input[value=public]'));
+
+      // --- расчёт по ссылке ---
+      await click(q('[data-test=share]'));
+      await sleep(400);
+      // если браузер не дал скопировать сам, ссылка показывается в окне
+      ok('ссылка на расчёт собирается', toast().includes('Ссылка скопирована') || (!!q('[data-test=link-dialog]') && q('.linkbox').value.includes('#o=')), toast());
+      if (q('[data-test=link-dialog]')) {
+        await click(q('[data-test=link-close]'));
+        ok('окно со ссылкой закрывается', !q('[data-test=link-dialog]'));
+      }
+      const code = await W().FireShare.encode({
+        building: { name: 'По ссылке', kind: 'public' },
+        floors: [{ name: '1 этаж', rooms: [{ id: 'a', name: 'Зал', purpose: 'hall', area: 300, count: 1, category: 'PUB', classes: ['A', 'E'], length: 20, width: 15 }],
+          plan: { open: true, ext: [{ k: 'a:0', u: 0.5, v: 0.5, t: 'op' }] } }]
+      });
+      await open('#o=' + code);
+      await sleep(500);
+      eq('расчёт открыт по ссылке', [title(), need(floors()[0])], ['По ссылке', '2 × ОП-5']);
+      eq('схема и отметка пришли вместе с расчётом', [marks(), verdict()], [1, 'Не соответствует']);
+      ok('адрес после открытия очищен', W().location.hash === '');
+
+      // --- назначение по имени: «Серверная» не остаётся кабинетом с порошковым ---
+      await click(q('[data-test=new]'));
+      const nameIn = () => room(0, 0).querySelector('.f-name input');
+      const purposeOf = () => room(0, 0).querySelector('.f-purpose select').value;
+      await setValue(room(0, 0).querySelector('.f-area input'), '20');
+      eq('кабинет 20 м² — порошковые', need(floors()[0]), '2 × ОП-5');
+      await setValue(nameIn(), 'Серверная'); await setValue(nameIn(), 'Серверная', 'change');
+      eq('имя «Серверная» меняет назначение на серверную', purposeOf(), 'server');
+      eq('в серверной только углекислотные', need(floors()[0]), '2 × ОУ-3');
+      ok('об этом сказано, и это можно отменить', toast().includes('назначение по имени') && !!q('[data-test=undo]'), toast());
+      await click(q('[data-test=undo]'));
+      eq('отмена возвращает прежнее назначение', [purposeOf(), need(floors()[0])], ['office', '2 × ОП-5']);
+      await setValue(nameIn(), 'Серверная 2'); await setValue(nameIn(), 'Серверная 2', 'change');
+      eq('после отмены имя назначение больше не меняет', purposeOf(), 'office');
+      await setValue(room(0, 0).querySelector('.f-purpose select'), 'server', 'change');
+      await setValue(nameIn(), 'Кабинет'); await setValue(nameIn(), 'Кабинет', 'change');
+      eq('назначение, выбранное из списка, по имени не меняется', purposeOf(), 'server');
+
       // --- телефон ---
       frame.style.width = '390px';
       await open('&demo=business');

@@ -7,9 +7,9 @@
  * vfs_fonts.js (проверяется тестом tests/report.test.js).
  */
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory(require('./norms.js'), require('./engine.js'));
-  else root.FireReport = factory(root.FireNorms, root.FireEngine);
-}(typeof self !== 'undefined' ? self : this, function (N, E) {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./norms.js'), require('./engine.js'), require('./plan.js'));
+  else root.FireReport = factory(root.FireNorms, root.FireEngine, root.FirePlan);
+}(typeof self !== 'undefined' ? self : this, function (N, E, PL) {
   'use strict';
 
   const APP_NAME = 'Расчёт огнетушителей';
@@ -59,14 +59,46 @@
     paddingBottom: function () { return 3; }
   };
 
+  // Ёмкость QR-кода в байтах при уровне коррекции L, версии 1–40.
+  const QR_CAP_L = [17, 32, 53, 78, 106, 134, 154, 192, 230, 271, 321, 367, 425, 458, 520, 586, 644, 718, 792, 858,
+    929, 1003, 1091, 1171, 1273, 1367, 1465, 1528, 1628, 1732, 1840, 1952, 2068, 2188, 2303, 2431, 2563, 2699, 2809, 2953];
+
+  // Сторона QR-кода со ссылкой, в пунктах. pdfmake округляет клетку вниз до целого
+  // пункта: при стороне 96 pt и ссылке в 450 знаков клетка выходила 1 pt (0,35 мм), такой
+  // код плохо читается с бумаги и почти не читается с экрана. Поэтому сторона кратна
+  // числу клеток, с запасом на версию больше: клетка 2–3 pt (0,7–1 мм).
+  function qrSide(text) {
+    const bytes = new TextEncoder().encode(text).length;
+    let v = 1;
+    while (v < 40 && QR_CAP_L[v - 1] < bytes) v += 1;
+    const n = 17 + 4 * v;
+    return (3 * (n + 4) <= 190 ? 3 : 2) * (n + 4);
+  }
+
   function th(text, extra) { return Object.assign({ text: text, style: 'th' }, extra || {}); }
   function h2(text) { return { text: text, style: 'h2' }; }
   function bullets(items) {
     return { ul: items.map(function (t) { return { text: t, margin: [0, 0, 0, 2] }; }), style: 'small', margin: [0, 0, 0, 4] };
   }
 
+  // Схема этажа с подписью. sc — сцена из plan.js; width — ширина рисунка в пунктах.
+  function schemeBlock(caption, sc, width) {
+    const pic = PL.svg(sc, width, 230);
+    return { width: width, stack: [{ text: caption, style: 'small', margin: [0, 0, 0, 3] }, { svg: pic.svg, width: pic.width, height: pic.height }] };
+  }
+
+  function countMarks(sc) {
+    const n = PL.tally(sc);
+    return 'ОП — ' + n.op + ', ОУ — ' + n.ou + (n.other ? ', других — ' + n.other : '');
+  }
+
+  // meta: generatedAt — дата формирования; audit — проверка объекта (plan.js: audit);
+  // schemes — схемы этажей (plan.js: schemes); link — ссылка на этот расчёт для QR-кода.
   function buildDoc(result, meta) {
     meta = meta || {};
+    const audit = meta.audit || null;
+    const findings = audit ? audit.findings : [];
+    const schemes = meta.schemes || [];
     const b = result.building;
     const generated = meta.generatedAt instanceof Date ? meta.generatedAt : new Date();
     const dateText = formatDate(b.date) || formatDate(generated);
@@ -77,25 +109,14 @@
 
     // ---------- шапка ----------
     const qrPayload = ['FIRECALC', b.date || isoDate(generated), E.summaryCode(result) || '-', 'S=' + Math.round(result.summary.area)].join('|');
-    content.push({
-      columns: [
-        {
-          width: '*',
-          stack: [
-            { text: 'РАСЧЁТ', style: 'title' },
-            { text: 'необходимого количества и типов огнетушителей', style: 'subtitle' },
-            { text: 'по Приложению 3 к Правилам пожарной безопасности Республики Казахстан (приказ МЧС РК от 21.02.2022 № 55) и СТ РК 1487-2006', style: 'small', color: C.muted, margin: [0, 4, 0, 0] }
-          ]
-        },
-        { width: 64, qr: qrPayload, fit: 64, eccLevel: 'M', foreground: C.text }
-      ],
-      columnGap: 16,
-      margin: [0, 0, 0, 12]
-    });
-
-    content.push({
+    const titleStack = [
+      { text: 'РАСЧЁТ', style: 'title' },
+      { text: 'необходимого количества и типов огнетушителей', style: 'subtitle' },
+      { text: 'по Приложению 3 к Правилам пожарной безопасности Республики Казахстан (приказ МЧС РК от 21.02.2022 № 55) и СТ РК 1487-2006', style: 'small', color: C.muted, margin: [0, 4, 0, 0] }
+    ];
+    const info = {
       table: {
-        widths: [150, '*'],
+        widths: [meta.link ? 104 : 150, '*'],
         body: [
           ['Объект', b.name || '—'],
           ['Адрес', b.address || '—'],
@@ -107,8 +128,32 @@
         ].map(function (r) { return [{ text: r[0], color: C.muted }, { text: r[1] }]; })
       },
       layout: grid,
-      margin: [0, 0, 0, 6]
-    });
+      margin: [0, meta.link ? 12 : 0, 0, meta.link ? 0 : 6]
+    };
+    if (meta.link) {
+      // QR-код со ссылкой открывает этот же расчёт камерой телефона. Он крупный,
+      // поэтому рядом с ним — заголовок и данные объекта.
+      const side = qrSide(meta.link);
+      content.push({
+        columns: [
+          { width: '*', stack: titleStack.concat([info]) },
+          { width: side, stack: [
+            { qr: meta.link, fit: side, eccLevel: 'L', foreground: C.text },
+            { text: 'Наведите камеру телефона — откроется этот расчёт со схемой и отметками', style: 'tiny', color: C.muted, alignment: 'center', margin: [0, 4, 0, 0] }
+          ] }
+        ],
+        columnGap: 16,
+        margin: [0, 0, 0, 6]
+      });
+    } else {
+      // без ссылки (страница открыта из файла или расчёт не помещается в код) — краткий итог
+      content.push({
+        columns: [{ width: '*', stack: titleStack }, { width: 64, qr: qrPayload, fit: 64, eccLevel: 'M', foreground: C.text }],
+        columnGap: 16,
+        margin: [0, 0, 0, 12]
+      });
+      content.push(info);
+    }
 
     // ---------- итог ----------
     content.push(nextSection('Итог: требуется по нормам'));
@@ -149,11 +194,30 @@
       });
       body.push(cells('Итого', result.check, true));
       content.push({ table: { headerRows: 1, widths: ['*', 58, 44, 62, 58, 44, 62], body: body }, layout: grid });
+      const bad = !result.check.ok || (audit && audit.status === 'bad');
+      const verdict = result.check.ok && bad ? 'Количество достаточное, но есть нарушения по размещению.' : result.check.text;
       content.push({
-        text: [{ text: 'Вывод: ', bold: true }, { text: result.check.ok ? 'соответствует. ' : 'не соответствует. ', bold: true, color: result.check.ok ? C.ok : C.bad }, result.check.text],
+        text: [{ text: 'Вывод: ', bold: true }, { text: bad ? 'не соответствует. ' : 'соответствует. ', bold: true, color: bad ? C.bad : C.ok }, verdict],
         margin: [0, 5, 0, 0]
       });
-      content.push({ text: 'Сверяется количество ручных порошковых (ОП) и углекислотных (ОУ) огнетушителей по этажам. Типоразмер, заряд, исправность и размещение проверяются при осмотре.', style: 'small', color: C.muted, margin: [0, 3, 0, 0] });
+      content.push({ text: 'Сверяется количество ручных порошковых (ОП) и углекислотных (ОУ) огнетушителей по этажам' +
+        (result.floors.some(function (f) { return f.fromPlan; }) ? '; у этажей со схемой количество взято с неё' : '') +
+        '. Типоразмер, заряд, исправность и размещение проверяются при осмотре.', style: 'small', color: C.muted, margin: [0, 3, 0, 0] });
+    }
+
+    // ---------- перечень нарушений ----------
+    if (findings.length) {
+      content.push(nextSection('Перечень нарушений'));
+      const body = [[th('№'), th('Этаж'), th('Что выявлено'), th('Основание')]];
+      findings.forEach(function (f, i) {
+        body.push([
+          String(i + 1),
+          { text: f.floor },
+          { text: (f.level === 'warn' ? 'Проверить на месте. ' : '') + f.text, color: f.level === 'warn' ? C.warn : C.text },
+          { text: f.ref, style: 'small', color: C.muted }
+        ]);
+      });
+      content.push({ table: { headerRows: 1, widths: [16, 70, '*', 110], body: body }, layout: grid });
     }
 
     // ---------- расчёт по этажам ----------
@@ -194,6 +258,31 @@
         content.push({ stack: stack, margin: [0, 0, 0, 4], unbreakable: stack.length <= 9 });
       });
     });
+
+    // ---------- схемы этажей ----------
+    if (schemes.length) {
+      // заголовок раздела держится вместе с первой схемой
+      const heading = nextSection('Схемы размещения огнетушителей');
+      let approx = false;
+      schemes.forEach(function (s, si) {
+        const both = !!s.fact, width = both ? 250 : 400;
+        const extra = s.want.ext.filter(function (e) { return e.extra; }).length;
+        const wantCaption = 'По нормам — расчётная расстановка: ' + countMarks(s.want) + (extra ? ' (из них по расстоянию — ' + extra + ')' : '');
+        const cols = [];
+        if (both) cols.push(schemeBlock('Как есть — отмечено при осмотре: ' + countMarks(s.fact), s.fact, width));
+        cols.push(schemeBlock(wantCaption, s.want, width));
+        if (s.want.rects.some(function (r) { return r.approx; })) approx = true;
+        const stack = [{ text: s.name, bold: true, style: 'h3' }, { columns: cols, columnGap: 15 }];
+        if (si === 0) stack.unshift(heading);
+        content.push({ stack: stack, unbreakable: true, margin: [0, 0, 0, 8] });
+      });
+      content.push({
+        text: 'П — порошковый (ОП), У — углекислотный (ОУ). Пунктирный круг — предельное расстояние до огнетушителя по прямой (п. 4), красным закрашены места дальше нормы. ' +
+          'Расположение помещений на схеме задаёт пользователь' + (approx ? '; помещения с пунктирным контуром введены без размеров, их форма условная' : '') +
+          '. Передвижные огнетушители и пожарные щиты на схеме не показаны.',
+        style: 'small', color: C.muted
+      });
+    }
 
     // ---------- размещение ----------
     content.push(nextSection('Требования к размещению и содержанию'));

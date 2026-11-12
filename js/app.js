@@ -2,6 +2,10 @@
  * Интерфейс: слева ввод помещений, справа сразу результат. На узком экране это
  * две вкладки. Vue 3 без сборки; расчёт — FireEngine, отчёт — FireReport.
  *
+ * Под помещениями каждого этажа — схема (FirePlan): на ней отмечают, какие
+ * огнетушители стоят на объекте; из отметок получается перечень нарушений.
+ * Расчёт целиком помещается в ссылку (FireShare) — она же в QR-коде отчёта.
+ *
  * Объектов может быть несколько, они хранятся только в браузере (localStorage).
  * Данные для отчёта (адрес, собственник, кто выполнил) спрашиваются при
  * скачивании PDF, чтобы не мешать началу работы.
@@ -10,6 +14,7 @@
   'use strict';
 
   const N = window.FireNorms, E = window.FireEngine, P = window.FirePresets, R = window.FireReport;
+  const PL = window.FirePlan, SH = window.FireShare;
 
   // ?ns=имя — отдельное хранилище (им пользуется страница проверки интерфейса,
   // чтобы не трогать рабочие данные).
@@ -27,8 +32,38 @@
 
   function newRoom(purpose) { return Object.assign(P.blankRoom(purpose), { id: uid('r'), more: false }); }
   function newFloor(number, purpose) {
-    return { id: uid('f'), name: number + ' этаж', installedOP: '', installedOU: '', rooms: [newRoom(purpose)] };
+    return { id: uid('f'), name: number + ' этаж', installedOP: '', installedOU: '', rooms: [newRoom(purpose)], plan: adoptPlan(null, {}) };
   }
+
+  // Схема этажа: open — раскрыта ли; view — «как есть» (fact) или «по нормам» (want);
+  // pos — расположение помещений, если их двигали; ext — отмеченные огнетушители.
+  // Метки привязаны к id помещений; idMap переводит прежние id в новые.
+  function adoptPlan(plan, idMap) {
+    const out = { open: !!(plan && plan.open), view: 'fact', pos: null, ext: [] };
+    if (!plan) return out;
+    function rekey(k) {
+      const m = /^(.*):(\d+)$/.exec(String(k));
+      return m && idMap[m[1]] ? idMap[m[1]] + ':' + m[2] : null;
+    }
+    if (plan.pos && typeof plan.pos === 'object') {
+      const pos = {};
+      Object.keys(plan.pos).forEach(function (k) {
+        const key = rekey(k), p = plan.pos[k];
+        if (key && Array.isArray(p)) pos[key] = [Number(p[0]) || 0, Number(p[1]) || 0];
+      });
+      if (Object.keys(pos).length) out.pos = pos;
+    }
+    (Array.isArray(plan.ext) ? plan.ext : []).forEach(function (e) {
+      const key = e && rekey(e.k);
+      if (!key) return;
+      out.ext.push({
+        id: uid('e'), k: key, u: unit(e.u), v: unit(e.v),
+        t: e.t === 'ou' ? 'ou' : (e.t === 'op' ? 'op' : 'x'), code: typeof e.code === 'string' ? e.code.slice(0, 12) : ''
+      });
+    });
+    return out;
+  }
+  function unit(x) { const n = Number(x); return isFinite(n) ? Math.round(Math.min(1, Math.max(0, n)) * 1000) / 1000 : 0.5; }
   function blankObject(inspector) {
     return {
       id: uid('o'), example: '',
@@ -43,18 +78,24 @@
     const building = Object.assign(base.building, data.building || {});
     if (!building.date) building.date = today();
     const floors = (data.floors || []).map(function (f, i) {
+      const idMap = {};
+      const rooms = (f.rooms || []).map(function (r) {
+        const room = Object.assign(P.blankRoom(r.purpose || 'custom'), r, { id: uid('r'), more: false });
+        if (!P.BY_ID[room.purpose]) room.purpose = 'custom'; // назначение, которого нет в справочнике (старые данные, чужая ссылка)
+        if (r.id) idMap[r.id] = room.id;
+        room.classes = (r.classes || room.classes || []).slice();
+        // в самом раннем формате число гаражей лежало в поле units, а поля count не было
+        if (!toNum(r.count)) room.count = r.t5 === 'garage_box' && toNum(r.units) ? Math.round(toNum(r.units)) : 1;
+        delete room.units;
+        return room;
+      });
       return {
         id: uid('f'),
         name: f.name || ((i + 1) + ' этаж'),
         installedOP: f.installedOP === undefined || f.installedOP === null ? '' : f.installedOP,
         installedOU: f.installedOU === undefined || f.installedOU === null ? '' : f.installedOU,
-        rooms: (f.rooms || []).map(function (r) {
-          const room = Object.assign(P.blankRoom(r.purpose || 'custom'), r, { id: uid('r'), more: false });
-          room.classes = (r.classes || room.classes || []).slice();
-          if (!toNum(room.count)) room.count = r.t5 === 'garage_box' && toNum(r.units) ? Math.round(toNum(r.units)) : 1;
-          delete room.units;
-          return room;
-        })
+        rooms: rooms,
+        plan: adoptPlan(f.plan, idMap)
       };
     });
     return { id: data.id || base.id, example: data.example || '', building: building, floors: floors.length ? floors : base.floors };
@@ -66,7 +107,7 @@
       if (raw) {
         const d = JSON.parse(raw);
         if (d && Array.isArray(d.objects) && d.objects.length) {
-          return { objects: d.objects.map(adoptObject), currentId: d.currentId, options: d.options };
+          return { objects: d.objects.map(adoptObject), currentId: d.currentId, options: d.options, ui: d.ui };
         }
       }
       const old = window.localStorage.getItem(OLD_KEY);
@@ -76,6 +117,27 @@
       }
     } catch (e) { /* повреждённые данные — начинаем с чистого листа */ }
     return null;
+  }
+
+  // Копирование в буфер обмена: современный способ, затем прежний (он работает
+  // и на страницах, открытых по http).
+  function copyText(text) {
+    function legacy() {
+      return new Promise(function (resolve, reject) {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+        document.body.appendChild(ta);
+        ta.select();
+        let ok = false;
+        try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+        document.body.removeChild(ta);
+        if (ok) resolve(); else reject(new Error('копирование недоступно'));
+      });
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text).catch(legacy);
+    return legacy();
   }
 
   // pdfmake и шрифты (2 МБ) подгружаются только когда нужен PDF.
@@ -106,6 +168,7 @@
 <header class="top">
   <div class="top__in">
     <div class="brand__name">Расчёт огнетушителей</div>
+    <span class="net" v-if="offline" data-test="offline">без сети</span>
     <span class="spacer"></span>
     <div class="menu">
       <button type="button" class="btn btn--sm btn--quiet" data-test="objects" :aria-expanded="menuOpen" @click.stop="menuOpen = !menuOpen">Объекты <span class="mono muted">{{ objects.length }}</span></button>
@@ -121,6 +184,7 @@
           <span class="muted">Примеры</span>
           <button type="button" class="link" data-test="example" v-for="(ex, key) in examples" :key="key" @click="loadExample(key)">{{ ex.title }}</button>
         </div>
+        <div class="menu__note" v-if="swReady">Приложение сохранено на устройстве и работает без сети</div>
       </div>
     </div>
     <button type="button" class="btn btn--sm" data-test="new" @click="newObject"><span class="full">Новый расчёт</span><span class="short">Новый</span></button>
@@ -173,7 +237,7 @@
 
           <div class="room__main">
             <label class="field f-name"><span class="sr">Помещение</span>
-              <input type="text" v-model.trim="room.name" :placeholder="shortName(room.purpose)"></label>
+              <input type="text" v-model.trim="room.name" :placeholder="shortName(room.purpose)" @change="onName(room)" @keydown.enter="onName(room)"></label>
             <label class="field f-purpose"><span class="sr">Назначение</span>
               <select v-model="room.purpose" @change="onPurpose(room)">
                 <optgroup v-for="g in purposeGroups" :key="g.group" :label="g.group">
@@ -221,6 +285,14 @@
               </div>
               <label class="field m-dim"><span>Длина, м</span><input type="number" min="0" step="any" inputmode="decimal" v-model="room.length" @change="onDims(room)"></label>
               <label class="field m-dim"><span>Ширина, м</span><input type="number" min="0" step="any" inputmode="decimal" v-model="room.width" @change="onDims(room)"></label>
+              <div class="steps">
+                <button type="button" class="link" data-test="steps-toggle" :aria-expanded="ui.steps" @click="ui.steps = !ui.steps">{{ ui.steps ? 'Скрыть замер шагами' : 'Нет рулетки? Измерить шагами' }}</button>
+                <template v-if="ui.steps">
+                  <label class="steps__f"><span>Длина, шагов</span><input type="number" min="0" step="1" inputmode="numeric" data-test="steps-l" v-model="room.stepsL" @input="onSteps(room)"></label>
+                  <label class="steps__f"><span>Ширина, шагов</span><input type="number" min="0" step="1" inputmode="numeric" data-test="steps-w" v-model="room.stepsW" @input="onSteps(room)"></label>
+                  <label class="steps__f"><span>Длина шага, м</span><input type="number" min="0.3" max="1.2" step="0.05" inputmode="decimal" v-model="ui.step" @input="onSteps(room)"></label>
+                </template>
+              </div>
             </template>
             <label class="check m-check">
               <input type="checkbox" v-model="room.autoSuppression" :disabled="building.autoSuppressionAll">
@@ -244,6 +316,51 @@
         <span class="muted">Добавить</span>
         <button type="button" class="chip chip--add" data-test="quick" v-for="q in quick" :key="q" @click="addRoom(floor, q)">{{ shortName(q) }}</button>
         <button type="button" class="chip chip--add" data-test="quick-other" @click="addRoom(floor, 'custom')">Другое</button>
+      </div>
+
+      <div class="plan">
+        <div class="plan__head">
+          <button type="button" class="btn btn--sm" data-test="plan-toggle" :aria-expanded="floor.plan.open" @click="floor.plan.open = !floor.plan.open">{{ floor.plan.open ? 'Скрыть схему' : 'Схема этажа' }}</button>
+          <span class="plan__stat" data-test="plan-stat">{{ planStat(floor) }}</span>
+        </div>
+        <template v-if="floor.plan.open">
+          <p class="hint" v-if="!sceneOf(floor).rects.length">Введите площадь помещений — схема построится сама</p>
+          <template v-else>
+            <div class="plan__tools">
+              <div class="seg seg--sm" role="radiogroup" aria-label="Что показывает схема">
+                <label v-for="v in planViews" :key="v.id" :class="['seg__opt', { 'seg__opt--on': floor.plan.view === v.id }]" :title="v.hint">
+                  <input type="radio" class="sr" :name="'pv' + floor.id" :value="v.id" v-model="floor.plan.view" :data-test="'plan-view-' + v.id"><span>{{ v.label }}</span>
+                </label>
+              </div>
+              <div class="seg seg--sm" role="radiogroup" aria-label="Что делает нажатие на схему" v-if="floor.plan.view === 'fact'">
+                <label v-for="m in planModes" :key="m.id" :class="['seg__opt', { 'seg__opt--on': planMode === m.id }]" :title="m.hint">
+                  <input type="radio" class="sr" :name="'pm' + floor.id" :value="m.id" v-model="planMode" :data-test="'plan-mode-' + m.id"><span>{{ m.label }}</span>
+                </label>
+              </div>
+              <span class="spacer"></span>
+              <button type="button" class="btn btn--sm btn--quiet" data-test="plan-clear" v-if="floor.plan.view === 'fact' && factOf(floor).marked" @click="clearExt(floor)">Убрать все</button>
+              <button type="button" class="btn btn--sm btn--quiet" data-test="plan-reset" v-if="floor.plan.pos" @click="resetLayout(floor)">Расставить заново</button>
+            </div>
+            <svg :class="['plan__svg', 'plan__svg--' + modeOf(floor), { 'plan__svg--dense': sceneOf(floor).ext.length > 8 }]" :data-floor="floor.id" data-test="plan-svg" role="img" :aria-label="'Схема: ' + floor.name"
+                 :viewBox="viewBox(floor)" :style="{ aspectRatio: viewRatio(floor) }"
+                 @click="planClick(floor, $event)" @pointerdown="planDown(floor, $event)" @pointermove="planMove(floor, $event)"
+                 @pointerup="planUp(floor, $event)" @pointercancel="planUp(floor, $event)">
+              <rect v-for="r in sceneOf(floor).rects" :key="r.key" :data-key="r.key"
+                    :class="['plan__room', { 'plan__room--approx': r.approx, 'plan__room--sens': r.sensitive }]"
+                    :x="r.x" :y="r.y" :width="r.w" :height="r.h"><title>{{ r.name }}</title></rect>
+              <rect v-for="(g, gi) in planGaps(floor)" :key="'g' + gi" class="plan__gap" :x="g.x" :y="g.y" :width="g.w" :height="g.h"></rect>
+              <circle v-for="e in sceneOf(floor).ext" :key="'c' + e.id" class="plan__reach" :cx="e.x" :cy="e.y" :r="e.rect.limit"></circle>
+              <text v-for="l in planLabels(floor)" :key="'l' + l.key" class="plan__label" :x="l.x" :y="l.y" :font-size="l.size">{{ l.text }}</text>
+              <g v-for="e in sceneOf(floor).ext" :key="e.id" :data-ext="e.id" :class="['plan__ext', 'plan__ext--' + e.t]" :transform="'translate(' + e.x + ' ' + e.y + ')'">
+                <circle class="plan__hit" :r="px(floor, 16)"></circle>
+                <circle class="plan__dot" :r="px(floor, 9)" :stroke-width="px(floor, 1.5)"></circle>
+                <text text-anchor="middle" :font-size="px(floor, 10)" :y="px(floor, 3.5)">{{ e.t === 'op' ? 'П' : (e.t === 'ou' ? 'У' : '?') }}</text>
+                <title>{{ extTitle(e) }}</title>
+              </g>
+            </svg>
+            <p class="plan__hint">{{ planHint(floor) }}</p>
+          </template>
+        </template>
       </div>
     </div>
 
@@ -279,6 +396,7 @@
         </div>
       </div>
       <p class="summary">{{ summaryLine }}</p>
+      <p class="share"><button type="button" class="link" data-test="share" @click="share">Ссылка на этот расчёт</button></p>
 
       <div class="block">
         <h3>Сверка с фактом</h3>
@@ -292,11 +410,13 @@
               <tr v-for="f in checkFloors" :key="f.id">
                 <td>{{ f.name }}</td>
                 <td>{{ f.portable.powder }}</td>
-                <td><input type="number" min="0" step="1" inputmode="numeric" class="fact" data-test="fact-op" placeholder="—"
+                <td v-if="f.fromPlan" class="fact--plan" title="Отмечено на схеме этажа">{{ f.check.installedOP }}</td>
+                <td v-else><input type="number" min="0" step="1" inputmode="numeric" class="fact" data-test="fact-op" placeholder="—"
                   v-model="floorById(f.id).installedOP" :aria-label="'Установлено порошковых, ' + f.name"></td>
                 <td :class="{ bad: f.check && f.check.deficitOP > 0 }">{{ f.check ? f.check.deficitOP : '' }}</td>
                 <td>{{ f.portable.co2 }}</td>
-                <td><input type="number" min="0" step="1" inputmode="numeric" class="fact" data-test="fact-ou" placeholder="—"
+                <td v-if="f.fromPlan" class="fact--plan" title="Отмечено на схеме этажа">{{ f.check.installedOU }}</td>
+                <td v-else><input type="number" min="0" step="1" inputmode="numeric" class="fact" data-test="fact-ou" placeholder="—"
                   v-model="floorById(f.id).installedOU" :aria-label="'Установлено углекислотных, ' + f.name"></td>
                 <td :class="{ bad: f.check && f.check.deficitOU > 0 }">{{ f.check ? f.check.deficitOU : '' }}</td>
               </tr>
@@ -308,11 +428,18 @@
             </tr></tfoot>
           </table>
         </div>
-        <div :class="['verdict', { 'verdict--bad': !result.check.ok }]" v-if="result.check">
-          <div class="verdict__title">{{ result.check.ok ? 'Соответствует' : 'Не соответствует' }}</div>
-          <p>{{ result.check.text }}</p>
+        <div :class="['verdict', { 'verdict--bad': verdictBad }]" v-if="result.check">
+          <div class="verdict__title">{{ verdictBad ? 'Не соответствует' : 'Соответствует' }}</div>
+          <p>{{ verdictText }}</p>
         </div>
-        <p class="hint" v-else>Впишите, сколько огнетушителей установлено на этаже, и здесь появится вывод</p>
+        <p class="hint" v-else>Впишите, сколько огнетушителей установлено на этаже, или отметьте их на схеме этажа — здесь появится вывод</p>
+        <ol class="finds" data-test="finds" v-if="audit.findings.length">
+          <li v-for="(x, i) in audit.findings" :key="i" :class="'find find--' + x.level">
+            <span class="ref">{{ x.floor }} · {{ x.ref }}{{ x.level === 'warn' ? ' · проверить на месте' : '' }}</span>
+            <span>{{ x.text }}</span>
+          </li>
+        </ol>
+        <p class="hint" v-if="result.check && planFloors">У этажей со схемой числа «есть» взяты с неё</p>
       </div>
 
       <div class="block notice" v-if="result.warnings.length">
@@ -397,6 +524,8 @@
             <label class="check"><input type="checkbox" v-model="options.poolSmallRooms"><span>Считать небольшие помещения одной категории по суммарной площади (п. 7)</span></label>
             <label class="check"><input type="checkbox" v-model="options.onlyPowderAndCO2"><span>Предлагать только порошковые (ОП) и углекислотные (ОУ)</span></label>
             <label class="check"><input type="checkbox" v-model="options.wheeled"><span>Добавлять передвижные огнетушители большим помещениям (табл. 2)</span></label>
+            <label class="check"><input type="checkbox" data-test="opt-min-all" v-model="options.floorMinAll">
+              <span>Не менее двух огнетушителей на этаже — в любом здании<small>Без отметки — только в общественных, как в п. 5 Приложения 3</small></span></label>
           </div>
         </details>
         <details class="fold">
@@ -434,6 +563,19 @@
   </div>
 </div>
 
+<!-- ССЫЛКА НА РАСЧЁТ: показывается, если браузер не дал скопировать её сам -->
+<div class="modal" v-if="linkDialog" @click.self="linkDialog = ''">
+  <div class="modal__box" role="dialog" aria-modal="true" aria-labelledby="linkTitle" data-test="link-dialog">
+    <h2 id="linkTitle">Ссылка на этот расчёт</h2>
+    <p class="hint">Весь расчёт лежит в самой ссылке. Отправьте её — по ней откроется этот же объект</p>
+    <input type="text" class="linkbox" readonly :value="linkDialog" aria-label="Ссылка на расчёт" @focus="$event.target.select()">
+    <div class="modal__foot">
+      <button type="button" class="btn" data-test="link-close" @click="linkDialog = ''">Закрыть</button>
+      <button type="button" class="btn btn--primary" data-test="link-copy" @click="copyLinkNow">Скопировать</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" v-if="notice" role="status">
   <span>{{ notice }}</span>
   <button type="button" class="toast__undo" data-test="undo" v-if="undoFn" @click="undo">Отменить</button>
@@ -448,6 +590,19 @@
 </footer>
 `;
 
+  const PLAN_VIEWS = [
+    { id: 'fact', label: 'Как есть', hint: 'Огнетушители, которые стоят на объекте: отметьте их нажатием' },
+    { id: 'want', label: 'По нормам', hint: 'Расстановка, которую даёт расчёт' }
+  ];
+  const PLAN_MODES = [
+    { id: 'op', label: '+ ОП', hint: 'Нажатие отмечает порошковый огнетушитель' },
+    { id: 'ou', label: '+ ОУ', hint: 'Нажатие отмечает углекислотный огнетушитель' },
+    { id: 'move', label: 'Двигать', hint: 'Перетаскивание помещений и огнетушителей' }
+  ];
+  const DEFAULT_STEP = 0.75; // м, средняя длина шага
+  const MAX_QR_LINK = 1000;  // знаков: длиннее — QR-код в отчёте получается слишком мелким для камеры
+  const EMPTY_SCENE = { rects: [], ext: [], cover: { per: {}, bad: 0, total: 0, share: 0 }, box: PL.bbox([]), limits: '', marked: false, findings: [] };
+
   const stored = loadStore();
   const firstObjects = stored ? stored.objects : [blankObject('')];
 
@@ -458,6 +613,13 @@
         objects: firstObjects,
         currentId: stored && stored.currentId ? stored.currentId : firstObjects[0].id,
         options: Object.assign({}, E.DEFAULT_OPTIONS, stored && stored.options ? stored.options : {}),
+        ui: Object.assign({ steps: false, step: DEFAULT_STEP }, stored && stored.ui ? stored.ui : {}),
+        planMode: 'op',
+        planSize: {},   // размеры схем на экране, px: { id этажа: [ширина, высота] }
+        drag: null,     // перетаскивание на схеме
+        linkDialog: '', // ссылка на расчёт, если её не удалось скопировать автоматически
+        offline: typeof navigator !== 'undefined' && navigator.onLine === false,
+        swReady: false,
         tab: 'input',
         open: {},
         openRoom: '',
@@ -502,14 +664,36 @@
         return P.BUILDING_KINDS.filter(function (x) { return x.id === id; })[0] || P.BUILDING_KINDS[0];
       },
       quick: function () { return this.kind.quick; },
-      result: function () {
-        // Если имя помещения не введено, оно называется по назначению.
+      planViews: function () { return PLAN_VIEWS; },
+      planModes: function () { return PLAN_MODES; },
+      // Исходные данные для расчёта и схемы. Если имя помещения не введено, оно называется по назначению.
+      input: function () {
         const floors = this.floors.map(function (f) {
           return Object.assign({}, f, {
             rooms: f.rooms.map(function (r) { return Object.assign({}, r, { fallbackName: P.shortName(r.purpose) }); })
           });
         });
-        return E.calculate({ building: this.building, floors: floors }, this.options);
+        return { building: this.building, floors: floors };
+      },
+      result: function () { return E.calculate(this.input, this.options); },
+      // Схемы этажей с отмеченными огнетушителями и перечень нарушений.
+      audit: function () { return PL.audit(this.input, this.result); },
+      // Что показывает схема каждого этажа: отмеченное («как есть») или расстановку по расчёту.
+      scenes: function () {
+        const map = {}, self = this;
+        this.audit.floors.forEach(function (fa, i) {
+          const floor = self.floors[i];
+          const want = floor && floor.plan.open && floor.plan.view === 'want';
+          map[fa.id] = want ? PL.scene(fa.rects, PL.propose(fa.rects, self.result.floors[i])) : fa;
+        });
+        return map;
+      },
+      planFloors: function () { return this.result.floors.filter(function (f) { return f.fromPlan; }).length; },
+      verdictBad: function () { return !!this.result.check && (!this.result.check.ok || this.audit.status === 'bad'); },
+      verdictText: function () {
+        const c = this.result.check;
+        if (!c) return '';
+        return c.ok && this.audit.status === 'bad' ? 'Количество достаточное, но есть нарушения по размещению.' : c.text;
       },
       checkFloors: function () { return this.result.floors.filter(function (f) { return f.units.length; }); },
       extTotal: function () { return this.result.summary.portable + this.result.summary.wheeled; },
@@ -517,7 +701,8 @@
       kindHint: function () {
         return this.building.kind === 'public'
           ? 'В общественном здании на каждом этаже нужно не менее двух огнетушителей (п. 5), а до огнетушителя должно быть не более 20 м (п. 4)'
-          : 'В производственном и складском здании норма зависит от категории помещения (А–Д) и класса пожара, до огнетушителя не более 30, 40 или 70 м (п. 4)';
+          : 'В производственном и складском здании норма зависит от категории помещения (А–Д) и класса пожара, до огнетушителя не более 30, 40 или 70 м (п. 4)' +
+            (this.options.floorMinAll ? '; на каждом этаже считается не менее двух огнетушителей' : '');
       },
       totalsLine: function () {
         if (!this.result.totals.length) return 'пока нет данных';
@@ -537,6 +722,7 @@
     watch: {
       objects: { deep: true, handler: function () { this.save(); } },
       options: { deep: true, handler: function () { this.save(); } },
+      ui: { deep: true, handler: function () { this.save(); } },
       currentId: function () { this.save(); },
       tab: function (value) {
         window.scrollTo(0, 0);
@@ -570,7 +756,7 @@
         clearTimeout(this._saveTimer);
         this._saveTimer = setTimeout(function () {
           try {
-            window.localStorage.setItem(STORE_KEY, JSON.stringify({ version: 2, currentId: self.current.id, objects: self.objects, options: self.options }));
+            window.localStorage.setItem(STORE_KEY, JSON.stringify({ version: 2, currentId: self.current.id, objects: self.objects, options: self.options, ui: self.ui }));
           } catch (e) { /* хранилище недоступно — работаем без сохранения */ }
         }, 250);
       },
@@ -667,11 +853,14 @@
       duplicateFloor: function (i) {
         const copy = clone(this.floors[i]);
         const m = /^(\d+)(.*)$/.exec(copy.name || '');
+        const idMap = {};
         copy.id = uid('f');
         copy.name = m ? this.nextFloorNumber() + m[2] : (copy.name || 'Этаж') + ' (копия)';
         copy.installedOP = '';
         copy.installedOU = '';
-        copy.rooms.forEach(function (r) { r.id = uid('r'); });
+        copy.rooms.forEach(function (r) { const id = uid('r'); idMap[r.id] = id; r.id = id; });
+        // расположение помещений копируется, отметки огнетушителей — нет: факт у каждого этажа свой
+        copy.plan = adoptPlan({ open: copy.plan && copy.plan.open, pos: copy.plan && copy.plan.pos }, idMap);
         this.floors.splice(i + 1, 0, copy);
         this.say('Этаж скопирован: ' + copy.name);
       },
@@ -709,7 +898,22 @@
         floor.rooms.splice(i + 1, 0, copy);
         this.openRoom = copy.id;
       },
-      onPurpose: function (room) { P.applyPurpose(room, room.purpose); },
+      // Назначение, выбранное из списка, по имени помещения больше не меняется.
+      onPurpose: function (room) { P.applyPurpose(room, room.purpose); room.purposeSet = true; },
+      // Назначение по имени: «Серверная» становится серверной (углекислотный огнетушитель),
+      // если назначение не выбрано из списка вручную. Изменение можно отменить.
+      onName: function (room) {
+        if (room.purposeSet || room.t5) return;
+        const guess = P.guessPurpose(room.name);
+        if (!guess || guess === room.purpose) return;
+        const before = { purpose: room.purpose, t5: room.t5, t5Alt: room.t5Alt, category: room.category,
+          classes: room.classes.slice(), sensitive: room.sensitive, forceType: room.forceType };
+        P.applyPurpose(room, guess);
+        this.say('«' + room.name + '»: назначение по имени — ' + P.BY_ID[guess].label, function () {
+          Object.assign(room, before);
+          room.purposeSet = true;
+        });
+      },
       toggleClass: function (room, k) {
         const i = room.classes.indexOf(k);
         if (i >= 0) room.classes.splice(i, 1); else room.classes.push(k);
@@ -743,9 +947,19 @@
         if (toNum(room.count) > 1) parts.push('× ' + Math.round(toNum(room.count)));
         return parts.join(' ');
       },
+      // Площадь подставляется по размерам, пока её не ввели вручную.
       onDims: function (room) {
         const L = toNum(room.length), W = toNum(room.width);
-        if (L && W && !toNum(room.area)) room.area = Math.round(L * W * 100) / 100;
+        if (!(L && W)) return;
+        const area = Math.round(L * W * 100) / 100;
+        if (!toNum(room.area) || toNum(room.area) === room.autoArea) { room.area = area; room.autoArea = area; }
+      },
+      // Замер шагами: шаги переводятся в метры по длине шага.
+      onSteps: function (room) {
+        const step = toNum(this.ui.step) || DEFAULT_STEP;
+        if (toNum(room.stepsL)) room.length = Math.round(toNum(room.stepsL) * step * 10) / 10;
+        if (toNum(room.stepsW)) room.width = Math.round(toNum(room.stepsW) * step * 10) / 10;
+        this.onDims(room);
       },
       dimsMismatch: function (room) {
         const L = toNum(room.length), W = toNum(room.width), S = toNum(room.area);
@@ -788,7 +1002,9 @@
         return parts.join(' · ');
       },
       unitMeta: function (u) {
-        if (u.kind === 'floorMin') return 'п. 5: не менее двух огнетушителей на этаже общественного здания';
+        if (u.kind === 'floorMin') {
+          return u.byRules ? 'п. 5: не менее двух огнетушителей на этаже общественного здания' : 'не менее двух огнетушителей на этаже — параметр расчёта';
+        }
         const parts = [];
         if (u.pooled) parts.push(u.roomCount + ' ' + E.plural(u.roomCount, 'помещение', 'помещения', 'помещений'));
         if (u.areaLabel) parts.push(u.areaLabel + ' м²');
@@ -841,6 +1057,226 @@
         if (room) room.t5Alt = room.t5Alt ? 0 : 1;
       },
 
+      // ----- схема этажа -----
+      sceneOf: function (floor) { return this.scenes[floor.id] || EMPTY_SCENE; },
+      factOf: function (floor) {
+        return this.audit.floors.filter(function (f) { return f.id === floor.id; })[0] || EMPTY_SCENE;
+      },
+      // «По нормам» ничего не отмечают — только двигают помещения.
+      modeOf: function (floor) { return floor.plan.view === 'want' ? 'move' : this.planMode; },
+      // Пока что-то тащат, поле зрения не пересчитывается — иначе схема уезжает из-под пальца.
+      viewOf: function (floor) {
+        const d = this.drag;
+        return d && d.floorId === floor.id ? d.view : PL.view(this.sceneOf(floor).box);
+      },
+      viewBox: function (floor) { const v = this.viewOf(floor); return [v.x, v.y, v.w, v.h].join(' '); },
+      viewRatio: function (floor) { const v = this.viewOf(floor); return v.w + ' / ' + v.h; },
+      // Сколько метров схемы занимают n пикселей экрана: метки и подписи не зависят от масштаба.
+      px: function (floor, n) {
+        const v = this.viewOf(floor), s = this.planSize[floor.id];
+        const scale = s && s[0] > 0 && s[1] > 0 ? Math.min(s[0] / v.w, s[1] / v.h) : 600 / v.w;
+        return Math.round(n / scale * 1000) / 1000;
+      },
+      measurePlans: function () {
+        const size = {}, old = this.planSize;
+        let changed = false;
+        Array.prototype.forEach.call(document.querySelectorAll('.plan__svg'), function (el) {
+          const id = el.getAttribute('data-floor'), box = el.getBoundingClientRect();
+          size[id] = [Math.round(box.width), Math.round(box.height)];
+          if (!old[id] || old[id][0] !== size[id][0] || old[id][1] !== size[id][1]) changed = true;
+        });
+        if (changed || Object.keys(size).length !== Object.keys(old).length) this.planSize = size;
+      },
+      // Места дальше нормы. Пока ничего не отмечено, красным ничего не закрашивается.
+      planGaps: function (floor) { return PL.gaps(this.sceneOf(floor)); },
+      planLabels: function (floor) {
+        const size = this.px(floor, 11), pad = this.px(floor, 5), out = [];
+        this.sceneOf(floor).rects.forEach(function (r) {
+          const max = Math.floor((r.w - 2 * pad) / (size * 0.58));
+          if (r.h < size * 1.5 || max < 3) return;
+          out.push({ key: r.key, x: r.x + pad, y: r.y + pad + size * 0.8, size: size, text: r.name.length <= max ? r.name : r.name.slice(0, max - 1) + '…' });
+        });
+        return out;
+      },
+      planStat: function (floor) {
+        const fa = this.factOf(floor);
+        if (!fa.marked) return '';
+        const n = PL.tally(fa);
+        return 'Отмечено: ОП ' + n.op + ' · ОУ ' + n.ou + (n.other ? ' · других ' + n.other : '') + ' · ' +
+          (fa.cover.bad > 0 ? 'дальше нормы ' + Math.max(1, Math.round(fa.cover.share * 100)) + ' % площади' : 'расстояние в норме');
+      },
+      planHint: function (floor) {
+        const sc = this.sceneOf(floor);
+        const approx = (sc.rects.some(function (r) { return r.approx; }) ? ' Пунктир — размеры помещения не заданы, форма условная.' : '') +
+          (this.factOf(floor).skipped ? ' На схеме показаны первые ' + PL.MAX_RECTS + ' помещений этажа.' : '');
+        const reach = sc.limits ? ' Круг — ' + sc.limits + ' по прямой, красным — дальше нормы.' : '';
+        if (floor.plan.view === 'want') {
+          const extra = sc.ext.filter(function (e) { return e.extra; }).length;
+          const fr = this.resultFloor(floor.id);
+          return 'Расстановка по расчёту: ' + sc.ext.length + ' ' + E.plural(sc.ext.length, 'огнетушитель', 'огнетушителя', 'огнетушителей') +
+            (extra ? ', из них ' + extra + ' — по расстоянию (п. 4)' : '') + '.' +
+            (fr && fr.wheeled ? ' Передвижные (' + fr.wheeled + ') на схеме не показаны.' : '') +
+            ' В PDF попадает как предлагаемая схема. Помещения можно перетаскивать.' + approx;
+        }
+        if (this.planMode === 'move') return 'Перетащите помещения так, как они стоят на этаже. Огнетушители тоже двигаются.' + approx;
+        return 'Нажмите на помещение — отметится огнетушитель, который там стоит. Нажмите на него ещё раз — уберётся.' + reach + approx;
+      },
+      extTitle: function (e) {
+        return (e.code || (e.t === 'op' ? 'ОП, порошковый' : (e.t === 'ou' ? 'ОУ, углекислотный' : 'другой'))) + ' · ' + e.rect.name;
+      },
+      // Точка нажатия в метрах схемы.
+      planPoint: function (svg, ev) {
+        const m = svg.getScreenCTM && svg.getScreenCTM();
+        if (!m) return null;
+        const pt = svg.createSVGPoint();
+        pt.x = ev.clientX;
+        pt.y = ev.clientY;
+        const p = pt.matrixTransform(m.inverse());
+        return { x: p.x, y: p.y };
+      },
+      planClick: function (floor, ev) {
+        if (this._dragged) return;
+        if (floor.plan.view !== 'fact') { this.say('Это расстановка по расчёту. Отмечать огнетушители — в режиме «Как есть»'); return; }
+        if (this.planMode === 'move') return;
+        const mark = ev.target.closest ? ev.target.closest('[data-ext]') : null;
+        if (mark) { this.removeExt(floor, mark.getAttribute('data-ext')); return; }
+        const p = this.planPoint(ev.currentTarget, ev);
+        const rect = p && PL.at(this.sceneOf(floor).rects, p.x, p.y);
+        if (!rect) { this.say('Нажмите внутри помещения'); return; }
+        floor.plan.ext.push({ id: uid('e'), k: rect.key, u: unit((p.x - rect.x) / rect.w), v: unit((p.y - rect.y) / rect.h), t: this.planMode, code: '' });
+        if (this.planMode === 'op' && rect.sensitive) this.say('«' + rect.name + '»: порошковый в помещении с электроникой — нарушение');
+      },
+      removeExt: function (floor, id) {
+        const list = floor.plan.ext;
+        const i = list.map(function (e) { return e.id; }).indexOf(id);
+        if (i < 0) return;
+        const removed = list.splice(i, 1)[0];
+        this.say('Огнетушитель убран со схемы', function () { list.splice(Math.min(i, list.length), 0, removed); });
+      },
+      clearExt: function (floor) {
+        const plan = floor.plan, prev = plan.ext;
+        plan.ext = [];
+        this.say('Отметки убраны', function () { plan.ext = prev; });
+      },
+      resetLayout: function (floor) {
+        const plan = floor.plan, prev = plan.pos;
+        plan.pos = null;
+        this.say('Помещения расставлены заново', function () { plan.pos = prev; });
+      },
+      planDown: function (floor, ev) {
+        if (this.modeOf(floor) !== 'move') return;
+        const svg = ev.currentTarget, p = this.planPoint(svg, ev), sc = this.sceneOf(floor);
+        if (!p) return;
+        const mark = floor.plan.view === 'fact' && ev.target.closest ? ev.target.closest('[data-ext]') : null;
+        let drag = null;
+        if (mark) {
+          const id = mark.getAttribute('data-ext');
+          const e = floor.plan.ext.filter(function (x) { return x.id === id; })[0];
+          if (e) drag = { kind: 'ext', e: e };
+        } else {
+          const key = ev.target.getAttribute ? ev.target.getAttribute('data-key') : '';
+          const r = sc.rects.filter(function (x) { return x.key === key; })[0];
+          if (r) drag = { kind: 'room', key: key, ox: r.x, oy: r.y, froze: !floor.plan.pos };
+        }
+        if (!drag) return;
+        drag.floorId = floor.id;
+        drag.sx = p.x;
+        drag.sy = p.y;
+        drag.view = PL.view(sc.box);
+        drag.moved = false;
+        // первое перетаскивание закрепляет расположение всех помещений
+        if (drag.froze) floor.plan.pos = PL.freeze(sc.rects);
+        this.drag = drag;
+        try { svg.setPointerCapture(ev.pointerId); } catch (e) { /* не страшно: перетаскивание работает и без захвата */ }
+        ev.preventDefault();
+      },
+      planMove: function (floor, ev) {
+        const d = this.drag;
+        if (!d || d.floorId !== floor.id) return;
+        const p = this.planPoint(ev.currentTarget, ev);
+        if (!p) return;
+        if (Math.abs(p.x - d.sx) + Math.abs(p.y - d.sy) > this.px(floor, 4)) d.moved = true;
+        if (!d.moved) return;
+        if (d.kind === 'room') {
+          floor.plan.pos[d.key] = [d.ox + p.x - d.sx, d.oy + p.y - d.sy];
+        } else {
+          const r = PL.at(this.factOf(floor).rects, p.x, p.y);
+          if (r) { d.e.k = r.key; d.e.u = unit((p.x - r.x) / r.w); d.e.v = unit((p.y - r.y) / r.h); }
+        }
+      },
+      planUp: function (floor) {
+        const d = this.drag, self = this;
+        if (!d) return;
+        if (d.kind === 'room') {
+          if (d.moved) {
+            const cur = floor.plan.pos[d.key];
+            floor.plan.pos[d.key] = PL.snap(this.factOf(floor).rects, d.key, cur[0], cur[1]);
+          } else if (d.froze) {
+            floor.plan.pos = null;
+          }
+        }
+        this.drag = null;
+        if (d.moved) {
+          // нажатие, которым закончилось перетаскивание, ничего не отмечает
+          this._dragged = true;
+          setTimeout(function () { self._dragged = false; }, 0);
+        }
+      },
+
+      // ----- ссылка на расчёт -----
+      // Код расчёта для адреса. Весь объект лежит в самой ссылке, сервер не нужен.
+      shareCode: function () { return SH.encode(this.current); },
+      linkFor: function (code) { return window.location.href.split('#')[0].split('?')[0] + '#o=' + code; },
+      // Копирует ссылку; если браузер не даёт (страница открыта по http с другого
+      // устройства) — показывает её в окне, откуда её можно скопировать вручную.
+      share: function () {
+        const self = this;
+        this.shareCode().then(function (code) {
+          const link = self.linkFor(code);
+          return copyText(link).then(function () {
+            self.say('Ссылка скопирована: по ней откроется этот расчёт');
+          }, function () {
+            self.linkDialog = link;
+            self.$nextTick(function () {
+              const el = document.querySelector('.linkbox');
+              if (el) { el.focus(); el.select(); }
+            });
+          });
+        }).catch(function (e) { self.say('Не удалось собрать ссылку: ' + (e && e.message ? e.message : e)); });
+      },
+      copyLinkNow: function () {
+        const self = this, el = document.querySelector('.linkbox');
+        if (el) { el.focus(); el.select(); }
+        copyText(this.linkDialog).then(function () {
+          self.linkDialog = '';
+          self.say('Ссылка скопирована: по ней откроется этот расчёт');
+        }, function () {
+          self.say('Выделите ссылку и скопируйте её вручную');
+        });
+      },
+      // Открывает расчёт из адреса страницы (#o=…), если он там есть.
+      importLink: function () {
+        const self = this;
+        const code = SH.codeFromHash(window.location.hash);
+        if (!code) return;
+        SH.decode(code).then(function (data) {
+          const o = adoptObject(data);
+          const sig = JSON.stringify(SH.pack(o));
+          const same = self.objects.filter(function (x) { return JSON.stringify(SH.pack(x)) === sig; })[0];
+          if (same) self.select(same.id);
+          else {
+            if (self.isBlank(self.current)) self.objects.splice(self.objects.indexOf(self.current), 1, o);
+            else self.objects.unshift(o);
+            self.select(o.id);
+          }
+          self.say('Расчёт открыт по ссылке');
+        }).catch(function () {
+          self.say('Не удалось открыть расчёт по ссылке');
+        }).then(function () {
+          try { window.history.replaceState(null, '', window.location.pathname + window.location.search); } catch (e) { /* адрес остаётся как есть */ }
+        });
+      },
+
       // ----- PDF -----
       openPdf: function () {
         this.pdfDialog = true;
@@ -851,9 +1287,15 @@
         });
       },
       makePdf: function () {
-        const result = this.result, now = new Date();
-        return ensurePdf().then(function () {
-          return { pdf: window.pdfMake.createPdf(R.buildDoc(result, { generatedAt: now })), name: R.fileName(result, now) };
+        const self = this, result = this.result, audit = this.audit, now = new Date();
+        const schemes = PL.schemes(this.input, result, audit);
+        // QR-код в отчёте ведёт на этот же расчёт — если сайт открыт по адресу и ссылка помещается в код.
+        const link = /^https?:$/.test(window.location.protocol)
+          ? this.shareCode().then(function (code) { const l = self.linkFor(code); return l.length <= MAX_QR_LINK ? l : ''; }).catch(function () { return ''; })
+          : Promise.resolve('');
+        return Promise.all([ensurePdf(), link]).then(function (x) {
+          const doc = R.buildDoc(result, { generatedAt: now, audit: audit, schemes: schemes, link: x[1] });
+          return { pdf: window.pdfMake.createPdf(doc), name: R.fileName(result, now) };
         });
       },
       downloadPdf: function () {
@@ -871,14 +1313,40 @@
         });
       }
     },
+    updated: function () { this.measurePlans(); },
     mounted: function () {
       const self = this;
       document.addEventListener('click', function () { self.menuOpen = false; });
       document.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape') { self.menuOpen = false; self.pdfDialog = false; }
+        if (e.key === 'Escape') { self.menuOpen = false; self.pdfDialog = false; self.linkDialog = ''; }
       });
 
       this.openFirstRoomIfBlank();
+
+      // схема: размеры на экране
+      window.addEventListener('resize', function () { self.measurePlans(); });
+      this.$nextTick(function () { self.measurePlans(); });
+      // если палец отпустили за пределами схемы, перетаскивание всё равно заканчивается
+      ['pointerup', 'pointercancel'].forEach(function (type) {
+        window.addEventListener(type, function () {
+          const d = self.drag;
+          if (!d) return;
+          const floor = self.floors.filter(function (f) { return f.id === d.floorId; })[0];
+          if (floor) self.planUp(floor); else self.drag = null;
+        });
+      });
+
+      // работа без сети: служебный сценарий кладёт приложение в память браузера
+      window.addEventListener('online', function () { self.offline = false; });
+      window.addEventListener('offline', function () { self.offline = true; });
+      if ('serviceWorker' in navigator && /^https?:$/.test(window.location.protocol)) {
+        navigator.serviceWorker.register('sw.js').catch(function () { /* без него приложение работает как обычный сайт */ });
+        navigator.serviceWorker.ready.then(function () { self.swReady = true; }).catch(function () {});
+      }
+
+      // расчёт по ссылке (QR-код из отчёта)
+      window.addEventListener('hashchange', function () { self.importLink(); });
+      this.importLink();
 
       const q = new URLSearchParams(window.location.search);
       const demo = q.get('demo');

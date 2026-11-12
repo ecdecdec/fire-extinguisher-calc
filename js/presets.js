@@ -87,6 +87,38 @@
 
   function shortName(purposeId) { return (BY_ID[purposeId] || BY_ID.custom).short; }
 
+  // Назначение по имени помещения: «Серверная 2» — серверная, «Щитовая» — электрощитовая.
+  // Берётся первое совпадение в порядке списка. Помещения с электроникой стоят первыми,
+  // чтобы серверная, названная по имени, не осталась «кабинетом» с порошковым огнетушителем.
+  // Границы слов заданы явно: \b в регулярных выражениях не работает с кириллицей.
+  function word(w) { return '(^|[^а-яa-z0-9])(' + w + ')($|[^а-яa-z0-9])'; }
+  const BY_NAME = [
+    ['сервер|цод|дата-?центр|узел связи|телефонн|коммутацион|кроссов|' + word('атс'), 'server'],
+    ['архив|книгохранил|фондохранил', 'archive'],
+    ['музе|выставоч|экспозиц', 'museum'],
+    ['щитов|электрощит|трансформатор|подстанц|' + word('грщ|вру'), 'electro'],
+    ['горюч[а-я]* жидк|лакокрас|' + word('лвж|гж|гсм'), 'store_liquid'],
+    ['котельн', 'boiler'],
+    ['венткамер|вентиляцион|насосн|тепловой пункт|бойлерн|водомерн|' + word('итп'), 'vent'],
+    ['кладов|подсоб|инвентарн|уборочн', 'storeroom'],
+    ['склад', 'store_solid'],
+    ['цех|мастерск|производствен', 'workshop'],
+    ['коридор|холл|вестибюл|фойе|лестнич|тамбур|рекреац', 'corridor'],
+    ['столов|обеденн|буфет|пищеблок', 'canteen'],
+    ['торгов', 'shopfloor'],
+    ['палат|спальн|гостиничн|жил[а-я]* комнат', 'ward'],
+    ['класс|аудитор|лекцион|учебн', 'classroom'],
+    ['зал', 'hall'],
+    ['кабинет|офис|приемн|бухгалтер|ординатор|учительск|канцеляр|переговорн', 'office']
+  ].map(function (x) { return { re: new RegExp(x[0]), id: x[1] }; });
+
+  function guessPurpose(name) {
+    const s = String(name || '').toLowerCase().replace(/ё/g, 'е');
+    if (!s.trim()) return null;
+    for (let i = 0; i < BY_NAME.length; i++) if (BY_NAME[i].re.test(s)) return BY_NAME[i].id;
+    return null;
+  }
+
   // Подставляет в помещение категорию и классы пожара по назначению.
   function applyPurpose(room, purposeId) {
     const p = BY_ID[purposeId] || BY_ID.custom;
@@ -117,17 +149,31 @@
       build: function () {
         return {
           building: { name: 'Бизнес-центр (пример)', address: 'г. Астана, ул. Примерная, 1', owner: 'ТОО «Пример»', kind: 'public' },
+          // На схеме отмечено то, что «нашёл инспектор»: на первом этаже три порошковых,
+          // один из них — в серверной; углекислотного нет. Числа «есть» берутся со схемы.
           floors: [
             {
               name: '1 этаж', installedOP: 3, installedOU: 0,
               rooms: [
-                r('Офисы', 'office', 450, { length: 30, width: 15 }),
-                r('Серверная', 'server', 20),
-                r('Кладовая', 'storeroom', 10, { count: 4 }),
-                r('Венткамера', 'vent', 60)
-              ]
+                r('Офисы', 'office', 450, { id: 'b1', length: 30, width: 15 }),
+                r('Серверная', 'server', 20, { id: 'b2' }),
+                r('Кладовая', 'storeroom', 10, { id: 'b3', count: 4 }),
+                r('Венткамера', 'vent', 60, { id: 'b4' })
+              ],
+              plan: {
+                open: true,
+                ext: [
+                  { k: 'b1:0', u: 0.02, v: 0.5, t: 'op' },
+                  { k: 'b1:0', u: 0.98, v: 0.5, t: 'op' },
+                  { k: 'b2:0', u: 0.5, v: 0.85, t: 'op' }
+                ]
+              }
             },
-            { name: '2 этаж', installedOP: 2, installedOU: 0, rooms: [r('Офисы', 'office', 150)] }
+            {
+              name: '2 этаж', installedOP: 2, installedOU: 0,
+              rooms: [r('Офисы', 'office', 150, { id: 'b5' })],
+              plan: { open: false, ext: [{ k: 'b5:0', u: 0.04, v: 0.5, t: 'op' }, { k: 'b5:0', u: 0.96, v: 0.5, t: 'op' }] }
+            }
           ]
         };
       }
@@ -164,6 +210,6 @@
 
   return {
     PURPOSE_GROUPS: PURPOSE_GROUPS, BY_ID: BY_ID, BUILDING_KINDS: BUILDING_KINDS, EXAMPLES: EXAMPLES,
-    applyPurpose: applyPurpose, blankRoom: blankRoom, shortName: shortName
+    applyPurpose: applyPurpose, blankRoom: blankRoom, shortName: shortName, guessPurpose: guessPurpose
   };
 }));

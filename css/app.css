@@ -150,6 +150,8 @@ input:focus-visible, select:focus-visible, button:focus-visible, summary:focus-v
 .menu__name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .menu__meta { font: 400 12px/16px var(--mono); color: var(--ink-3); }
 .menu__foot { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 8px; padding: 12px 8px 4px; border-top: 1px solid var(--hair); font-size: 13px; }
+.menu__note { padding: 8px 8px 4px; font-size: 12px; line-height: 16px; color: var(--ink-3); }
+.net { padding: 0 8px; border-radius: 4px; background: var(--raised); font: 400 12px/20px var(--mono); color: var(--ink-2); white-space: nowrap; }
 
 /* ---------- рабочая область: ввод слева, результат справа ---------- */
 .work { display: grid; grid-template-columns: minmax(0, 1fr) 480px; align-items: start; }
@@ -219,6 +221,41 @@ select.norm__cat { flex: 0 0 64px; width: 64px; padding: 0 0 0 8px; }
 .room__note b { font-weight: 500; color: var(--red); }
 
 .floor__foot { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding-top: 12px; font-size: 13px; }
+
+/* замер шагами */
+.steps { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: flex-end; font-size: 13px; }
+.steps .link { align-self: center; color: var(--ink-2); }
+.steps__f { display: flex; flex-direction: column; gap: 4px; width: 112px; color: var(--ink-2); }
+
+/* ---------- схема этажа ---------- */
+.plan { margin-top: 12px; }
+.plan__head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.plan__stat { font: 400 12px/16px var(--mono); color: var(--ink-3); }
+.plan__tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.seg--sm .seg__opt { height: 26px; padding: 0 10px; font-size: 13px; white-space: nowrap; }
+.plan__svg {
+  display: block; width: 100%; max-height: min(64vh, 440px); margin-top: 8px; border: 1px solid var(--hair); border-radius: 8px; background: var(--side);
+  touch-action: manipulation; user-select: none; -webkit-user-select: none; cursor: crosshair;
+}
+.plan__svg--move { touch-action: none; cursor: grab; }
+.plan__room { fill: #fff; stroke: var(--ink); stroke-width: 1.25; vector-effect: non-scaling-stroke; }
+.plan__room--approx { stroke-dasharray: 5 4; stroke: var(--ink-3); }
+.plan__room--sens { fill: #f1f1f2; }
+.plan__gap { fill: var(--red); fill-opacity: .28; pointer-events: none; }
+.plan__reach { fill: none; stroke: var(--ink-3); stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; pointer-events: none; }
+/* когда огнетушителей много, круги приглушаются, чтобы не закрывать схему */
+.plan__svg--dense .plan__reach { stroke-opacity: .3; }
+.plan__label { fill: var(--ink-2); font-family: var(--sans); pointer-events: none; }
+.plan__ext { cursor: pointer; }
+.plan__svg--move .plan__ext { cursor: grab; }
+.plan__hit { fill: transparent; }
+.plan__dot { stroke: #fff; }
+.plan__ext--op .plan__dot { fill: var(--red); }
+.plan__ext--ou .plan__dot { fill: var(--ink); }
+.plan__ext--x .plan__dot { fill: var(--ink-3); }
+/* размер букв задаётся в разметке (в метрах схемы), поэтому здесь его нет */
+.plan__ext text { fill: #fff; font-family: var(--sans); font-weight: 500; pointer-events: none; }
+.plan__hint { margin-top: 8px; font-size: 13px; color: var(--ink-2); max-width: 88ch; }
 .section-foot { margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--hair); }
 
 /* ---------- результат ---------- */
@@ -257,6 +294,15 @@ input.fact { width: 48px; height: 28px; padding: 0 6px; border-radius: 6px; text
 .verdict__title { font-size: 16px; line-height: 24px; font-weight: 500; color: var(--green); }
 .verdict--bad .verdict__title { color: var(--red); }
 .verdict > p { color: var(--ink-2); font-size: 13px; }
+td.fact--plan { color: var(--ink); font-weight: 500; }
+.share { margin-top: 8px; font-size: 13px; }
+.share .link { color: var(--ink-2); }
+
+/* перечень нарушений */
+.finds { list-style: none; margin: 12px 0 0; padding: 0; counter-reset: find; border-top: 1px solid var(--hair); }
+.find { display: grid; gap: 0; margin: 0; padding: 8px 0 8px 12px; border-bottom: 1px solid var(--hair); border-left: 2px solid var(--red); font-size: 13px; }
+.find + .find { margin-top: 0; }
+.find--warn { border-left-color: var(--ink-3); color: var(--ink-2); }
 .block > .hint { margin-top: 8px; }
 
 .floorres__head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; padding-bottom: 8px; border-bottom: 1px solid var(--hair); }
@@ -307,6 +353,7 @@ input.fact { width: 48px; height: 28px; padding: 0 6px; border-radius: 6px; text
 .modal__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .modal__wide { grid-column: 1 / -1; }
 .modal__foot { display: flex; justify-content: flex-end; gap: 8px; }
+input.linkbox { font: 400 12px/20px var(--mono); }
 
 /* ---------- уведомление и нижняя полоса ---------- */
 .toast {
@@ -384,6 +431,11 @@ input.fact { width: 48px; height: 28px; padding: 0 6px; border-radius: 6px; text
   .norm__btn { border-color: var(--line); }
   .room__more { grid-template-columns: 1fr 1fr; }
   .m-cat, .m-classes, .m-check { grid-column: 1 / -1; }
+  .steps__f { width: calc(33.33% - 11px); }
+  .steps .link { flex: 1 1 100%; text-align: left; }
+  .seg--sm { display: inline-flex; width: auto; }
+  .seg--sm .seg__opt { height: 32px; padding: 0 12px; flex: 0 0 auto; }
+  .plan__svg { max-height: min(70vh, 440px); }
 
   .chip { width: 40px; height: 40px; }
   .chip--add, .chip--alt { width: auto; height: 36px; }
@@ -397,7 +449,7 @@ input.fact { width: 48px; height: 28px; padding: 0 6px; border-radius: 6px; text
 }
 
 @media print {
-  .top, .bar, .btn, .link, .icon, .toast, .modal { display: none !important; }
+  .top, .bar, .btn, .link, .icon, .toast, .modal, .plan__tools, .plan__hint { display: none !important; }
   .work { display: block; }
   .pane--result { position: static; height: auto; overflow: visible; border: 0; background: none; }
 }

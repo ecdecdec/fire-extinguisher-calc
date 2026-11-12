@@ -14,7 +14,8 @@
  *   4. Поправки: АУПТ — 50 % (п. 10); расстояние до огнетушителя (п. 4);
  *      передвижные огнетушители для больших помещений (п. 2, табл. 2).
  *   5. По этажу: не менее двух огнетушителей в общественном здании (п. 5).
- *   6. Сверка с фактическим наличием, если оно указано.
+ *   6. Сверка с фактическим наличием, если оно указано: числом по этажу или
+ *      отметками на схеме этажа (сама схема и перечень нарушений — в plan.js).
  *
  * Все тексты шагов рассчитаны на вывод в PDF шрифтом Roboto, поэтому в них нет
  * стрелок, скобок «потолка» и других знаков, которых нет в этом шрифте.
@@ -29,9 +30,11 @@
     rounding: 'proportional', // 'proportional': S × n / Sпред вверх; 'block': на каждую начатую Sпред — полный комплект n
     poolSmallRooms: true,     // п. 7 — суммировать площади небольших помещений
     onlyPowderAndCO2: true,   // рассматривать только ОП и ОУ (условие задачи)
-    wheeled: true             // рассчитывать передвижные огнетушители (п. 2, табл. 2)
+    wheeled: true,            // рассчитывать передвижные огнетушители (п. 2, табл. 2)
+    floorMinAll: true         // не менее двух огнетушителей на этаже в любом здании, а не только в общественном (п. 5)
   };
 
+  const MAX_PLAUSIBLE_AREA = 100000; // м²; больше — скорее опечатка, чем помещение
   const CLASS_ORDER = ['A', 'B', 'C', 'D', 'E'];
   const PREF_PORTABLE = ['P5', 'P10', 'P2', 'C35', 'C2', 'W10', 'E6', 'E3'];
   const PREF_WHEELED = ['WP100', 'WC80', 'WC25', 'WF100', 'WE50', 'WE25'];
@@ -250,13 +253,18 @@
       picks.push(ev);
       rest = rest.filter(function (k) { return ev.classes.indexOf(k) < 0; });
     }
-    let forcedIgnored = false;
+    let forcedIgnored = false, powderRefused = false;
+    const co2 = allowed.filter(function (t) { return N.PORTABLE_TYPES[t].agent === 'co2'; });
     if (room.forceType) {
-      const ev = allowed.indexOf(room.forceType) >= 0 ? best(rest, [room.forceType]) : null;
-      if (ev) { ev.forced = true; take(ev); } else forcedIgnored = true;
+      // В помещении с электроникой порошковый вручную не выбирается, если
+      // классы пожара можно закрыть углекислотным.
+      const refuse = !!room.sensitive && (N.PORTABLE_TYPES[room.forceType] || {}).agent === 'powder' &&
+        rest.some(function (k) { return co2.some(function (t) { return cell(t, k); }); });
+      const ev = !refuse && allowed.indexOf(room.forceType) >= 0 ? best(rest, [room.forceType]) : null;
+      if (ev) { ev.forced = true; take(ev); } else if (refuse) powderRefused = true; else forcedIgnored = true;
     }
     if (room.sensitive && rest.length) {
-      const ev = best(rest, allowed.filter(function (t) { return N.PORTABLE_TYPES[t].agent === 'co2'; }));
+      const ev = best(rest, co2);
       if (ev) { ev.viaP9 = true; take(ev); }
     }
     while (rest.length) {
@@ -275,13 +283,13 @@
     });
     return {
       rowKey: rowKey, classes: classes, info: info, picks: picks, uncovered: uncovered,
-      missing: missing, fallback: fallback, forcedIgnored: forcedIgnored, allowed: allowed, evaluate: evaluate
+      missing: missing, fallback: fallback, forcedIgnored: forcedIgnored, powderRefused: powderRefused, allowed: allowed, evaluate: evaluate
     };
   }
 
   // Ключ объединения помещений (п. 7): одна категория, одинаковые тип и норма.
   function poolKey(room, plan) {
-    return JSON.stringify([room.category, room.autoSuppression ? 1 : 0, plan.picks.map(function (p) {
+    return JSON.stringify([room.category, room.autoSuppression ? 1 : 0, room.sensitive ? 1 : 0, plan.picks.map(function (p) {
       const pairs = {};
       p.classes.forEach(function (k) { pairs[p.per[k].n + '/' + p.per[k].area] = true; });
       return [p.typeId, p.charge, p.viaP9 ? 1 : 0, p.forced ? 1 : 0, Object.keys(pairs).sort()];
@@ -381,6 +389,7 @@
       classes: CLASS_ORDER.filter(function (k) { return classSet[k]; }),
       fallback: plan.fallback.slice(),
       autoSuppression: !!rep.autoSuppression,
+      sensitive: !!rep.sensitive,
       matrix: buildMatrix(plan),
       lines: [], steps: [], warnings: [], notes: [], alternatives: [], placement: []
     };
@@ -410,6 +419,9 @@
       const ft = N.PORTABLE_TYPES[rep.forceType];
       unit.warnings.push('Выбранный вручную тип ' + (ft ? ft.code : rep.forceType) + ' не допускается табл. 1 для этих классов пожара — тип подобран автоматически.');
     }
+    if (plan.powderRefused) {
+      unit.warnings.push('Порошковый огнетушитель в помещении с электронным оборудованием не применяется — оставлен углекислотный.');
+    }
 
     plan.picks.forEach(function (p) {
       const c = pickCount(p, area, opts.rounding);
@@ -427,6 +439,10 @@
       }
       if (!p.recommended && !p.viaP9) {
         unit.notes.push(lineTitle(line) + ': отметка «+» — применяется при отсутствии рекомендуемых и при обосновании (прим. 1 к табл. 1).');
+      }
+      if (rep.sensitive && line.agent === 'powder') {
+        unit.notes.push(lineTitle(line) + ': для ' + (p.classes.length > 1 ? 'классов ' : 'класса ') + p.classes.join(', ') +
+          ' углекислотный огнетушитель табл. 1 не предусмотрен. По электронному оборудованию порошковый не применять.');
       }
     });
     // п. 10 — автоматическая установка пожаротушения
@@ -454,6 +470,14 @@
       if (pl.wallPoints === null) text += '; у стен требование не выполнить — нужны места в глубине помещения (на колоннах)';
       else if (pl.wallPoints > pl.points) text += ' (при размещении только у стен — ' + pl.wallPoints + ')';
       unit.steps.push(step('Прил. 3, п. 4', text + '.'));
+    });
+    group.rooms.forEach(function (r) {
+      if (r.purpose !== 'corridor' || (toNumber(r.length) > 0 && toNumber(r.width) > 0)) return;
+      const lim = distanceLimit(r.category, building);
+      // при ширине около 1,5 м одного места размещения хватает на длину 2 × предел
+      if (r.area / 1.5 <= 2 * lim.m) return;
+      unit.warnings.push('«' + r.name + '», ' + fmt(r.area) + ' м²: длина и ширина не указаны — расстояние до огнетушителя (не более ' + lim.m +
+        ' м, п. 4) не проверено. В длинном коридоре огнетушителей может понадобиться больше.');
     });
     const totalPortable = unit.lines.reduce(function (s, l) { return s + l.count; }, 0);
     if (unit.lines.length && needPoints > totalPortable) {
@@ -484,6 +508,7 @@
     const nonD = plan.classes.filter(function (k) { return plan.info[k] && k !== 'D'; });
     if (nonD.length) {
       plan.allowed.forEach(function (t) {
+        if (rep.sensitive && N.PORTABLE_TYPES[t].agent !== 'co2') return;
         const ev = plan.evaluate(t, nonD);
         if (!ev) return;
         const chosen = plan.picks.filter(function (p) { return p.classes.indexOf('D') < 0; });
@@ -628,18 +653,32 @@
     };
   }
 
-  function floorMinUnit(floor, have, add) {
+  // typeId — ОП-5; если на этаже только помещения с электроникой — ОУ-3.
+  // byRules — здание общественное, минимум прямо требует п. 5 Приложения 3;
+  // иначе он применён по параметру расчёта floorMinAll.
+  function floorMinUnit(floor, have, add, typeId, byRules) {
+    const m = N.PORTABLE_TYPES[typeId];
+    const powder = m.agent === 'powder';
+    const cells = N.TABLE1.G4.classes, col = N.T1_COLUMNS.indexOf(typeId);
+    const marks = { A: parseCell(cells.A[col]).mark, E: parseCell(cells.E[col]).mark };
+    const title = m.code + (powder ? ' (ABC(E))' : '');
+    const haveText = 'По расчёту на этаже ' + have + ' ' + plural(have, 'ручной огнетушитель', 'ручных огнетушителя', 'ручных огнетушителей');
     return {
-      id: 'u_min_' + floor.id, kind: 'floorMin', title: 'Минимум на этаж',
+      id: 'u_min_' + floor.id, kind: 'floorMin', title: 'Минимум на этаж', byRules: !!byRules,
       rooms: [], pooled: false, area: 0, category: null, categoryLabel: '—', rowTitle: '', rowArea: null,
-      norm: 'Прил. 3, п. 5', classes: ['A', 'E'], fallback: [], autoSuppression: false, matrix: null, roomCount: 0, count: 1, areaLabel: '',
+      norm: byRules ? 'Прил. 3, п. 5' : 'Параметр расчёта: не менее двух на этаже',
+      classes: ['A', 'E'], fallback: [], autoSuppression: false, matrix: null, roomCount: 0, count: 1, areaLabel: '',
       lines: [{
-        kind: 'portable', typeId: 'P5', code: N.PORTABLE_TYPES.P5.code, name: N.PORTABLE_TYPES.P5.name, agent: 'powder', charge: 'ABC(E)',
-        classes: ['A', 'E'], marks: { A: '++', E: '++' }, recommended: true, viaP9: false, forced: false,
+        kind: 'portable', typeId: typeId, code: m.code, name: m.name, agent: m.agent, charge: powder ? 'ABC(E)' : '',
+        classes: ['A', 'E'], marks: marks, recommended: marks.A === '++' && marks.E === '++', viaP9: !powder, forced: false,
         count: add, basis: '2 − ' + have + ' = ' + add + ' шт.'
       }],
-      steps: [step('Прил. 3, п. 5', 'По расчёту на этаже ' + have + ' ' + plural(have, 'ручной огнетушитель', 'ручных огнетушителя', 'ручных огнетушителей') +
-        ', а в общественном здании на каждом этаже их должно быть не менее двух — добавлено ' + add + ' × ' + N.PORTABLE_TYPES.P5.code + ' (ABC(E)).')],
+      steps: [step(byRules ? 'Прил. 3, п. 5' : 'Параметр расчёта', haveText +
+        (byRules
+          ? ', а в общественном здании на каждом этаже их должно быть не менее двух — добавлено '
+          : '. Не менее двух на этаже Приложение 3 (п. 5) требует в общественных зданиях; в этом расчёте правило применено ко всем зданиям — добавлено ') +
+        add + ' × ' + title +
+        (powder ? '.' : ': на этаже только помещения с электронным оборудованием, порошковые для них не применяются.'))],
       warnings: [], notes: [], alternatives: [], placement: []
     };
   }
@@ -653,6 +692,24 @@
     return Math.min(999, Math.max(1, n || 1));
   }
 
+  // Огнетушители, отмеченные на схеме этажа (floor.plan.ext), — это фактическое
+  // наличие: если отмечен хотя бы один, числа «есть» берутся со схемы.
+  // Метка привязана к помещению ключом «id помещения:номер копии».
+  function markedOnPlan(f) {
+    const ext = f && f.plan && Array.isArray(f.plan.ext) ? f.plan.ext : [];
+    if (!ext.length) return null;
+    const copies = {};
+    (f.rooms || []).forEach(function (r) { if (r.id) copies[r.id] = countOf(r); });
+    const sum = { op: 0, ou: 0, n: 0 };
+    ext.forEach(function (e) {
+      const m = /^(.*):(\d+)$/.exec(String(e && e.k));
+      if (!m || !(parseInt(m[2], 10) < (copies[m[1]] || 0))) return;
+      sum.n += 1;
+      if (e.t === 'op') sum.op += 1; else if (e.t === 'ou') sum.ou += 1;
+    });
+    return sum.n ? sum : null;
+  }
+
   function normalize(input) {
     const b = input || {};
     const src = b.building || b;
@@ -662,11 +719,13 @@
     };
     const allAuto = !!(src.autoSuppressionAll || b.autoSuppressionAll);
     const floors = (b.floors || []).map(function (f, fi) {
+      const marked = markedOnPlan(f);
       return {
         id: f.id || ('f' + fi),
         name: f.name || ((fi + 1) + ' этаж'),
-        installedOP: toCount(f.installedOP),
-        installedOU: toCount(f.installedOU),
+        installedOP: marked ? marked.op : toCount(f.installedOP),
+        installedOU: marked ? marked.ou : toCount(f.installedOU),
+        fromPlan: !!marked,
         rooms: (f.rooms || []).map(function (r, ri) {
           return {
             id: r.id || ('r' + fi + '_' + ri),
@@ -703,7 +762,7 @@
     let anyInstalled = false;
 
     data.floors.forEach(function (floor) {
-      const fr = { id: floor.id, name: floor.name, units: [], warnings: [], portable: { powder: 0, co2: 0, other: 0 }, wheeled: 0, check: null };
+      const fr = { id: floor.id, name: floor.name, units: [], warnings: [], portable: { powder: 0, co2: 0, other: 0 }, wheeled: 0, check: null, fromPlan: false };
       const position = {};
       const placed = [];   // { pos, unit }
       const groups = [];
@@ -715,6 +774,7 @@
         result.summary.area += room.area * room.count;
         if (room.t5) { placed.push({ pos: i, unit: computeT5Unit(room) }); return; }
         if (!(room.area > 0)) { fr.warnings.push('«' + room.name + '»: не указана площадь — помещение не рассчитано.'); return; }
+        if (room.area > MAX_PLAUSIBLE_AREA) fr.warnings.push('«' + room.name + '»: площадь ' + fmt(room.area) + ' м² — проверьте ввод.');
         if (room.category === 'CD' && room.area < 100) { placed.push({ pos: i, unit: exemptUnit(room) }); return; }
         const plan = buildPlan(room, opts);
         const wKey = wheeledRowKeyFor(room.category, plan.classes);
@@ -753,11 +813,18 @@
         return fr.portable.powder + fr.portable.co2 + fr.portable.other;
       }
 
-      // п. 5 — не менее двух ручных огнетушителей на этаже общественного здания.
-      // Этаж, по которому ещё ничего не введено (нет ни одного помещения с данными), не дополняется.
+      // Не менее двух ручных огнетушителей на этаже.
+      //   — общественное здание: п. 5 Приложения 3, для любого этажа с введёнными данными;
+      //   — производственное и складское: по параметру floorMinAll и только если на этаже
+      //     есть помещения, которые считаются по табл. 1. Освобождение по п. 6 и нормы
+      //     табл. 5 — прямые требования Приложения 3, расширенное правило их не перекрывает.
       const have = tally();
-      if (building.kind === 'public' && fr.units.length && have < 2) {
-        fr.units.push(floorMinUnit(floor, have, 2 - have));
+      const byRules = building.kind === 'public';
+      const extended = !byRules && opts.floorMinAll && fr.units.some(function (u) { return u.kind === 'table1'; });
+      if ((byRules || extended) && fr.units.length && have < 2) {
+        const counted = floor.rooms.filter(function (r) { return r.t5 || r.area > 0; });
+        const onlySensitive = counted.length > 0 && counted.every(function (r) { return !r.t5 && r.sensitive; });
+        fr.units.push(floorMinUnit(floor, have, 2 - have, onlySensitive ? 'C35' : 'P5', byRules));
         tally();
       }
 
@@ -770,6 +837,7 @@
           requiredOU: fr.portable.co2, installedOU: instOU, deficitOU: Math.max(0, fr.portable.co2 - instOU)
         };
         fr.check.ok = fr.check.deficitOP === 0 && fr.check.deficitOU === 0;
+        fr.fromPlan = !!floor.fromPlan;
       }
       result.floors.push(fr);
     });
@@ -816,7 +884,7 @@
     });
     // В отчёт попадают только те допущения, которые повлияли на этот расчёт.
     const used = { table1: false, pooled: false, rowByClass: false, fallback: false, exempt: false, auto: false,
-      dims: false, wheeled: false, t5: false, sensitive: false, pub: false, multi: false };
+      dims: false, wheeled: false, t5: false, sensitive: false, pub: false, multi: false, minAll: false };
     result.floors.forEach(function (fr) {
       fr.units.forEach(function (u) {
         if (u.kind === 'table1') {
@@ -831,6 +899,7 @@
         }
         if (u.kind === 'table5') used.t5 = true;
         if (u.kind === 'exempt') used.exempt = true;
+        if (u.kind === 'floorMin' && !u.byRules) used.minAll = true;
         if (u.rooms.some(function (r) { return r.count > 1; })) used.multi = true;
         if (u.autoSuppression) used.auto = true;
       });
@@ -874,6 +943,9 @@
     if (on('exempt')) {
       a.push('Пункт 6 применяется к каждому помещению категории Д отдельно, до суммирования площадей.');
     }
+    if (opts.floorMinAll && on('minAll')) {
+      a.push('Не менее двух ручных огнетушителей на этаже Приложение 3 (п. 5) требует в общественных зданиях. В расчёте это правило применено и к производственным и складским зданиям — как более строгое: в стандартах на эксплуатацию огнетушителей оно относится к «общественным и промышленным зданиям» (НПБ 166-97, п. 5.23; СП 9.13130.2009, п. 4.1.23). Формулировку СТ РК 1487-2006 нужно сверить по тексту стандарта; правило отключается в параметрах расчёта. Этажи без помещений, которые считаются по табл. 1 (только объекты табл. 5 или помещения категории Д менее 100 м²), не дополняются: для них действуют табл. 5 и п. 6.');
+    }
     if (on('multi')) {
       a.push('Одинаковые помещения, введённые одной строкой с количеством, считаются как отдельные помещения: небольшие суммируются по п. 7, для остальных расчёт одного помещения умножается на количество.');
     }
@@ -894,7 +966,7 @@
       a.push('Для объектов обслуживания по табл. 5 заряд порошковых огнетушителей принят ABC(E): в таблице он не указан.');
     }
     if (on('sensitive')) {
-      a.push('Для помещений с дорогостоящей электроникой, архивов и музеев выбирается углекислотный огнетушитель (п. 9).');
+      a.push('Для помещений с дорогостоящей электроникой, архивов и музеев выбирается углекислотный огнетушитель (п. 9). Порошковый для них не предлагается и вручную не выбирается: порошок выводит электронное оборудование из строя (так в стандартах на эксплуатацию огнетушителей: НПБ 166-97, п. 5.6; СП 9.13130.2009, п. 4.1.6; номер пункта СТ РК 1487-2006 нужно сверить по тексту стандарта).');
     }
     if (opts.onlyPowderAndCO2) {
       a.push('Рассматриваются только порошковые (ОП) и углекислотные (ОУ) огнетушители; пенные, водные и воздушно-эмульсионные не предлагаются.');
@@ -938,6 +1010,9 @@
     calculate: calculate,
     methodology: methodology,
     placement: placement,
+    distanceLimit: distanceLimit,
+    toNumber: toNumber,
+    countOf: countOf,
     rowKeyFor: rowKeyFor,
     quantity: quantity,
     summaryCode: summaryCode,

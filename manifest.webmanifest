@@ -1,0 +1,16 @@
+{
+  "name": "Расчёт огнетушителей",
+  "short_name": "Огнетушители",
+  "description": "Проверка объекта на огнетушители по Приложению 3 к Правилам пожарной безопасности РК и СТ РК 1487-2006: расчёт, схема этажа, перечень нарушений, отчёт в PDF. Работает без сети.",
+  "lang": "ru",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

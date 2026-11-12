@@ -99,7 +99,7 @@ test('структура отчёта: разделы, итог, сверка, �
   assert.equal(dd.pageSize, 'A4');
   // без фактических данных раздела сверки нет
   const noCheck = all.business;
-  noCheck.floors.forEach(f => { f.installedOP = ''; f.installedOU = ''; });
+  noCheck.floors.forEach(f => { f.installedOP = ''; f.installedOU = ''; f.plan = null; });
   const text2 = docStrings(R.buildDoc(E.calculate(noCheck), { generatedAt: fixedDate })).join('\n');
   assert.ok(!text2.includes('Сверка с фактическим наличием'));
   // предупреждения попадают в отчёт
@@ -123,4 +123,34 @@ test('QR-код содержит только латиницу; имя файл�
 test('пустой расчёт формирует отчёт без ошибок', () => {
   const dd = R.buildDoc(E.calculate(inputs().empty), { generatedAt: fixedDate });
   assert.ok(docStrings(dd).join('\n').includes('Помещения не введены'));
+});
+
+test('отчёт проверки: перечень нарушений, схемы «как есть» и «по нормам», QR-код со ссылкой', () => {
+  const PL = require('../js/plan.js');
+  const input = inputs().business;
+  const result = E.calculate(input);
+  const audit = PL.audit(input, result);
+  const link = 'https://example.kz/#o=zAbC-_123';
+  const dd = R.buildDoc(result, { generatedAt: fixedDate, audit: audit, schemes: PL.schemes(input, result, audit), link: link });
+  const strings = docStrings(dd);
+  const text = strings.join('\n');
+  ['Перечень нарушений', 'стоит порошковый огнетушитель', 'Прил. 3, п. 9; СТ РК 1487-2006', 'Схемы размещения огнетушителей',
+    'Как есть — отмечено при осмотре: ОП — 3, ОУ — 0', 'По нормам — расчётная расстановка: ОП — 4, ОУ — 1', 'Наведите камеру телефона'
+  ].forEach(s => assert.ok(text.includes(s), 'есть «' + s + '»'));
+  assert.equal(dd.content[0].columns[1].stack[0].qr, link);
+  assert.equal(strings.filter(s => s.startsWith('<svg ')).length, 4); // два этажа, по две схемы
+  // знаки рисунков и подписей есть в шрифте отчёта
+  const regular = fontCoverage('Roboto-Regular.ttf'), medium = fontCoverage('Roboto-Medium.ttf');
+  const missing = new Set();
+  strings.forEach(s => { for (const ch of s) { const cp = ch.codePointAt(0); if (cp !== 10 && cp !== 13 && !(regular.has(cp) && medium.has(cp))) missing.add(ch); } });
+  assert.deepEqual([...missing], []);
+  // количество в норме, а нарушение по размещению есть — вывод всё равно «не соответствует»
+  const placed = { kind: 'public', floors: [{ rooms: [
+    Object.assign(P.blankRoom('server'), { id: 's', name: 'Серверная', area: 20 }),
+    Object.assign(P.blankRoom('office'), { id: 'o', name: 'Офис', area: 100 })
+  ], plan: { ext: [{ k: 's:0', u: 0.5, v: 0.5, t: 'op' }, { k: 's:0', u: 0.2, v: 0.5, t: 'ou' }] } }] };
+  const r2 = E.calculate(placed);
+  assert.equal(r2.check.ok, true);
+  const t2 = docStrings(R.buildDoc(r2, { generatedAt: fixedDate, audit: PL.audit(placed, r2) })).join('\n');
+  assert.ok(t2.includes('не соответствует') && t2.includes('Количество достаточное, но есть нарушения по размещению.'));
 });
