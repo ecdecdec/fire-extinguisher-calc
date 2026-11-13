@@ -1,13 +1,18 @@
 /*
  * PDF-отчёт: описание документа для pdfmake из результата расчёта.
  * Чистая функция — без DOM и без pdfmake, поэтому проверяется тестами в Node.
- * В браузере: pdfMake.createPdf(FireReport.buildDoc(result, meta)).
+ * В браузере: pdfMake.createPdf(FireReport.buildDoc(result, meta), null, FireReport.FONTS).
  *
- * Первая страница — заключение, его читают и подписывают: вывод, что требуется,
- * что сделать, по этажам, подписи и QR-код. Дальше приложения: схемы размещения,
- * расчёт по помещениям, правила и допущения.
+ * Отчёт оформлен как служебный документ, а не как экран приложения: шрифт с засечками
+ * (Tinos — метрика Times New Roman), только чёрный цвет, пронумерованные разделы,
+ * таблицы с сеткой, вывод обычной фразой, подписи, приложения с новой страницы.
+ * Без плашек, карточек, цветных полос и надписей заглавными буквами с разрядкой.
  *
- * В тексте только знаки, которые есть в шрифте Roboto из vfs_fonts.js
+ * Первая страница: сведения об объекте, требуемое количество по этажам, сверка
+ * с фактом, нарушения и меры, вывод, подписи. Приложения: схемы размещения, расчёт
+ * по помещениям, требования и допущения.
+ *
+ * В тексте только знаки из подмножества шрифта vendor/fonts/Tinos-*.ttf
  * (проверяет tests/report.test.js).
  */
 (function (root, factory) {
@@ -22,11 +27,10 @@
     industrial: 'Производственное здание',
     warehouse: 'Складское здание'
   };
-  const C = {
-    text: '#1c2530', muted: '#5b6573', faint: '#8a939e', line: '#d6dae0',
-    red: '#b3261e', redBg: '#fbeceb', green: '#1a7f4b', greenBg: '#e8f4ed', amber: '#8a5a00', infoBg: '#f1f3f5',
-    powder: '#c4291c', co2: '#1c2530'
-  };
+  // Шрифт отчёта: файлы лежат в pdfMake.vfs (vendor/vfs_report.js).
+  const FONTS = { Tinos: { normal: 'Tinos-Regular.ttf', bold: 'Tinos-Bold.ttf', italics: 'Tinos-Regular.ttf', bolditalics: 'Tinos-Bold.ttf' } };
+  const INK = '#000000';
+  const SOFT = '#333333';
 
   function pad(n) { return (n < 10 ? '0' : '') + n; }
 
@@ -50,7 +54,7 @@
 
   // Сторона QR-кода со ссылкой, pt. pdfmake округляет клетку вниз до целого пункта, поэтому
   // сторона кратна числу клеток (с запасом на версию больше). Клетка 1 pt (0,35 мм), у короткой
-  // ссылки — 2 pt: код 2–4 см, как обычно на документах. С бумаги читается камерой телефона,
+  // ссылки 2 pt: код 2–4 см, как обычно на документах. С бумаги читается камерой телефона,
   // с экрана — при увеличении страницы.
   function qrSide(text) {
     const bytes = new TextEncoder().encode(text).length;
@@ -60,47 +64,33 @@
     return (2 * (n + 4) <= 92 ? 2 : 1) * (n + 4);
   }
 
-  // ---------- оформление ----------
+  // ---------- таблицы ----------
 
-  // Таблица без рамок: строки разделены тонкими линиями.
-  const rows = {
-    hLineWidth: function (i) { return i === 0 ? 0 : 0.6; },
-    vLineWidth: function () { return 0; },
-    hLineColor: function () { return C.line; },
-    paddingLeft: function (i) { return i === 0 ? 0 : 6; },
-    paddingRight: function (i, node) { return i === node.table.widths.length - 1 ? 0 : 6; },
-    paddingTop: function () { return 4; },
-    paddingBottom: function () { return 4; }
-  };
-  const boxes = {
-    hLineWidth: function () { return 0.6; },
-    vLineWidth: function () { return 0.6; },
-    hLineColor: function () { return C.line; },
-    vLineColor: function () { return C.line; },
-    paddingLeft: function () { return 10; },
-    paddingRight: function () { return 10; },
-    paddingTop: function () { return 8; },
-    paddingBottom: function () { return 9; }
+  // Таблица с сеткой тонких чёрных линий, как в служебных документах.
+  const GRID = {
+    hLineWidth: function () { return 0.5; },
+    vLineWidth: function () { return 0.5; },
+    hLineColor: function () { return INK; },
+    vLineColor: function () { return INK; },
+    paddingLeft: function () { return 4; },
+    paddingRight: function () { return 4; },
+    paddingTop: function () { return 2; },
+    paddingBottom: function () { return 2; }
   };
 
-  function th(text, extra) { return Object.assign({ text: text, style: 'th' }, extra || {}); }
-  function label(text) { return { text: text.toUpperCase(), style: 'label' }; }
-  function bullets(items, color) {
-    return { ul: items.map(function (t) { return { text: t, margin: [0, 0, 0, 3] }; }), style: 'small', color: color || C.text, margin: [0, 0, 0, 6] };
-  }
+  function th(text, extra) { return Object.assign({ text: text, bold: true, alignment: 'center' }, extra || {}); }
+  function num(value, extra) { return Object.assign({ text: value === '' || value === null || value === undefined ? '' : String(value), alignment: 'center' }, extra || {}); }
+  function heading(text) { return { text: text, style: 'section' }; }
 
-  // «4 × ОП-5, 1 × ОУ-3» — что требуется на этаже.
-  function needOf(f) {
-    const sum = {}, order = [];
-    f.units.forEach(function (u) {
-      u.lines.forEach(function (l) {
-        const key = l.code + (l.charge === 'D' ? ' (D)' : '');
-        if (sum[key] === undefined) { sum[key] = 0; order.push(key); }
-        sum[key] += l.count;
-      });
-    });
-    return order.length ? order.map(function (k) { return sum[k] + ' × ' + k; }).join(', ') : 'не требуется';
+  // Тип огнетушителя для таблиц: «ОП-5, порошковый, заряд ABC(E)».
+  function typeName(t) {
+    const kind = t.kind === 'wheeled' ? 'передвижной' : '';
+    if (t.kind === 'shield') return t.code + ', щит пожарный (комплект)';
+    if (t.agent === 'powder') return t.code + ', порошковый' + (kind ? ' ' + kind : '') + ', заряд ' + (t.charge || 'ABC(E)');
+    if (t.agent === 'co2') return t.code + ', углекислотный' + (kind ? ' ' + kind : '');
+    return t.code + (t.name ? ', ' + t.name : '');
   }
+  function lineKey(l) { return l.kind + '|' + l.code + '|' + l.charge; }
 
   function floorRooms(f) {
     let n = 0, area = 0;
@@ -108,173 +98,172 @@
     return { n: n, area: area };
   }
 
-  // ---------- вывод ----------
+  // ---------- разделы первой страницы ----------
 
-  function verdict(result, audit) {
-    const c = result.check, findings = audit ? audit.findings : [];
-    const total = result.summary.portable + result.summary.wheeled;
-    if (!c) {
-      if (!result.totals.length) return { tone: 'info', title: 'Нет данных', text: 'Помещения не введены или по нормам огнетушители не требуются.' };
-      return {
-        tone: 'info', title: 'Требуется ' + total + ' ' + plural(total, 'огнетушитель', 'огнетушителя', 'огнетушителей'),
-        text: 'Фактическое наличие не вносилось — это расчёт потребности по нормам.'
-      };
-    }
-    const place = findings.filter(function (f) { return f.level === 'bad' && f.kind !== 'deficit'; }).length;
-    const warn = findings.filter(function (f) { return f.level === 'warn'; }).length;
-    const floors = result.floors.filter(function (f) { return f.units.length; }).length;
-    const parts = [];
-    if (!c.ok) parts.push(c.text);
-    else parts.push('Огнетушителей ' + (c.floorsChecked < floors ? 'на проверенных этажах ' : '') + 'достаточно.');
-    if (place) parts.push('Нарушений размещения: ' + place + '.');
-    if (warn) parts.push('Проверить на месте: ' + warn + '.');
-    if (c.floorsChecked < floors) parts.push('Не проверено этажей: ' + (floors - c.floorsChecked) + '.');
-    const bad = !c.ok || place > 0;
-    return { tone: bad ? 'bad' : 'ok', title: bad ? 'Не соответствует' : 'Соответствует', text: parts.join(' ') };
+  function objectTable(result) {
+    const b = result.building, s = result.summary;
+    const rows = [
+      ['Наименование объекта', b.name],
+      ['Адрес', b.address],
+      ['Собственник (организация)', b.owner],
+      ['Функциональное назначение', KIND_LABEL[b.kind] || ''],
+      ['Этажей, помещений, общая площадь', s.floors + ' ' + plural(s.floors, 'этаж', 'этажа', 'этажей') + ', ' + s.rooms + ' ' +
+        plural(s.rooms, 'помещение', 'помещения', 'помещений') + ', ' + E.fmt(s.area) + ' м²']
+    ];
+    return { table: { widths: [185, '*'], body: rows.map(function (r) { return [r[0], r[1] || '']; }) }, layout: GRID, fontSize: 10, lineHeight: 1.05 };
   }
 
-  function verdictBlock(v) {
-    const color = v.tone === 'bad' ? C.red : (v.tone === 'ok' ? C.green : C.text);
-    const bg = v.tone === 'bad' ? C.redBg : (v.tone === 'ok' ? C.greenBg : C.infoBg);
-    const bar = v.tone === 'info' ? C.faint : color;
-    return {
-      table: { widths: ['*'], body: [[{ stack: [{ text: v.title, style: 'verdict', color: color }, { text: v.text, margin: [0, 3, 0, 0] }], fillColor: bg }]] },
-      layout: {
-        hLineWidth: function () { return 0; },
-        vLineWidth: function (i) { return i === 0 ? 3 : 0; },
-        vLineColor: function () { return bar; },
-        paddingLeft: function () { return 12; },
-        paddingRight: function () { return 12; },
-        paddingTop: function () { return 10; },
-        paddingBottom: function () { return 11; }
+  // Требуемое количество: типы по строкам, этажи по столбцам (до пяти этажей), итог.
+  function needTable(result) {
+    const floors = result.floors.filter(function (f) { return f.units.length; });
+    const byFloor = floors.length > 1 && floors.length <= 5;
+    const head = [th('№'), th('Тип огнетушителя')];
+    if (byFloor) floors.forEach(function (f) { head.push(th(f.name)); });
+    head.push(th('Всего, шт.'));
+    const body = [head];
+    const sums = floors.map(function () { return 0; });
+    let total = 0, shields = 0;
+    result.totals.forEach(function (t, i) {
+      const row = [num(i + 1), typeName(t)];
+      if (byFloor) {
+        floors.forEach(function (f, fi) {
+          let c = 0;
+          f.units.forEach(function (u) { u.lines.forEach(function (l) { if (lineKey(l) === lineKey(t)) c += l.count; }); });
+          if (t.kind !== 'shield') sums[fi] += c;
+          row.push(num(c || ''));
+        });
       }
-    };
+      row.push(num(t.count, { bold: true }));
+      if (t.kind === 'shield') shields += t.count; else total += t.count;
+      body.push(row);
+    });
+    const foot = [{ text: 'Итого огнетушителей', bold: true, colSpan: 2 }, {}];
+    if (byFloor) sums.forEach(function (c) { foot.push(num(c, { bold: true })); });
+    foot.push(num(total, { bold: true }));
+    body.push(foot);
+    const widths = [18, '*'];
+    if (byFloor) floors.forEach(function () { widths.push(52); });
+    widths.push(56);
+    const out = [{ table: { headerRows: 1, widths: widths, body: body }, layout: GRID, fontSize: 10, lineHeight: 1.05 }];
+    if (shields) out.push({ text: 'Пожарные щиты (комплектов): ' + shields + '; в итог огнетушителей не входят.', style: 'note' });
+    return out;
   }
 
-  // ---------- что требуется: по карточке на тип огнетушителя ----------
-
-  function card(t) {
-    const color = t.agent === 'powder' ? C.powder : (t.agent === 'co2' ? C.co2 : C.faint);
-    return {
-      stack: [
-        { canvas: [{ type: 'rect', x: 0, y: 0, w: 24, h: 3, color: color }], margin: [0, 0, 0, 6] },
-        { text: [{ text: String(t.count), style: 'big' }, { text: t.kind === 'shield' ? ' компл.' : ' шт.', color: C.muted }] },
-        { text: t.code + (t.charge === 'D' ? ' (D)' : ''), bold: true, margin: [0, 3, 0, 0] },
-        { text: [t.name, t.charge ? 'порошок ' + t.charge : ''].filter(Boolean).join(', '), style: 'small', color: C.muted }
-      ]
-    };
-  }
-
-  function cards(totals) {
-    const per = 4, out = [];
-    for (let i = 0; i < totals.length; i += per) {
-      const row = totals.slice(i, i + per).map(card);
-      while (row.length < per) row.push({ text: '', border: [false, false, false, false] });
-      out.push({ table: { widths: [ '*', '*', '*', '*' ], body: [row] }, layout: boxes, margin: [0, 0, 0, 6] });
+  function checkTable(result) {
+    const c = result.check;
+    const body = [
+      [th('Этаж', { rowSpan: 2 }), th('Порошковые (ОП)', { colSpan: 3 }), {}, {}, th('Углекислотные (ОУ)', { colSpan: 3 }), {}, {}],
+      [{}, th('требуется'), th('установлено'), th('недостаёт'), th('требуется'), th('установлено'), th('недостаёт')]
+    ];
+    result.floors.forEach(function (f) {
+      if (!f.units.length) return;
+      if (!f.check) { body.push([f.name, { text: 'наличие не проверялось', colSpan: 6, alignment: 'center' }, {}, {}, {}, {}, {}]); return; }
+      const k = f.check;
+      body.push([f.name, num(k.requiredOP), num(k.installedOP), num(k.deficitOP || '', { bold: true }), num(k.requiredOU), num(k.installedOU), num(k.deficitOU || '', { bold: true })]);
+    });
+    body.push([{ text: 'Итого', bold: true }, num(c.requiredOP, { bold: true }), num(c.installedOP, { bold: true }), num(c.deficitOP || '', { bold: true }),
+      num(c.requiredOU, { bold: true }), num(c.installedOU, { bold: true }), num(c.deficitOU || '', { bold: true })]);
+    const out = [{ table: { headerRows: 2, widths: ['*', 54, 62, 58, 54, 62, 58], body: body }, layout: GRID, fontSize: 10, lineHeight: 1.05 }];
+    if (result.floors.some(function (f) { return f.fromPlan; })) {
+      out.push({ text: 'На этажах со схемой количество установленных огнетушителей взято с неё (отмечено при осмотре).', style: 'note' });
     }
     return out;
   }
 
-  // ---------- что сделать ----------
-
-  function todoTable(findings) {
+  function findingsTable(findings) {
     const list = findings.filter(function (f) { return f.level === 'bad'; }).concat(findings.filter(function (f) { return f.level !== 'bad'; }));
-    const body = [[th('№'), th('Где'), th('Что сделать'), th('Основание')]];
+    const body = [[th('№'), th('Место'), th('Выявлено'), th('Необходимо'), th('Основание')]];
     list.forEach(function (f, i) {
-      body.push([
-        { text: String(i + 1), color: C.muted },
-        { text: f.floor + (f.room ? ', «' + f.room + '»' : '') },
-        { text: f.action || f.text, color: f.level === 'warn' ? C.amber : C.text },
-        { text: f.ref, style: 'small', color: C.muted }
-      ]);
+      body.push([num(i + 1), f.floor + (f.place ? ', ' + f.place : ''), f.what || f.text, f.action || '', { text: f.ref, fontSize: 9 }]);
     });
-    return { table: { headerRows: 1, widths: [14, 118, '*', 104], body: body }, layout: rows };
+    return { table: { headerRows: 1, widths: [18, 80, '*', '*', 74], body: body }, layout: GRID, fontSize: 10, lineHeight: 1.05 };
   }
 
-  // ---------- по этажам ----------
-
-  function floorsTable(result, audit) {
-    const floors = result.floors.filter(function (f) { return f.units.length; });
-    if (!floors.length) return null;
-    const right = { alignment: 'right' };
-    if (!result.check) {
-      const body = [[th('Этаж'), th('Помещений', right), th('Площадь, м²', right), th('Требуется')]];
-      floors.forEach(function (f) {
-        const s = floorRooms(f);
-        body.push([f.name, { text: String(s.n), alignment: 'right' }, { text: E.fmt(s.area), alignment: 'right' }, { text: needOf(f), bold: true }]);
-      });
-      return { table: { headerRows: 1, widths: ['*', 60, 70, 210], body: body }, layout: rows };
+  // Вывод — обычной фразой; главное слово выделено полужирным.
+  function conclusion(result, audit) {
+    const c = result.check, s = result.summary, findings = audit ? audit.findings : [];
+    if (!result.totals.length) return { text: 'Помещения не введены или по нормам огнетушители не требуются, расчёт не выполнен.' };
+    if (!c) {
+      const parts = ['Для объекта требуется ' + s.portable + ' ' + plural(s.portable, 'переносной огнетушитель', 'переносных огнетушителя', 'переносных огнетушителей')];
+      if (s.wheeled) parts.push(s.wheeled + ' ' + plural(s.wheeled, 'передвижной', 'передвижных', 'передвижных'));
+      return { text: parts.join(' и ') + ' (раздел 2). Фактическое наличие огнетушителей не проверялось.' };
     }
-    const findings = audit ? audit.findings : [];
-    const body = [[th('Этаж'), th('Требуется'), th('Установлено'), th('Вывод')]];
-    floors.forEach(function (f) {
-      const c = f.check;
-      let outcome;
-      if (!c) outcome = { text: 'не проверялся', color: C.muted };
-      else {
-        const parts = [];
-        if (c.deficitOP) parts.push('не хватает ОП: ' + c.deficitOP);
-        if (c.deficitOU) parts.push('не хватает ОУ: ' + c.deficitOU);
-        const mine = findings.filter(function (x) { return x.floorId === f.id && x.kind !== 'deficit'; });
-        const bad = mine.filter(function (x) { return x.level === 'bad'; }).length, warn = mine.length - bad;
-        if (bad) parts.push('нарушений размещения: ' + bad);
-        if (warn) parts.push('проверить на месте: ' + warn);
-        outcome = parts.length ? { text: parts.join('; '), color: c.deficitOP || c.deficitOU || bad ? C.red : C.amber } : { text: 'в норме', color: C.green };
-      }
-      body.push([
-        f.name,
-        needOf(f),
-        c ? 'ОП — ' + c.installedOP + ', ОУ — ' + c.installedOU + (f.fromPlan ? ' (по схеме)' : '') : { text: '—', color: C.muted },
-        outcome
-      ]);
-    });
-    return { table: { headerRows: 1, widths: [80, '*', 120, 130], body: body }, layout: rows };
+    const place = findings.filter(function (f) { return f.level === 'bad' && f.kind !== 'deficit'; }).length;
+    const warn = findings.filter(function (f) { return f.level === 'warn'; }).length;
+    const floors = result.floors.filter(function (f) { return f.units.length; }).length;
+    const bad = !c.ok || place > 0;
+    const details = [];
+    if (!c.ok) details.push(c.text);
+    if (place) details.push('Нарушений размещения: ' + place + '.');
+    if (warn) details.push('Требует проверки на месте: ' + warn + '.');
+    if (c.floorsChecked < floors) details.push('Не проверено этажей: ' + (floors - c.floorsChecked) + '.');
+    return {
+      text: [
+        'Оснащение объекта огнетушителями требованиям Приложения 3 к Правилам пожарной безопасности ',
+        { text: bad ? 'не соответствует' : 'соответствует', bold: true },
+        '.' + (details.length ? ' ' + details.join(' ') : '')
+      ]
+    };
   }
-
-  // ---------- подписи ----------
 
   function signature(text, name) {
-    const line = function (w) { return { canvas: [{ type: 'line', x1: 0, y1: 11, x2: w, y2: 11, lineWidth: 0.6, lineColor: C.text }] }; };
+    const line = function (w) { return { canvas: [{ type: 'line', x1: 0, y1: 12, x2: w, y2: 12, lineWidth: 0.5, lineColor: INK }] }; };
     return {
       columns: [
-        { width: 140, text: text },
-        { width: 100, stack: [line(100), { text: '(подпись)', style: 'tiny', color: C.muted, alignment: 'center', margin: [0, 2, 0, 0] }] },
-        { width: '*', stack: [name ? { text: name } : line(110), { text: '(фамилия, инициалы)', style: 'tiny', color: C.muted, margin: [0, name ? 1 : 2, 0, 0] }] }
+        { width: 150, text: text },
+        { width: 100, stack: [line(100), { text: '(подпись)', style: 'caption', alignment: 'center', margin: [0, 1, 0, 0] }] },
+        { width: '*', stack: [name ? { text: name, margin: [0, 2, 0, 0] } : line(130), { text: '(фамилия, инициалы)', style: 'caption', margin: [0, name ? 0 : 1, 0, 0] }] }
       ],
       columnGap: 10,
-      margin: [0, 12, 0, 0]
+      margin: [0, 10, 0, 0]
     };
   }
 
   // ---------- приложения ----------
 
+  function appendixHead(n, title, dateText) {
+    return {
+      stack: [
+        { text: 'Приложение ' + n, alignment: 'right' },
+        { text: 'к расчёту от ' + dateText, alignment: 'right' },
+        { text: title, style: 'appendix' }
+      ],
+      pageBreak: 'before'
+    };
+  }
+
   function schemeBlock(caption, sc, width) {
     const pic = PL.svg(sc, width, 230);
-    return { width: width, stack: [{ text: caption, style: 'small', color: C.muted, margin: [0, 0, 0, 4] }, { svg: pic.svg, width: pic.width, height: pic.height }] };
+    return { width: width, stack: [{ svg: pic.svg, width: pic.width, height: pic.height, alignment: 'center' }, { text: caption, style: 'caption', alignment: 'center', margin: [0, 3, 0, 0] }] };
   }
 
   function countMarks(sc) {
     const n = PL.tally(sc);
-    return 'ОП — ' + n.op + ', ОУ — ' + n.ou + (n.other ? ', других — ' + n.other : '');
+    return 'ОП ' + n.op + ', ОУ ' + n.ou + (n.other ? ', других ' + n.other : '');
   }
 
   function normText(u) {
-    if (u.kind === 'table1') {
-      return u.rowTitle + ', ' + u.rowArea + ' м²' + (u.category === 'PUB' ? '' : ' · кат. ' + u.categoryLabel) + (u.classes.length ? ' · ' + u.classes.join(', ') : '');
-    }
-    if (u.kind === 'table5') return 'Табл. 5: ' + u.rowTitle;
-    if (u.kind === 'exempt') return 'Категория Д, менее 100 м² (п. 6)';
-    if (u.kind === 'floorMin') return 'Не менее двух на этаже' + (u.byRules ? ' (п. 5)' : ' (параметр расчёта)');
+    if (u.kind === 'table1') return u.rowTitle + ', ' + u.rowArea + ' м²';
+    if (u.kind === 'table5') return 'Табл. 5: ' + String(u.rowTitle).split(/[:,]/)[0];
+    if (u.kind === 'exempt') return 'п. 6: допускается не оснащать';
+    if (u.kind === 'floorMin') return u.byRules ? 'п. 5: не менее двух на этаже' : 'Не менее двух на этаже (параметр расчёта)';
     return u.norm;
   }
 
+  function classText(u) {
+    if (u.kind === 'table5') return 'табл. 5';
+    if (u.kind === 'floorMin') return '';
+    const cat = u.category === 'PUB' ? 'Общественное' : 'Категория ' + u.categoryLabel;
+    return cat + (u.classes.length ? '; ' + u.classes.join(', ') : '');
+  }
+
   function requiredText(u) {
-    if (!u.lines.length) return { text: 'не требуется', color: C.muted };
+    if (!u.lines.length) return 'не требуется';
     return { text: u.lines.map(function (l) { return l.count + ' × ' + E.lineTitle(l); }).join('\n'), bold: true };
   }
 
   function basisText(u) {
-    if (!u.lines.length) return { text: u.kind === 'exempt' ? 'допускается не оснащать' : '—', color: C.muted };
+    if (!u.lines.length) return u.kind === 'exempt' ? 'Помещение категории Д менее 100 м²' : '';
     return u.lines.map(function (l) { return l.basis; }).join('\n');
   }
 
@@ -289,64 +278,49 @@
     const generated = meta.generatedAt instanceof Date ? meta.generatedAt : new Date();
     const dateText = formatDate(b.date) || formatDate(generated);
     const appName = meta.appName || APP_NAME;
-    const s = result.summary;
     const content = [];
+    let section = 0;
+    function next(title) { section += 1; return heading(section + '. ' + title); }
 
-    // ---------- страница 1: заключение ----------
-    const facts = [
-      b.address,
-      KIND_LABEL[b.kind],
-      s.floors + ' ' + plural(s.floors, 'этаж', 'этажа', 'этажей') + ', ' + s.rooms + ' ' + plural(s.rooms, 'помещение', 'помещения', 'помещений') + ', ' + E.fmt(s.area) + ' м²',
-      b.owner
-    ].filter(Boolean);
+    // ---------- первая страница ----------
+    content.push({ text: 'РАСЧЁТ', style: 'title' });
+    content.push({ text: 'необходимого количества первичных средств пожаротушения (огнетушителей)', alignment: 'center', fontSize: 12 });
     content.push({
-      columns: [
-        { width: '*', stack: [
-          { text: 'РАСЧЁТ ОГНЕТУШИТЕЛЕЙ', style: 'eyebrow' },
-          { text: b.name || 'Объект без названия', style: 'title' },
-          { text: facts.join(' · '), style: 'meta', margin: [0, 3, 0, 0] }
-        ] },
-        { width: 140, stack: [
-          { text: dateText, alignment: 'right', bold: true },
-          { text: b.inspector || '', alignment: 'right', style: 'meta' }
-        ] }
-      ],
-      columnGap: 16,
-      margin: [0, 0, 0, 14]
+      text: 'по Приложению 3 к Правилам пожарной безопасности, утверждённым приказом Министра по чрезвычайным ситуациям Республики Казахстан от 21 февраля 2022 года № 55, и СТ РК 1487-2006',
+      alignment: 'center', fontSize: 10, margin: [30, 3, 30, 0]
     });
+    const city = /^(г\.|город|пос\.|с\.)\s*[^,]+/i.exec(b.address || '');
+    content.push({ columns: [{ text: city ? city[0] : '' }, { text: dateText, alignment: 'right' }], margin: [0, 10, 0, 0] });
 
-    content.push(verdictBlock(verdict(result, audit)));
+    content.push(next('Сведения об объекте'));
+    content.push(objectTable(result));
 
-    if (result.totals.length) {
-      content.push(label('Требуется по нормам'));
-      cards(result.totals).forEach(function (t) { content.push(t); });
-      const parts = ['всего переносных — ' + s.portable];
-      if (s.wheeled) parts.push('передвижных — ' + s.wheeled);
-      if (s.shields) parts.push('пожарных щитов — ' + s.shields);
-      content.push({ text: parts.join(', ') + '. Заряд порошковых — по примечанию 2 к табл. 1.', style: 'small', color: C.muted });
+    content.push(next('Требуемое количество огнетушителей'));
+    if (result.totals.length) needTable(result).forEach(function (x) { content.push(x); });
+    else content.push({ text: 'Помещения не введены или по нормам огнетушители не требуются.' });
+
+    if (result.check) {
+      content.push(next('Сверка с фактическим наличием'));
+      checkTable(result).forEach(function (x) { content.push(x); });
     }
 
     if (findings.length) {
-      content.push(label('Что сделать'));
-      content.push(todoTable(findings));
+      content.push(next('Выявленные нарушения и меры по их устранению'));
+      content.push(findingsTable(findings));
     }
 
-    const ft = floorsTable(result, audit);
-    if (ft) {
-      content.push(label('По этажам'));
-      content.push(ft);
-    }
-
+    content.push(next('Вывод'));
+    content.push(conclusion(result, audit));
     if (result.warnings.length) {
-      content.push({ text: 'Замечаний к исходным данным: ' + result.warnings.length + ' — см. приложение «Расчёт по помещениям».', style: 'small', color: C.amber, margin: [0, 8, 0, 0] });
+      content.push({ text: 'Замечания к исходным данным (' + result.warnings.length + ') приведены в приложении «Расчёт по помещениям».', style: 'note' });
     }
 
-    // подписи и QR-код — одним блоком, чтобы не разрывались между страницами
+    // подписи и QR-код одним блоком, чтобы не разрывались между страницами
     const sign = {
       stack: [
         signature('Расчёт выполнил', b.inspector),
         signature('С расчётом ознакомлен (представитель объекта)', ''),
-        { text: 'Расчёт выполнен автоматически по нормам и допущениям, приведённым в приложении. Исходные данные введены пользователем; результат подлежит проверке должностным лицом.', style: 'tiny', color: C.muted, margin: [0, 12, 0, 0] }
+        { text: 'Расчёт выполнен в программе «' + appName + '» по исходным данным, введённым пользователем. Расчёт по помещениям и принятые допущения приведены в приложениях.', style: 'note', margin: [0, 10, 0, 0] }
       ]
     };
     if (meta.link) {
@@ -354,138 +328,117 @@
       content.push({
         columns: [
           { width: '*', stack: [sign] },
-          { width: Math.max(side, 70), stack: [
-            { qr: meta.link, fit: side, eccLevel: 'L', foreground: C.text, alignment: 'center' },
-            { text: 'Открыть расчёт на телефоне', style: 'tiny', color: C.muted, alignment: 'center', margin: [0, 3, 0, 0] }
+          { width: Math.max(side, 72), stack: [
+            { qr: meta.link, fit: side, eccLevel: 'L', foreground: INK, alignment: 'center' },
+            { text: 'Электронная версия расчёта', style: 'caption', alignment: 'center', margin: [0, 3, 0, 0] }
           ] }
         ],
-        columnGap: 20,
+        columnGap: 18,
         unbreakable: true,
-        margin: [0, 16, 0, 0]
+        margin: [0, 10, 0, 0]
       });
     } else {
-      content.push(Object.assign(sign, { unbreakable: true, margin: [0, 16, 0, 0] }));
+      content.push(Object.assign(sign, { unbreakable: true, margin: [0, 10, 0, 0] }));
     }
 
     // ---------- приложения ----------
     let appendix = 0;
-    function appendixTitle(title) {
-      appendix += 1;
-      return { text: 'Приложение ' + appendix + '. ' + title, style: 'h2', pageBreak: appendix === 1 ? 'before' : undefined };
-    }
 
     if (schemes.length) {
-      // заголовок — отдельно: переход на новую страницу внутри неразрывного блока pdfmake не выполняет и теряет блок
-      content.push(appendixTitle('Схемы размещения огнетушителей'));
-      content.push({
-        text: 'П — порошковый (ОП), У — углекислотный (ОУ). Пунктирный круг — предельное расстояние по прямой (п. 4); красным закрашены места дальше нормы. «Как есть» — отмечено при осмотре, «По нормам» — расчётная расстановка.',
-        style: 'small', color: C.muted, margin: [0, 0, 0, 6]
-      });
+      appendix += 1;
+      content.push(appendixHead(appendix, 'Схемы размещения огнетушителей', dateText));
       let approx = false, planned = false;
       schemes.forEach(function (sc) {
-        const both = !!sc.fact, width = both ? 250 : 400;
+        // широкий этаж (длинное здание) — схемы друг под другом во всю ширину, иначе рядом
+        const v = PL.view(sc.want.box);
+        const both = !!sc.fact, wide = v.w > v.h * 1.6;
+        const width = wide ? 500 : (both ? 240 : 400);
         const extra = sc.want.ext.filter(function (e) { return e.extra; }).length;
-        const cols = [];
-        if (both) cols.push(schemeBlock('Как есть — отмечено при осмотре: ' + countMarks(sc.fact), sc.fact, width));
-        cols.push(schemeBlock('По нормам — расчётная расстановка: ' + countMarks(sc.want) + (extra ? ' (из них по расстоянию — ' + extra + ')' : ''), sc.want, width));
+        const blocks = [];
+        if (both) blocks.push(schemeBlock('а) фактическое размещение, отмечено при осмотре: ' + countMarks(sc.fact), sc.fact, width));
+        blocks.push(schemeBlock((both ? 'б) ' : '') + 'размещение по расчёту: ' + countMarks(sc.want) + (extra ? ', из них по расстоянию ' + extra : ''), sc.want, width));
         if (sc.want.rects.some(function (r) { return r.approx; })) approx = true;
         if (sc.want.rects.some(function (r) { return r.poly; })) planned = true;
-        content.push({ stack: [{ text: sc.name, bold: true, style: 'h3' }, { columns: cols, columnGap: 15 }], unbreakable: true, margin: [0, 0, 0, 8] });
+        const body = wide || !both
+          ? { stack: blocks.map(function (x) { return { stack: x.stack, margin: [0, 0, 0, 8] }; }) }
+          : { columns: blocks, columnGap: 14 };
+        content.push({ stack: [{ text: sc.name, bold: true, margin: [0, 6, 0, 4] }, body], unbreakable: true, margin: [0, 0, 0, 8] });
       });
-      const notes = [];
-      if (planned) notes.push('контуры помещений — по загруженному плану этажа');
-      if (approx) notes.push('помещения с пунктирным контуром введены без размеров, их форма условная');
-      notes.push('передвижные огнетушители и пожарные щиты на схеме не показаны');
-      content.push({ text: 'Примечание: ' + notes.join('; ') + '.', style: 'small', color: C.muted, margin: [0, 2, 0, 0] });
+      const notes = ['П (белый круг): порошковый огнетушитель', 'У (чёрный круг): углекислотный', 'пунктирная окружность: предельное расстояние до огнетушителя по прямой (п. 4)', 'серая заливка: места дальше нормы'];
+      content.push({ text: 'Условные обозначения: ' + notes.join('; ') + '.', style: 'note' });
+      const extra = [];
+      if (planned) extra.push('контуры помещений построены по загруженному плану этажа');
+      if (approx) extra.push('помещения с пунктирным контуром введены без размеров, их форма условная');
+      extra.push('передвижные огнетушители и пожарные щиты на схемах не показаны');
+      content.push({ text: 'Примечание: ' + extra.join('; ') + '.', style: 'note' });
     }
 
-    content.push(appendixTitle('Расчёт по помещениям'));
-    if (!result.floors.some(function (f) { return f.units.length; })) content.push({ text: 'Нет данных.', color: C.muted });
+    appendix += 1;
+    content.push(appendixHead(appendix, 'Расчёт по помещениям', dateText));
+    if (!result.floors.some(function (f) { return f.units.length; })) content.push({ text: 'Нет данных.' });
     result.floors.forEach(function (f) {
       if (!f.units.length) return;
-      const p = f.portable;
-      const sub = ['переносных — ' + (p.powder + p.co2 + p.other) + ' (ОП — ' + p.powder + ', ОУ — ' + p.co2 + (p.other ? ', прочих — ' + p.other : '') + ')'];
-      if (f.wheeled) sub.push('передвижных — ' + f.wheeled);
-      content.push({ text: [{ text: f.name, bold: true }, { text: '   ' + sub.join('; '), color: C.muted }], style: 'h3' });
-      const body = [[th('№'), th('Помещения'), th('Площадь, м²', { alignment: 'right' }), th('Норма'), th('Требуется'), th('Как посчитано')]];
+      const s = floorRooms(f);
+      content.push({ text: [{ text: f.name, bold: true }, '. Помещений: ' + s.n + ', площадь ' + E.fmt(s.area) + ' м².'], margin: [0, 8, 0, 4] });
+      const body = [[th('№'), th('Помещение'), th('Площадь, м²'), th('Категория, классы пожара'), th('Норма'), th('Требуется'), th('Расчёт')]];
       f.units.forEach(function (u, i) {
         // большая группа небольших помещений (п. 7) — числом и первыми именами, а не столбцом из всех
         const title = u.rooms.length > 4
           ? u.roomCount + ' ' + plural(u.roomCount, 'помещение', 'помещения', 'помещений') + ': ' + u.rooms.slice(0, 3).map(function (r) { return r.name; }).join(', ') + ' и др.'
           : u.title;
-        body.push([
-          { text: String(i + 1), color: C.muted },
-          title,
-          { text: u.areaLabel || '—', alignment: 'right' },
-          { text: normText(u), style: 'small' },
-          requiredText(u),
-          { text: basisText(u), style: 'small' }
-        ]);
+        body.push([num(i + 1), title, num(u.areaLabel || ''), classText(u), normText(u), requiredText(u), basisText(u)]);
       });
-      content.push({ table: { headerRows: 1, widths: [14, '*', 44, 112, 84, 150], body: body }, layout: rows, fontSize: 8.5 });
+      content.push({ table: { headerRows: 1, widths: [16, 74, 42, 70, 82, 70, '*'], body: body }, layout: GRID, fontSize: 9.5, lineHeight: 1.05 });
       // пояснения: всё, чего нет в таблице (расстояние, суммирование, АУПТ, серверная…)
       const notes = [];
       f.units.forEach(function (u, i) {
         u.steps.forEach(function (st) {
           if (st.kind === 'row' || st.kind === 'line' || st.kind === 'minor') return;
-          notes.push({ text: [{ text: (i + 1) + '. ', bold: true }, { text: st.ref + ': ', color: C.muted }, st.text], margin: [0, 0, 0, 2] });
+          notes.push({ text: [{ text: 'К строке ' + (i + 1) + '. ', bold: true }, String(st.text).replace(/\.$/, '') + ' (' + st.ref + ').'] });
         });
-        u.notes.forEach(function (n) { notes.push({ text: [{ text: (i + 1) + '. ', bold: true }, { text: n, color: C.muted }], margin: [0, 0, 0, 2] }); });
+        u.notes.forEach(function (n) { notes.push({ text: [{ text: 'К строке ' + (i + 1) + '. ', bold: true }, n] }); });
       });
-      if (notes.length) content.push({ stack: notes, style: 'small', margin: [0, 6, 0, 4] });
+      if (notes.length) content.push({ stack: notes, fontSize: 9.5, margin: [0, 5, 0, 0] });
     });
     if (result.warnings.length) {
-      content.push({ text: 'Замечания к исходным данным', bold: true, style: 'h3', color: C.amber });
-      content.push(bullets(result.warnings, C.amber));
+      content.push({ text: 'Замечания к исходным данным', bold: true, margin: [0, 10, 0, 4] });
+      content.push({ ol: result.warnings.slice(), fontSize: 9.5 });
     }
 
-    content.push(appendixTitle('Правила размещения, допущения и источники'));
-    content.push({ text: 'Требования к размещению и содержанию', bold: true, style: 'h3' });
-    content.push(bullets(result.placement));
-    content.push({ text: 'Принятые допущения', bold: true, style: 'h3' });
-    content.push({ text: 'Правила не определяют некоторые детали расчёта. Ниже указано, как они решены в этом расчёте.', style: 'small', color: C.muted, margin: [0, 0, 0, 4] });
-    content.push(bullets(result.assumptions));
+    appendix += 1;
+    content.push(appendixHead(appendix, 'Требования к размещению, принятые допущения и нормативные документы', dateText));
+    content.push({ text: '1. Требования к размещению и содержанию огнетушителей', bold: true, margin: [0, 4, 0, 4] });
+    content.push({ ol: result.placement.slice(), fontSize: 10 });
+    content.push({ text: '2. Принятые при расчёте допущения', bold: true, margin: [0, 10, 0, 2] });
+    content.push({ text: 'Правила не определяют некоторые детали расчёта. Ниже указано, как они решены в этом расчёте.', fontSize: 10, margin: [0, 0, 0, 4] });
+    content.push({ ol: result.assumptions.slice(), fontSize: 10 });
     content.push({
-      stack: [{ text: 'Нормативные источники', bold: true, style: 'h3' }, bullets(N.SOURCES.map(function (x) { return x.title + '.'; }))],
+      stack: [{ text: '3. Нормативные документы', bold: true, margin: [0, 10, 0, 4] }, { ol: N.SOURCES.map(function (x) { return x.title + '.'; }), fontSize: 10 }],
       unbreakable: true
     });
 
     return {
       pageSize: 'A4',
-      pageMargins: [40, 44, 40, 48],
+      pageMargins: [57, 40, 34, 40],
       info: {
         title: 'Расчёт огнетушителей' + (b.name ? ': ' + b.name : ''),
         author: b.inspector || appName,
-        subject: 'Расчёт количества и типов огнетушителей по Приложению 3 к ППБ РК и СТ РК 1487-2006',
+        subject: 'Расчёт необходимого количества огнетушителей по Приложению 3 к ППБ РК и СТ РК 1487-2006',
         creator: appName
       },
+      // номер страницы посередине верхнего поля, начиная со второй
       header: function (currentPage) {
         if (currentPage === 1) return null;
-        return { text: (b.name || 'Расчёт огнетушителей') + ' · ' + dateText, style: 'tiny', color: C.muted, margin: [40, 22, 40, 0] };
-      },
-      footer: function (currentPage, pageCount) {
-        return {
-          columns: [
-            { text: appName + ' · Прил. 3 к ППБ РК (приказ № 55), СТ РК 1487-2006', style: 'tiny', color: C.muted },
-            { text: 'стр. ' + currentPage + ' из ' + pageCount, style: 'tiny', color: C.muted, alignment: 'right', width: 70 }
-          ],
-          margin: [40, 16, 40, 0]
-        };
+        return { text: String(currentPage), alignment: 'center', fontSize: 10, margin: [0, 20, 0, 0] };
       },
       content: content,
-      defaultStyle: { font: 'Roboto', fontSize: 9.5, color: C.text, lineHeight: 1.2 },
+      defaultStyle: { font: 'Tinos', fontSize: 11, color: INK, lineHeight: 1.15 },
       styles: {
-        eyebrow: { fontSize: 8, bold: true, color: C.muted, characterSpacing: 0.8 },
-        title: { fontSize: 18, bold: true, margin: [0, 3, 0, 0] },
-        meta: { fontSize: 9, color: C.muted },
-        verdict: { fontSize: 15, bold: true },
-        label: { fontSize: 8, bold: true, color: C.muted, characterSpacing: 0.8, margin: [0, 16, 0, 6] },
-        big: { fontSize: 20, bold: true },
-        h2: { fontSize: 13, bold: true, margin: [0, 0, 0, 8] },
-        h3: { fontSize: 10.5, margin: [0, 12, 0, 5] },
-        th: { bold: true, fontSize: 8, color: C.muted },
-        small: { fontSize: 8.5 },
-        tiny: { fontSize: 7.5 }
+        title: { fontSize: 14, bold: true, alignment: 'center', characterSpacing: 0.5 },
+        section: { fontSize: 11, bold: true, margin: [0, 10, 0, 4] },
+        appendix: { fontSize: 12, bold: true, alignment: 'center', margin: [0, 12, 0, 8] },
+        note: { fontSize: 9.5, color: SOFT, margin: [0, 4, 0, 0] },
+        caption: { fontSize: 8.5, color: SOFT }
       }
     };
   }
@@ -497,5 +450,5 @@
     return 'Расчёт_огнетушителей_' + (name || 'объект') + '_' + date + '.pdf';
   }
 
-  return { APP_NAME: APP_NAME, KIND_LABEL: KIND_LABEL, buildDoc: buildDoc, fileName: fileName, formatDate: formatDate, qrSide: qrSide };
+  return { APP_NAME: APP_NAME, KIND_LABEL: KIND_LABEL, FONTS: FONTS, buildDoc: buildDoc, fileName: fileName, formatDate: formatDate, qrSide: qrSide };
 }));

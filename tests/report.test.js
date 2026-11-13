@@ -5,20 +5,20 @@ const fs = require('node:fs');
 const path = require('node:path');
 const E = require('../js/engine.js');
 const P = require('../js/presets.js');
+const PL = require('../js/plan.js');
 const R = require('../js/report.js');
+const { mulberry32, randomObject, randomOptions } = require('./helpers.js');
 
-// Множество знаков, которые есть в шрифте из vendor/vfs_fonts.js (таблица cmap).
-function fontCoverage(fontName) {
-  const src = fs.readFileSync(path.join(__dirname, '..', 'vendor', 'vfs_fonts.js'), 'utf8');
-  const m = new RegExp('"' + fontName.replace('.', '\\.') + '":\\s*"([A-Za-z0-9+/=]+)"').exec(src);
-  assert.ok(m, 'шрифт ' + fontName + ' найден в vfs_fonts.js');
-  const buf = Buffer.from(m[1], 'base64');
+// Множество знаков шрифта отчёта (таблица cmap файла vendor/fonts/*.ttf).
+function fontCoverage(fileName) {
+  const buf = fs.readFileSync(path.join(__dirname, '..', 'vendor', 'fonts', fileName));
   const numTables = buf.readUInt16BE(4);
   let cmap = 0;
   for (let i = 0; i < numTables; i++) {
     const o = 12 + i * 16;
     if (buf.toString('ascii', o, o + 4) === 'cmap') cmap = buf.readUInt32BE(o + 8);
   }
+  assert.ok(cmap, 'таблица cmap в ' + fileName);
   const has = new Set();
   const n = buf.readUInt16BE(cmap + 2);
   for (let i = 0; i < n; i++) {
@@ -41,6 +41,7 @@ function fontCoverage(fontName) {
   }
   return has;
 }
+const REGULAR = fontCoverage('Tinos-Regular.ttf'), BOLD = fontCoverage('Tinos-Bold.ttf');
 
 function collectStrings(node, out) {
   if (typeof node === 'string') out.push(node);
@@ -52,9 +53,28 @@ function collectStrings(node, out) {
 function docStrings(dd) {
   const out = collectStrings(dd.content, []);
   collectStrings(dd.header(2, 3), out);
-  collectStrings(dd.footer(2, 3), out);
   collectStrings(dd.info, out);
   return out;
+}
+
+// Все узлы описания документа с ключом key (например, qr).
+function nodes(node, key, out) {
+  out = out || [];
+  if (Array.isArray(node)) node.forEach(x => nodes(x, key, out));
+  else if (node && typeof node === 'object') { if (key in node) out.push(node); Object.keys(node).forEach(k => nodes(node[k], key, out)); }
+  return out;
+}
+
+function missingGlyphs(strings) {
+  const missing = new Set();
+  strings.forEach(s => {
+    for (const ch of s) {
+      const cp = ch.codePointAt(0);
+      if (cp === 10 || cp === 13) continue;
+      if (!REGULAR.has(cp) || !BOLD.has(cp)) missing.add(ch + ' (U+' + cp.toString(16).toUpperCase() + ')');
+    }
+  });
+  return [...missing];
 }
 
 const fixedDate = new Date(2026, 10, 11);
@@ -69,59 +89,101 @@ function inputs() {
   return { business, factory, empty: { kind: 'public', floors: [] } };
 }
 
-test('в отчёте нет знаков, которых нет в шрифте Roboto', () => {
-  const regular = fontCoverage('Roboto-Regular.ttf');
-  const medium = fontCoverage('Roboto-Medium.ttf');
-  const all = inputs();
-  [[all.business, {}], [all.factory, {}], [all.factory, { rounding: 'block', onlyPowderAndCO2: false }], [all.empty, {}]].forEach(([input, options]) => {
-    const dd = R.buildDoc(E.calculate(input, options), { generatedAt: fixedDate });
-    const missing = new Set();
-    docStrings(dd).forEach(s => {
-      for (const ch of s) {
-        const cp = ch.codePointAt(0);
-        if (cp === 10 || cp === 13) continue;
-        if (!regular.has(cp) || !medium.has(cp)) missing.add(ch + ' (U+' + cp.toString(16).toUpperCase() + ')');
-      }
-    });
-    assert.deepEqual([...missing], []);
-  });
-});
-
-// Все узлы описания документа с ключом key (например, qr).
-function nodes(node, key, out) {
-  out = out || [];
-  if (Array.isArray(node)) node.forEach(x => nodes(x, key, out));
-  else if (node && typeof node === 'object') { if (key in node) out.push(node); Object.keys(node).forEach(k => nodes(node[k], key, out)); }
-  return out;
+function fullDoc(input, options, link) {
+  const result = E.calculate(input, options);
+  const audit = PL.audit(input, result);
+  return R.buildDoc(result, { generatedAt: fixedDate, audit: audit, schemes: PL.schemes(input, result, audit), link: link });
 }
 
-test('первая страница — заключение: вывод, что требуется, по этажам, подписи; дальше приложения', () => {
+test('в отчёте нет знаков, которых нет в шрифте отчёта (Tinos)', () => {
+  const all = inputs();
+  [[all.business, {}], [all.factory, {}], [all.factory, { rounding: 'block', onlyPowderAndCO2: false }], [all.empty, {}]].forEach(([input, options]) => {
+    assert.deepEqual(missingGlyphs(docStrings(fullDoc(input, options, 'https://x.kz/#o=zAb'))), []);
+  });
+  // казахские буквы в адресе и названии тоже есть в шрифте
+  const kz = inputs().business;
+  kz.building.address = 'Петропавл қ., Нұрсұлтан Назарбаев көшесі, 181, Әлихан Бөкейхан, Ғабит Мүсірепов, Шоқан, Ұлы Дала, Үкімет, Һ';
+  assert.deepEqual(missingGlyphs(docStrings(fullDoc(kz, {}))), []);
+});
+
+test('служебный документ: заголовок, разделы, распределение по этажам, сверка, вывод, подписи, приложения', () => {
   const all = inputs();
   const result = E.calculate(all.business);
   const dd = R.buildDoc(result, { generatedAt: fixedDate });
   const text = docStrings(dd).join('\n');
-  ['РАСЧЁТ ОГНЕТУШИТЕЛЕЙ', 'Бизнес-центр (пример)', 'Не соответствует', 'Не хватает: 1 порошкового (ОП) и 1 углекислотного (ОУ).',
-    'ТРЕБУЕТСЯ ПО НОРМАМ', 'ПО ЭТАЖАМ', 'Установлено', 'ОП — 3, ОУ — 0 (по схеме)', 'не хватает ОП: 1; не хватает ОУ: 1', 'в норме',
-    'Расчёт выполнил', 'Иванов И. И.', '11.11.2026', 'Приложение 1. Расчёт по помещениям', 'Как посчитано', '450 м² × 4 шт. / 800 м² = 2,25, округление вверх — 3 шт.',
-    'Приложение 2. Правила размещения, допущения и источники', 'Принятые допущения', 'Нормативные источники',
-    'ОП-5', 'ОУ-3', 'СТ РК 1487-2006', 'Прил. 3, п. 7', 'Прил. 3, п. 5', 'стр. 2 из 3'
+  ['РАСЧЁТ', 'необходимого количества первичных средств пожаротушения (огнетушителей)', 'г. Астана', '11.11.2026',
+    '1. Сведения об объекте', 'Бизнес-центр (пример)', 'Общественное здание', '2 этажа, 8 помещений, 720 м²',
+    '2. Требуемое количество огнетушителей', 'ОП-5, порошковый, заряд ABC(E)', 'ОУ-3, углекислотный', 'Итого огнетушителей',
+    '3. Сверка с фактическим наличием', 'Порошковые (ОП)', 'недостаёт', 'На этажах со схемой',
+    '4. Вывод', 'не соответствует', 'Не хватает: 1 порошкового (ОП) и 1 углекислотного (ОУ).', 'Расчёт выполнил', 'Иванов И. И.',
+    'Приложение 1', 'к расчёту от 11.11.2026', 'Расчёт по помещениям', '450 м² × 4 шт. / 800 м² = 2,25, с округлением вверх 3 шт.',
+    'Приложение 2', 'Требования к размещению, принятые допущения и нормативные документы', 'СТ РК 1487-2006', 'Прил. 3, п. 7', 'Прил. 3, п. 5'
   ].forEach(x => assert.ok(text.includes(x), 'есть «' + x + '»'));
   assert.equal(dd.pageSize, 'A4');
+  assert.equal(dd.defaultStyle.font, 'Tinos');
+  // распределение по этажам: ОП-5 — 4 на первом, 2 на втором, всего 6
+  const need = nodes(dd.content, 'table').find(t => JSON.stringify(t.table.body[0]).includes('Тип огнетушителя'));
+  const op5 = need.table.body.find(r => typeof r[1] === 'string' && r[1].startsWith('ОП-5'));
+  assert.deepEqual(op5.slice(2).map(c => c.text), ['4', '2', '6']);
   // строка нормы и формула — в таблице, а не повторяются в пояснениях
   assert.ok(!text.includes('Помещение общественного назначения: строка'));
-  // приложения начинаются с новой страницы
-  assert.equal(nodes(dd.content, 'pageBreak').filter(n => n.pageBreak === 'before').length, 1);
+  // каждое приложение начинается с новой страницы; номер страницы сверху со второй
+  assert.equal(nodes(dd.content, 'pageBreak').filter(n => n.pageBreak === 'before').length, 2);
+  assert.equal(dd.header(1, 3), null);
+  assert.equal(dd.header(2, 3).text, '2');
   // без ссылки QR-кода нет
   assert.equal(nodes(dd.content, 'qr').length, 0);
-  // без фактических данных — расчёт потребности, без колонки «Установлено»
+  // без фактических данных — расчёт потребности, без сверки
   const noCheck = all.business;
   noCheck.floors.forEach(f => { f.installedOP = ''; f.installedOU = ''; f.plan = null; });
   const text2 = docStrings(R.buildDoc(E.calculate(noCheck), { generatedAt: fixedDate })).join('\n');
-  assert.ok(text2.includes('Требуется 7 огнетушителей') && text2.includes('Фактическое наличие не вносилось'));
-  assert.ok(!text2.includes('Установлено') && text2.includes('4 × ОП-5, 1 × ОУ-3'));
+  assert.ok(text2.includes('Для объекта требуется 7 переносных огнетушителей (раздел 2). Фактическое наличие огнетушителей не проверялось.'));
+  assert.ok(!text2.includes('Сверка с фактическим наличием'));
   // замечания к исходным данным — строкой на первой странице и списком в приложении
   const text3 = docStrings(R.buildDoc(E.calculate(all.factory), { generatedAt: fixedDate })).join('\n');
-  assert.ok(text3.includes('Замечаний к исходным данным: ') && text3.includes('Замечания к исходным данным'));
+  assert.ok(text3.includes('Замечания к исходным данным (') && text3.includes('Замечания к исходным данным\n'));
+});
+
+test('не похоже на сгенерированное: без длинных тире и «·», без цветов, без надписей заглавными над разделами', () => {
+  const all = inputs();
+  [all.business, all.factory].forEach(input => {
+    const dd = fullDoc(input, {}, 'https://x.kz/#o=zAb');
+    const strings = docStrings(dd);
+    const text = strings.join('\n');
+    assert.ok(!text.includes('·'), 'разделитель «·»');
+    const dashes = strings.filter(s => !s.startsWith('<svg') && s.includes('—'));
+    assert.deepEqual(dashes, [], 'длинные тире');
+    // цвета: только чёрный и тёмно-серый, на схемах — без красного
+    const colors = new Set();
+    nodes(dd, 'color').forEach(n => colors.add(String(n.color).toLowerCase()));
+    nodes(dd.styles, 'color').forEach(n => colors.add(String(n.color).toLowerCase()));
+    colors.add(String(dd.defaultStyle.color).toLowerCase());
+    assert.deepEqual([...colors].filter(c => !['#000000', '#333333'].includes(c)), [], 'цвета');
+    assert.equal(nodes(dd.content, 'fillColor').length, 0, 'заливки');
+    strings.filter(s => s.startsWith('<svg')).forEach(s => {
+      assert.ok(!/#c4291c|#b3261e|#1a7f4b/i.test(s), 'цвет на схеме');
+      assert.ok(!s.includes('Roboto') && s.includes('font-family="Tinos"'));
+    });
+    // надписи заглавными: только сам заголовок «РАСЧЁТ»
+    const caps = strings.filter(s => s.length > 3 && s === s.toUpperCase() && /[А-ЯЁ]{4,}/.test(s));
+    assert.deepEqual(caps, ['РАСЧЁТ']);
+  });
+});
+
+test('отчёт на 300 случайных объектах: строится, все знаки есть в шрифте, без длинных тире и «·»', () => {
+  const rnd = mulberry32(55);
+  for (let i = 0; i < 300; i++) {
+    const input = randomObject(rnd, i), opts = randomOptions(rnd);
+    // часть этажей — как после осмотра: отметки на схеме или вписанные числа
+    input.floors.forEach(f => {
+      if (rnd() < 0.5) f.plan = { open: true, ext: f.rooms.filter(() => rnd() < 0.5).map(r => ({ k: r.id + ':0', u: rnd(), v: rnd(), t: rnd() < 0.7 ? 'op' : 'ou' })) };
+      else if (rnd() < 0.5) { f.installedOP = Math.floor(rnd() * 6); f.installedOU = Math.floor(rnd() * 3); }
+    });
+    const link = rnd() < 0.5 ? 'https://x.kz/#o=' + 'a'.repeat(Math.floor(rnd() * 900)) : undefined;
+    const strings = docStrings(fullDoc(input, opts, link));
+    assert.deepEqual(missingGlyphs(strings), [], 'объект ' + i);
+    assert.deepEqual(strings.filter(s => !s.startsWith('<svg') && (s.includes('—') || s.includes('·'))), [], 'объект ' + i);
+  }
 });
 
 test('имя файла без запрещённых знаков', () => {
@@ -137,19 +199,16 @@ test('пустой расчёт формирует отчёт без ошибо�
   assert.ok(docStrings(dd).join('\n').includes('Помещения не введены'));
 });
 
-test('отчёт проверки: что сделать, схемы «как есть» и «по нормам», небольшой QR-код со ссылкой', () => {
-  const PL = require('../js/plan.js');
+test('отчёт проверки: нарушения и меры, схемы «фактическое» и «по расчёту», небольшой QR-код со ссылкой', () => {
   const input = inputs().business;
-  const result = E.calculate(input);
-  const audit = PL.audit(input, result);
   const link = 'https://fire-extinguisher-calc.vercel.app/#o=' + 'z'.repeat(400);
-  const dd = R.buildDoc(result, { generatedAt: fixedDate, audit: audit, schemes: PL.schemes(input, result, audit), link: link });
+  const dd = fullDoc(input, {}, link);
   const strings = docStrings(dd);
   const text = strings.join('\n');
-  ['ЧТО СДЕЛАТЬ', 'Добавить 1 порошковый огнетушитель (ОП-5)', 'Добавить 1 углекислотный огнетушитель (ОУ-3)',
-    '1 этаж, «Серверная»', 'Убрать порошковый огнетушитель, поставить углекислотный (ОУ)', 'Прил. 3, п. 9; СТ РК 1487-2006', 'Нарушений размещения: 1.',
-    'Приложение 1. Схемы размещения огнетушителей', 'Как есть — отмечено при осмотре: ОП — 3, ОУ — 0', 'По нормам — расчётная расстановка: ОП — 4, ОУ — 1',
-    'Приложение 2. Расчёт по помещениям', 'Открыть расчёт на телефоне'
+  ['4. Выявленные нарушения и меры по их устранению', 'Установить ещё 1 порошковый огнетушитель (ОП-5)', 'Установить ещё 1 углекислотный огнетушитель (ОУ-3)',
+    '1 этаж, «Серверная»', 'Заменить порошковый огнетушитель углекислотным (ОУ)', 'Прил. 3, п. 9; СТ РК 1487-2006', 'Нарушений размещения: 1.',
+    'Приложение 1', 'Схемы размещения огнетушителей', 'а) фактическое размещение, отмечено при осмотре: ОП 3, ОУ 0', 'б) размещение по расчёту: ОП 4, ОУ 1',
+    'Условные обозначения', 'Приложение 2', 'Расчёт по помещениям', 'Приложение 3', 'Электронная версия расчёта'
   ].forEach(x => assert.ok(text.includes(x), 'есть «' + x + '»'));
   const qr = nodes(dd.content, 'qr');
   assert.equal(qr.length, 1);
@@ -158,11 +217,7 @@ test('отчёт проверки: что сделать, схемы «как е
   assert.ok(qr[0].fit >= 60 && qr[0].fit <= 115, 'сторона ' + qr[0].fit);
   [10, 100, 450, 1000].forEach(n => { const side = R.qrSide('https://x.kz/#o=' + 'a'.repeat(n)); assert.ok(side >= 49 && side <= 115, n + ': ' + side); });
   assert.equal(strings.filter(x => x.startsWith('<svg ')).length, 4); // два этажа, по две схемы
-  // знаки рисунков и подписей есть в шрифте отчёта
-  const regular = fontCoverage('Roboto-Regular.ttf'), medium = fontCoverage('Roboto-Medium.ttf');
-  const missing = new Set();
-  strings.forEach(x => { for (const ch of x) { const cp = ch.codePointAt(0); if (cp !== 10 && cp !== 13 && !(regular.has(cp) && medium.has(cp))) missing.add(ch); } });
-  assert.deepEqual([...missing], []);
+  assert.deepEqual(missingGlyphs(strings), []);
   // количество в норме, а нарушение по размещению есть — вывод всё равно «не соответствует»
   const placed = { kind: 'public', floors: [{ rooms: [
     Object.assign(P.blankRoom('server'), { id: 's', name: 'Серверная', area: 20 }),
@@ -171,5 +226,5 @@ test('отчёт проверки: что сделать, схемы «как е
   const r2 = E.calculate(placed);
   assert.equal(r2.check.ok, true);
   const t2 = docStrings(R.buildDoc(r2, { generatedAt: fixedDate, audit: PL.audit(placed, r2) })).join('\n');
-  assert.ok(t2.includes('Не соответствует') && t2.includes('Огнетушителей достаточно.') && t2.includes('Нарушений размещения: 1.'));
+  assert.ok(t2.includes('не соответствует') && t2.includes('Нарушений размещения: 1.'), t2.slice(0, 400));
 });

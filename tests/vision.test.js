@@ -114,6 +114,41 @@ test('масштаб по общей площади этажа и по длин�
   assert.equal(V.scaleFromLength([0, 0], [0, 0], 5), 0);
 });
 
+test('площади помещений округлены так, что их сумма равна общей площади', () => {
+  const r1 = x => Math.round(x * 10) / 10;
+  // каждое по отдельности: 3 × 33,33 = 99,9 вместо 100; с наибольшими остатками — 100
+  const three = V.roundAreas([{ px: 3333.33 }, { px: 3333.33 }, { px: 3333.34 }], 10);
+  assert.equal(r1(three.reduce((a, b) => a + b, 0)), 100);
+  assert.deepEqual(three.slice().sort(), [33.3, 33.3, 33.4]);
+  // случайные наборы: сумма равна округлённой общей, каждая площадь отличается от точной меньше чем на 0,1
+  let seed = 7;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  for (let n = 0; n < 300; n++) {
+    const s = 3 + rnd() * 30;
+    const rooms = Array.from({ length: 1 + Math.floor(rnd() * 25) }, () => ({ px: Math.round(rnd() * 400000) + 50 }));
+    const areas = V.roundAreas(rooms, s);
+    const exact = rooms.map(r => r.px / (s * s));
+    assert.equal(r1(areas.reduce((a, b) => a + b, 0)), r1(exact.reduce((a, b) => a + b, 0)), 'сумма, набор ' + n);
+    areas.forEach((a, i) => {
+      assert.ok(Math.abs(a - exact[i]) < 0.1 + 1e-9, 'набор ' + n + ': ' + a + ' и ' + exact[i]);
+      assert.equal(a, r1(a), 'одна цифра после запятой');
+    });
+  }
+  assert.deepEqual(V.roundAreas([], 10), []);
+});
+
+test('масштаб по площади: найденная сумма площадей равна введённой (как в окне «Загрузить план»)', () => {
+  const img = planImage(10, true);
+  [500, 777.7, 1234.5].forEach(entered => {
+    // первый проход без масштаба, второй с масштабом по площади, затем масштаб уточняется
+    const first = V.findRooms(img.rgba, img.w, img.h);
+    const out = V.findRooms(img.rgba, img.w, img.h, { scale: V.scaleFromArea(first.rooms, entered) });
+    const scale = V.scaleFromArea(out.rooms, entered);
+    const sum = V.roundAreas(out.rooms, scale).reduce((a, b) => a + b * 10, 0) / 10;
+    assert.equal(Math.round(sum * 10) / 10, entered);
+  });
+});
+
 test('пустая и сплошь тёмная картинка не ломают распознавание', () => {
   const w = 120, h = 80;
   assert.deepEqual(V.findRooms(new Uint8ClampedArray(w * h * 4).fill(255), w, h, { scale: 10 }).rooms, []);

@@ -375,6 +375,20 @@
     return px > 0 && areaM2 > 0 ? Math.sqrt(px / areaM2) : 0;
   }
 
+  // Площади помещений в м² с точностью 0,1, сумма которых равна округлённой общей площади
+  // (метод наибольших остатков). При округлении каждой площади отдельно сумма по списку
+  // расходится с общей площадью на 0,1–0,5 м², и итог этажа не совпадает с введённым.
+  function roundAreas(rooms, scale) {
+    const s2 = scale * scale;
+    const exact = rooms.map(function (r) { return r.px / s2 * 10; });
+    const out = exact.map(function (x) { return Math.floor(x + 1e-9); });
+    let rest = Math.round(exact.reduce(function (a, b) { return a + b; }, 0)) - out.reduce(function (a, b) { return a + b; }, 0);
+    const order = exact.map(function (x, i) { return i; })
+      .sort(function (a, b) { return (exact[b] - out[b]) - (exact[a] - out[a]) || a - b; });
+    for (let k = 0; k < order.length && rest > 0; k++, rest--) out[order[k]] += 1;
+    return out.map(function (x) { return x / 10; });
+  }
+
   // Масштаб по отрезку известной длины.
   function scaleFromLength(a, b, meters) {
     const d = Math.hypot(b[0] - a[0], b[1] - a[1]);
@@ -390,7 +404,7 @@
 
   return {
     DEFAULTS: DEFAULTS, findRooms: findRooms, scaleFromArea: scaleFromArea, scaleFromLength: scaleFromLength,
-    looksLikeCorridor: looksLikeCorridor,
+    roundAreas: roundAreas, looksLikeCorridor: looksLikeCorridor,
     // для тестов
     _inkMask: inkMask, _edt: edt, _components: components
   };

@@ -6,7 +6,7 @@
  * файлы), а если сети нет или она не отвечает за 3,5 с — сохранённая копия.
  * При изменении списка файлов увеличьте номер в CACHE.
  */
-const CACHE = 'firecalc-v5';
+const CACHE = 'firecalc-v6';
 const SLOW_NETWORK_MS = 3500;
 const ASSETS = [
   './',
@@ -15,7 +15,7 @@ const ASSETS = [
   'css/app.css',
   'js/norms.js', 'js/engine.js', 'js/presets.js', 'js/plan.js', 'js/vision.js', 'js/vision.worker.js', 'js/share.js', 'js/report.js', 'js/app.js',
   'examples/plan-school.png',
-  'vendor/vue.global.prod.js', 'vendor/pdfmake.min.js', 'vendor/vfs_fonts.js',
+  'vendor/vue.global.prod.js', 'vendor/pdfmake.min.js', 'vendor/vfs_report.js',
   'vendor/fonts/ibm-plex-sans-latin-400-normal.woff2', 'vendor/fonts/ibm-plex-sans-latin-500-normal.woff2',
   'vendor/fonts/ibm-plex-sans-cyrillic-400-normal.woff2', 'vendor/fonts/ibm-plex-sans-cyrillic-500-normal.woff2',
   'vendor/fonts/ibm-plex-sans-cyrillic-ext-400-normal.woff2', 'vendor/fonts/ibm-plex-sans-cyrillic-ext-500-normal.woff2',

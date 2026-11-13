@@ -222,7 +222,7 @@
     return new Promise(function (resolve, reject) {
       try {
         if (!visionWorker) {
-          visionWorker = new Worker('js/vision.worker.js?v=5');
+          visionWorker = new Worker('js/vision.worker.js?v=6');
           visionWorker.onmessage = function (e) {
             const job = visionWaiting[e.data.id];
             if (!job) return;
@@ -263,7 +263,7 @@
     if (window.pdfMake && window.pdfMake.vfs) return Promise.resolve();
     if (!pdfReady) {
       pdfReady = loadScript('vendor/pdfmake.min.js')
-        .then(function () { return loadScript('vendor/vfs_fonts.js'); })
+        .then(function () { return loadScript('vendor/vfs_report.js'); })
         .catch(function (e) { pdfReady = null; throw e; });
     }
     return pdfReady;
@@ -553,7 +553,7 @@
         <ol class="finds" data-test="finds" v-if="audit.findings.length">
           <li v-for="(x, i) in audit.findings" :key="i" :class="'find find--' + x.level">
             <span class="ref">{{ x.floor }} · {{ x.ref }}{{ x.level === 'warn' ? ' · проверить на месте' : '' }}</span>
-            <span>{{ x.text }}</span>
+            <span>{{ x.text }}<template v-if="x.action"> {{ x.action }}.</template></span>
           </li>
         </ol>
         <p class="hint" v-if="result.check && planFloors">У этажей со схемой числа «есть» взяты с неё</p>
@@ -861,7 +861,7 @@
       bpFloorName: function () { return this.bp ? (this.floorById(this.bp.floorId).name || '') : ''; },
       bpFont: function () { return this.bp ? Math.max(12, Math.round(this.bp.w / 85)) : 12; },
       bpOn: function () { return this.bp && this.bp.rooms ? this.bp.rooms.filter(function (r) { return r.on; }) : []; },
-      bpArea: function () { return this.bpOn.reduce(function (s, r) { return s + r.area; }, 0); },
+      bpArea: function () { return Math.round(this.bpOn.reduce(function (s, r) { return s + r.area * 10; }, 0)) / 10; },
       bpReady: function () {
         const bp = this.bp;
         return !!bp && !!bp.img && ((bp.pts.length === 2 && toNum(bp.lenM) > 0) || toNum(bp.areaM2) > 0);
@@ -1526,7 +1526,11 @@
           : runVision(px, bp.w, bp.h, {}).then(function (out) { return V.scaleFromArea(out.rooms, toNum(bp.areaM2)); });
         scaled.then(function (scale) {
           if (!(scale > 0)) throw new Error('Помещения не найдены — проверьте, что план целиком в кадре и стены видны');
-          return runVision(px, bp.w, bp.h, { scale: scale }).then(function (out) { return { scale: scale, out: out }; });
+          return runVision(px, bp.w, bp.h, { scale: scale }).then(function (out) {
+            // по площади: второй проход с масштабом находит помещения чуть иначе, чем первый,
+            // поэтому масштаб уточняется, чтобы сумма площадей совпала с введённой
+            return { scale: byLength ? scale : (V.scaleFromArea(out.rooms, toNum(bp.areaM2)) || scale), out: out };
+          });
         }).then(function (res) {
           if (!self.bp || self.bp !== bp) return;
           bp.busy = false;
@@ -1534,8 +1538,9 @@
           bp.ms = res.out.ms;
           if (!res.out.rooms.length) { bp.error = 'Помещения не найдены — проверьте масштаб и что стены на плане видны'; return; }
           const fallback = self.kind.purpose;
-          bp.rooms = res.out.rooms.map(function (r) {
-            return Object.assign({}, r, { name: '', on: true, purposeSet: false, purpose: V.looksLikeCorridor(r, res.scale) ? 'corridor' : fallback });
+          const areas = V.roundAreas(res.out.rooms, res.scale);
+          bp.rooms = res.out.rooms.map(function (r, i) {
+            return Object.assign({}, r, { area: areas[i], name: '', on: true, purposeSet: false, purpose: V.looksLikeCorridor(r, res.scale) ? 'corridor' : fallback });
           });
         }).catch(function (e) {
           if (!self.bp || self.bp !== bp) return;
@@ -1566,7 +1571,7 @@
         };
         floor.rooms = keep.map(function (r) {
           return Object.assign(P.blankRoom(r.purpose), {
-            id: uid('r'), more: false, name: r.name, area: r1(r.px / (s * s)), count: 1,
+            id: uid('r'), more: false, name: r.name, area: r.area, count: 1,
             length: r1((r.bbox[2] - r.bbox[0]) / s), width: r1((r.bbox[3] - r.bbox[1]) / s), bp: r.id, purposeSet: !!r.purposeSet
           });
         });
@@ -1574,7 +1579,8 @@
         floor.plan.view = 'want';
         floor.plan.pos = null;
         floor.plan.ext = [];
-        const total = r1(keep.reduce(function (t, r) { return t + r.px / (s * s); }, 0));
+        // та же сумма, что в списке найденного и в итоге этажа
+        const total = r1(floor.rooms.reduce(function (t, r) { return t + r.area; }, 0));
         this.closeBp();
         this.say('По плану: ' + keep.length + ' ' + E.plural(keep.length, 'помещение', 'помещения', 'помещений') + ', ' + E.fmt(total) + ' м²', function () {
           floor.rooms = prev.rooms;
@@ -1655,7 +1661,7 @@
           : Promise.resolve('');
         return Promise.all([ensurePdf(), link]).then(function (x) {
           const doc = R.buildDoc(result, { generatedAt: now, audit: audit, schemes: schemes, link: x[1] });
-          return { pdf: window.pdfMake.createPdf(doc), name: R.fileName(result, now) };
+          return { pdf: window.pdfMake.createPdf(doc, null, R.FONTS), name: R.fileName(result, now) };
         });
       },
       downloadPdf: function () {

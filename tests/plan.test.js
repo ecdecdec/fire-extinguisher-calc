@@ -121,9 +121,9 @@ test('пример «бизнес-центр»: три нарушения на �
   assert.equal(x.audit.checked, 2);
   assert.deepEqual(x.audit.findings.map(f => f.floor), ['1 этаж', '1 этаж', '1 этаж']);
   const text = x.audit.findings.map(f => f.text).join('\n');
-  assert.ok(text.includes('Порошковых огнетушителей (ОП) 3 из 4 требуемых — не хватает 1.'));
-  assert.ok(text.includes('Углекислотных огнетушителей (ОУ) 0 из 1 требуемых — не хватает 1.'));
-  assert.ok(text.includes('«Серверная»: стоит порошковый огнетушитель'));
+  assert.ok(text.includes('Недостаточно порошковых огнетушителей (ОП): установлено 3 из 4 требуемых.'));
+  assert.ok(text.includes('Недостаточно углекислотных огнетушителей (ОУ): установлено 0 из 1 требуемого.'));
+  assert.ok(text.includes('«Серверная»: установлен порошковый огнетушитель'));
   assert.ok(x.audit.findings.every(f => f.level === 'bad' && f.ref.startsWith('Прил. 3')));
   assert.equal(x.audit.floors[0].cover.bad, 0);
   assert.deepEqual(x.audit.floors[1].findings, []);
@@ -148,7 +148,7 @@ test('п. 4 на схеме: в длинном коридоре с одним о
   const far = x.audit.findings.find(f => f.ref === 'Прил. 3, п. 4');
   assert.ok(far, 'есть нарушение по расстоянию');
   assert.equal(far.level, 'bad');
-  assert.ok(/до ближайшего огнетушителя до 5\d(,\d)? м при норме не более 20 м/.test(far.text), far.text);
+  assert.ok(/до ближайшего огнетушителя достигает 5\d(,\d)? м при норме не более 20 м/.test(far.text), far.text);
   assert.ok(x.audit.floors[0].cover.share > 0.6 && x.audit.floors[0].cover.share < 0.7);
   // два огнетушителя на четверти и трёх четвертях длины закрывают коридор
   input.floors[0].plan.ext = [{ k: 'c:0', u: 0.25, v: 0.5, t: 'op' }, { k: 'c:0', u: 0.75, v: 0.5, t: 'op' }];
@@ -167,11 +167,11 @@ test('порошковый в серверной — нарушение; где 
   assert.deepEqual(check(input).audit.findings, []);
   input.floors[0].plan.ext[0].t = 'op';
   const bad = check(input).audit.findings.map(f => f.text).join('\n');
-  assert.ok(bad.includes('«Серверная»: стоит порошковый огнетушитель'));
+  assert.ok(bad.includes('«Серверная»: установлен порошковый огнетушитель'));
   // категория Б: класс A углекислотным не закрыть — порошковый в таком помещении положен
   const b = { kind: 'industrial', floors: [{ rooms: [room('p', 'Пультовая', 50, { category: 'CB', sensitive: true })],
     plan: { ext: [{ k: 'p:0', u: 0.3, v: 0.5, t: 'op' }, { k: 'p:0', u: 0.7, v: 0.5, t: 'ou' }] } }] };
-  assert.ok(!check(b).audit.findings.some(f => f.text.includes('стоит порошковый')));
+  assert.ok(!check(b).audit.findings.some(f => f.text.includes('установлен порошковый')));
 });
 
 // ---------- расстановка по нормам ----------
@@ -231,6 +231,45 @@ test('минимум на этаж ставится в коридор, а не �
   const want = PL.resolve(rects, PL.propose(rects, result.floors[0]));
   assert.ok(want.filter(e => e.rect.roomId === 's').every(e => e.t === 'ou'));
   assert.ok(want.some(e => e.t === 'op'));
+});
+
+test('расстановка: лишние по количеству — в коридор, огнетушитель помещения — у стены к коридору', () => {
+  // шесть кабинетов по 30 м² и коридор считаются вместе (п. 7): 2 × ОП-5. Первый огнетушитель
+  // закрывает всё по расстоянию, второй нужен по количеству — он тоже в коридоре, а не в углу кабинета
+  const rooms = [];
+  for (let i = 0; i < 6; i++) rooms.push(room('k' + i, 'Кабинет ' + (i + 1), 30, { length: 6, width: 5 }));
+  rooms.push(Object.assign(P.blankRoom('corridor'), { id: 'c', name: 'Коридор', area: 72, length: 36, width: 2 }));
+  rooms.push(Object.assign(P.blankRoom('storeroom'), { id: 'st', name: 'Кладовая', area: 12, length: 4, width: 3 }));
+  const input = { kind: 'public', floors: [{ rooms }] };
+  const result = E.calculate(input);
+  const rects = PL.layout(PL.instances(input.floors[0], result.building, 0).list, null);
+  const want = PL.scene(rects, PL.propose(rects, result.floors[0]));
+  assert.equal(want.cover.bad, 0);
+  const corridor = rects.find(r => r.corridor);
+  const pooled = want.ext.filter(e => e.code === 'ОП-5' && !['st'].includes(e.rect.roomId));
+  assert.ok(pooled.length >= 2 && pooled.every(e => e.rect === corridor), pooled.map(e => e.rect.name).join(', '));
+  // огнетушители в коридоре разнесены, а не стоят рядом
+  assert.ok(Math.abs(pooled[0].x - pooled[1].x) > corridor.w / 3, pooled.map(e => e.x.toFixed(1)).join(' и '));
+  // кладовая — отдельный расчёт (другая категория): огнетушитель у стены, ближайшей к коридору
+  const own = want.ext.find(e => e.rect.roomId === 'st');
+  const toCorr = e => Math.hypot(Math.max(corridor.x - e.x, 0, e.x - corridor.x - corridor.w), Math.max(corridor.y - e.y, 0, e.y - corridor.y - corridor.h));
+  assert.ok(own && toCorr(own) < 1, own && toCorr(own).toFixed(2));
+});
+
+test('расстановка: второй огнетушитель в помещении без коридора — у середины стены, не в углу', () => {
+  // 200 м² — один огнетушитель по площади, второй по п. 5 (не менее двух на этаже)
+  const input = { kind: 'public', floors: [{ rooms: [room('o', 'Офис', 200, { length: 20, width: 10 })] }] };
+  const result = E.calculate(input);
+  const rects = PL.layout(PL.instances(input.floors[0], result.building, 0).list, null);
+  const want = PL.scene(rects, PL.propose(rects, result.floors[0]));
+  assert.equal(want.ext.length, 2);
+  const r = rects[0];
+  want.ext.forEach(e => {
+    const corner = Math.min(...[[r.x, r.y], [r.x + r.w, r.y], [r.x, r.y + r.h], [r.x + r.w, r.y + r.h]].map(c => Math.hypot(e.x - c[0], e.y - c[1])));
+    assert.ok(corner > 3, 'до угла ' + corner.toFixed(1) + ' м');
+  });
+  // и не рядом друг с другом
+  assert.ok(Math.hypot(want.ext[0].x - want.ext[1].x, want.ext[0].y - want.ext[1].y) >= 9);
 });
 
 test('рисунок схемы для отчёта: все помещения, круги и метки', () => {

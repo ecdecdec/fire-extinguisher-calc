@@ -335,11 +335,37 @@
     return out;
   }
 
+  function segDist(px, py, a, b) {
+    const dx = b[0] - a[0], dy = b[1] - a[1], len2 = dx * dx + dy * dy;
+    const t = len2 > 0 ? Math.max(0, Math.min(1, ((px - a[0]) * dx + (py - a[1]) * dy) / len2)) : 0;
+    return Math.hypot(px - a[0] - t * dx, py - a[1] - t * dy);
+  }
+
+  // Расстояние от места до ближайшего коридора: огнетушитель в помещении ставят
+  // у выхода из него (п. 12), а выход обычно в коридор. В самом коридоре — 0.
+  function toCorridor(c, corridors) {
+    if (c.rect.corridor || !corridors.length) return 0;
+    let best = Infinity;
+    corridors.forEach(function (r) {
+      if (r.poly) {
+        for (let k = 0; k < r.poly.length; k++) best = Math.min(best, segDist(c.x, c.y, r.poly[k], r.poly[(k + 1) % r.poly.length]));
+      } else {
+        best = Math.min(best, Math.hypot(Math.max(r.x - c.x, 0, c.x - r.x - r.w), Math.max(r.y - c.y, 0, c.y - r.y - r.h)));
+      }
+    });
+    return best;
+  }
+
   // Следующее место. Берётся первая ещё не закрытая клетка и среди мест, которые
   // до неё достают, — то, что закрывает больше всего клеток (так помещение
-  // проходится от края к краю без лишних огнетушителей). Когда всё закрыто —
-  // место, самое дальнее от уже занятых.
-  function pickBest(cands, cells, placed) {
+  // проходится от края к краю без лишних огнетушителей). Место в коридоре ценится
+  // выше: огнетушители ставят на путях эвакуации (п. 12).
+  // Когда всё уже закрыто, а по количеству нужны ещё огнетушители: в коридоре (если он
+  // есть) — самое дальнее от занятых мест, так они расходятся по коридору равномерно;
+  // в помещении — у середины стены не ближе 2/3 наибольшего расстояния, а не в дальнем углу.
+  // При равенстве: дальше от занятых, ближе к коридору (там выход), ближе к середине помещения.
+  function pickBest(cands, cells, placed, corridors) {
+    corridors = corridors || [];
     let pool = cands, open = false;
     for (let k = 0; k < cells.length; k++) {
       const anchor = cells[k];
@@ -348,29 +374,35 @@
       const reachIt = cands.filter(function (c) { return reach2(c.x, c.y, anchor) <= anchor.lim2 + EPS; });
       if (reachIt.length) { pool = reachIt; break; }
     }
-    // при равенстве: дальше от уже занятых мест, затем ближе к середине стены.
-    // Место в коридоре ценится выше: огнетушители ставят на путях эвакуации (п. 12).
-    let best = null, bestGain = -1, bestFar = -1, bestMid = Infinity;
-    pool.forEach(function (c) {
+    const inCorridor = !open && pool.some(function (c) { return c.rect.corridor; });
+    // расстояние до ближайшего занятого места с точностью до 10 см, чтобы почти равные места решала следующая примета
+    const far = pool.map(function (c) {
+      let d = Infinity;
+      for (let k = 0; k < placed.length; k++) d = Math.min(d, Math.hypot(placed[k].x - c.x, placed[k].y - c.y));
+      return Math.round(d * 10) / 10;
+    });
+    let cut = -1;
+    if (!open && !inCorridor && placed.length) cut = 0.66 * Math.max.apply(null, far.filter(isFinite).concat([0]));
+    let best = null, bestGain = -1, bestFar = -1, bestDoor = Infinity, bestMid = Infinity;
+    pool.forEach(function (c, i) {
       let gain = 0;
       if (open) {
         for (let k = 0; k < cells.length; k++) {
           if (!cells[k].done && reach2(c.x, c.y, cells[k]) <= cells[k].lim2 + EPS) gain += 1;
         }
         if (c.rect.corridor) gain *= 1.25;
-      }
-      let far = Infinity;
-      for (let k = 0; k < placed.length; k++) {
-        const dx = placed[k].x - c.x, dy = placed[k].y - c.y;
-        far = Math.min(far, dx * dx + dy * dy);
-      }
+      } else if (inCorridor && c.rect.corridor) gain = 1;
+      const away = cut >= 0 ? (far[i] >= cut ? 1 : 0) : far[i];
+      const door = Math.round(toCorridor(c, corridors) * 10) / 10;
       const mx = c.x - (c.rect.x + c.rect.w / 2), my = c.y - (c.rect.y + c.rect.h / 2);
       const mid = mx * mx + my * my;
-      if (gain > bestGain || (gain === bestGain && (far > bestFar || (far === bestFar && mid < bestMid)))) {
-        best = c; bestGain = gain; bestFar = far; bestMid = mid;
-      }
+      const better = gain !== bestGain ? gain > bestGain
+        : away !== bestFar ? away > bestFar
+          : door !== bestDoor ? door < bestDoor
+            : mid < bestMid;
+      if (better) { best = c; bestGain = gain; bestFar = away; bestDoor = door; bestMid = mid; }
     });
-    return best ? { c: best, gain: bestGain } : null;
+    return best ? { c: best, gain: open ? bestGain : 0 } : null;
   }
 
   // Расстановка по результату расчёта этажа: столько и таких огнетушителей,
@@ -380,6 +412,7 @@
     if (!rects.length) return [];
     const cells = cellsOf(rects);
     const perWall = rects.length > 60 ? 2 : 40;
+    const corridors = rects.filter(function (r) { return r.corridor; });
     const placed = [];
     function put(c, t, code, extra) {
       placed.push({ x: c.x, y: c.y, rect: c.rect, t: t, code: code, extra: extra });
@@ -399,13 +432,17 @@
           if (corridors.length) pool = corridors;
         } else {
           pool = rects.filter(function (r) { return ids[r.roomId]; });
+          // несколько небольших помещений одним расчётом (п. 7): общий огнетушитель можно
+          // поставить в коридоре рядом с ними; помещения с электроникой — только у себя
+          const sensitive = pool.length > 0 && pool.every(function (r) { return r.sensitive; });
+          if (pool.length > 1 && !sensitive) corridors.forEach(function (r) { if (pool.indexOf(r) < 0) pool.push(r); });
         }
         if (!pool.length) return;
         const cands = candidates(pool, perWall);
         const own = cells.filter(function (c) { return pool.indexOf(c.r) >= 0; });
         for (let i = 0; i < Math.min(l.count, 80); i++) {
           // разносятся друг от друга огнетушители своих помещений, чужие не учитываются
-          const b = pickBest(cands, own, placed.filter(function (p) { return pool.indexOf(p.rect) >= 0; }));
+          const b = pickBest(cands, own, placed.filter(function (p) { return pool.indexOf(p.rect) >= 0; }), corridors);
           if (!b) break;
           put(b.c, t, l.code, false);
         }
@@ -413,7 +450,7 @@
     });
     const all = candidates(rects.filter(function (r) { return r.check; }), perWall);
     for (let extra = 0; extra < 40 && cells.some(function (c) { return !c.done; }); extra++) {
-      const b = pickBest(all, cells, placed);
+      const b = pickBest(all, cells, placed, corridors);
       if (!b || b.gain <= 0) break;
       put(b.c, b.c.rect.sensitive ? 'ou' : 'op', '', true);
     }
@@ -491,9 +528,12 @@
       fa.marked = fa.ext.length > 0;
       fa.findings = [];
       // f: level — 'bad' (нарушение) или 'warn' (проверить на месте); kind — 'deficit', 'powder', 'distance';
-      // text — что выявлено; action — что сделать; room — помещение, если нарушение в нём.
-      function add(level, text, ref, extra) {
-        const f = Object.assign({ level: level, floorId: fr.id, floor: fr.name, text: text, ref: ref, kind: '', action: '', room: '' }, extra || {});
+      // what — что выявлено; place — где («Серверная», «Офисы» (2 из 4)), пусто для этажа в целом;
+      // text — то и другое одной фразой; action — что сделать; room — помещение, если нарушение в нём.
+      function add(level, what, ref, extra) {
+        const place = (extra && extra.place) || '';
+        const text = place ? place + ': ' + (/^[А-ЯЁ][а-яё]/.test(what) ? what.charAt(0).toLowerCase() + what.slice(1) : what) : what;
+        const f = Object.assign({ level: level, floorId: fr.id, floor: fr.name, text: text, what: what, place: place, ref: ref, kind: '', action: '', room: '' }, extra || {});
         fa.findings.push(f);
         out.findings.push(f);
       }
@@ -512,15 +552,15 @@
         const c = fr.check;
         // минимум на этаж: в общественном здании — п. 5; в остальных он применён по параметру расчёта
         const min = fr.units.filter(function (u) { return u.kind === 'floorMin'; })[0];
-        const ref = !min ? 'Прил. 3, п. 3' : (min.byRules ? 'Прил. 3, п. 3 и п. 5' : 'Прил. 3, п. 3; минимум на этаж — параметр расчёта');
+        const ref = !min ? 'Прил. 3, п. 3' : (min.byRules ? 'Прил. 3, п. 3 и п. 5' : 'Прил. 3, п. 3; минимум на этаж: параметр расчёта');
         if (c.deficitOP > 0) {
-          add('bad', 'Порошковых огнетушителей (ОП) ' + c.installedOP + ' из ' + c.requiredOP + ' требуемых — не хватает ' + c.deficitOP + '.', ref, {
-            kind: 'deficit', action: 'Добавить ' + c.deficitOP + ' ' + E.plural(c.deficitOP, 'порошковый огнетушитель', 'порошковых огнетушителя', 'порошковых огнетушителей') + codesOf('powder')
+          add('bad', 'Недостаточно порошковых огнетушителей (ОП): установлено ' + c.installedOP + ' из ' + c.requiredOP + ' ' + E.plural(c.requiredOP, 'требуемого', 'требуемых', 'требуемых') + '.', ref, {
+            kind: 'deficit', action: 'Установить ещё ' + c.deficitOP + ' ' + E.plural(c.deficitOP, 'порошковый огнетушитель', 'порошковых огнетушителя', 'порошковых огнетушителей') + codesOf('powder')
           });
         }
         if (c.deficitOU > 0) {
-          add('bad', 'Углекислотных огнетушителей (ОУ) ' + c.installedOU + ' из ' + c.requiredOU + ' требуемых — не хватает ' + c.deficitOU + '.', ref, {
-            kind: 'deficit', action: 'Добавить ' + c.deficitOU + ' ' + E.plural(c.deficitOU, 'углекислотный огнетушитель', 'углекислотных огнетушителя', 'углекислотных огнетушителей') + codesOf('co2')
+          add('bad', 'Недостаточно углекислотных огнетушителей (ОУ): установлено ' + c.installedOU + ' из ' + c.requiredOU + ' ' + E.plural(c.requiredOU, 'требуемого', 'требуемых', 'требуемых') + '.', ref, {
+            kind: 'deficit', action: 'Установить ещё ' + c.deficitOU + ' ' + E.plural(c.deficitOU, 'углекислотный огнетушитель', 'углекислотных огнетушителя', 'углекислотных огнетушителей') + codesOf('co2')
           });
         }
       }
@@ -533,8 +573,8 @@
         // если по табл. 1 для этого помещения порошковый нужен (углекислотный не закрывает класс пожара) — не нарушение
         if (unit && unit.lines.some(function (l) { return l.agent === 'powder'; })) return;
         seen[e.rect.roomId] = true;
-        add('bad', '«' + e.rect.name + '»: стоит порошковый огнетушитель. В помещении с электронным оборудованием порошковые не применяются — заменить на углекислотный (ОУ).',
-          'Прил. 3, п. 9; СТ РК 1487-2006', { kind: 'powder', room: e.rect.name, action: 'Убрать порошковый огнетушитель, поставить углекислотный (ОУ)' });
+        add('bad', 'Установлен порошковый огнетушитель в помещении с электронным оборудованием.', 'Прил. 3, п. 9; СТ РК 1487-2006',
+          { kind: 'powder', room: e.rect.name, place: '«' + e.rect.name + '»', action: 'Заменить порошковый огнетушитель углекислотным (ОУ)' });
       });
 
       // расстояние до огнетушителя — только если на схеме что-то отмечено
@@ -551,14 +591,13 @@
           const g = byRoom[id];
           const pct = Math.max(1, Math.round(100 * g.bad / g.area));
           add(g.approx ? 'warn' : 'bad',
-            '«' + g.name + '»' + (g.copies > 1 ? ' (' + g.n + ' из ' + g.copies + ')' : '') + ': до ближайшего огнетушителя до ' + fmt(Math.ceil(g.far * 10) / 10) +
-            ' м при норме не более ' + g.limit + ' м — вне нормы ' + pct + ' % площади.' +
-            (g.approx ? ' Размеры помещения не заданы — проверьте на месте.' : ''),
+            'Расстояние до ближайшего огнетушителя достигает ' + fmt(Math.ceil(g.far * 10) / 10) + ' м при норме не более ' + g.limit + ' м, вне нормы ' + pct + ' % площади.' +
+            (g.approx ? ' Размеры помещения не заданы, оценка приблизительная.' : ''),
             'Прил. 3, п. 4', {
-              kind: 'distance', room: g.name,
+              kind: 'distance', room: g.name, place: '«' + g.name + '»' + (g.copies > 1 ? ' (' + g.n + ' из ' + g.copies + ')' : ''),
               action: g.approx
-                ? 'Проверить на месте расстояние до огнетушителя: не более ' + g.limit + ' м'
-                : 'Добавить огнетушитель или перенести ближе: сейчас до ' + fmt(Math.ceil(g.far * 10) / 10) + ' м при норме ' + g.limit + ' м'
+                ? 'Проверить на месте расстояние до огнетушителя (не более ' + g.limit + ' м)'
+                : 'Установить дополнительный огнетушитель или переместить имеющийся, чтобы расстояние не превышало ' + g.limit + ' м'
             });
         });
       }
@@ -575,8 +614,11 @@
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
+  // Чёрно-белый рисунок, как в служебном документе: шрифт отчёта (Tinos), чёрные контуры,
+  // места дальше нормы — серым, порошковый — белый кружок с «П», углекислотный — чёрный с «У».
   // sc — сцена этажа (scene); width, maxHeight — в пунктах. Возвращает { svg, width, height }.
   function svg(sc, width, maxHeight) {
+    const FONT = 'Tinos';
     const v = view(sc.box);
     let W = width, k = W / v.w;
     if (v.h * k > maxHeight) { k = maxHeight / v.h; W = v.w * k; }
@@ -588,12 +630,12 @@
     p.push('<svg xmlns="http://www.w3.org/2000/svg" width="' + round(W, 2) + '" height="' + round(H, 2) + '" viewBox="0 0 ' + round(W, 2) + ' ' + round(H, 2) + '">');
     p.push('<defs><clipPath id="frame"><rect x="0" y="0" width="' + round(W, 2) + '" height="' + round(H, 2) + '"/></clipPath></defs>');
     sc.rects.forEach(function (r) {
-      const fill = '" fill="' + (r.sensitive ? '#f1f1f1' : '#ffffff') + '" stroke="#171717" stroke-width="0.7"' + (r.approx ? ' stroke-dasharray="3 2"' : '') + '/>';
+      const fill = '" fill="' + (r.sensitive ? '#eeeeee' : '#ffffff') + '" stroke="#000000" stroke-width="0.6"' + (r.approx ? ' stroke-dasharray="3 2"' : '') + '/>';
       if (r.poly) p.push('<polygon points="' + r.poly.map(function (q) { return X(q[0]) + ',' + Y(q[1]); }).join(' ') + fill);
       else p.push('<rect x="' + X(r.x) + '" y="' + Y(r.y) + '" width="' + S(r.w) + '" height="' + S(r.h) + fill);
     });
     gaps(sc).forEach(function (u) {
-      p.push('<rect x="' + X(u.x) + '" y="' + Y(u.y) + '" width="' + S(u.w) + '" height="' + S(u.h) + '" fill="#c4291c" fill-opacity="0.3"/>');
+      p.push('<rect x="' + X(u.x) + '" y="' + Y(u.y) + '" width="' + S(u.w) + '" height="' + S(u.h) + '" fill="#000000" fill-opacity="0.22"/>');
     });
     p.push('<g clip-path="url(#frame)">');
     const ring = sc.ext.length > 8 ? '#c9c9c9' : '#8a8a8a'; // когда огнетушителей много, круги бледнее
@@ -607,13 +649,13 @@
       if (S(r.h) < fs * 1.6 || max < 3) return;
       const label = r.name.length <= max ? r.name : r.name.slice(0, max - 1) + '.';
       // у контура с плана подпись — в самой просторной точке помещения, иначе — в левом верхнем углу
-      if (r.poly) p.push('<text x="' + X(r.lx) + '" y="' + round(Y(r.ly) + fs * 0.35, 2) + '" text-anchor="middle" font-family="Roboto" font-size="' + fs + '" fill="#525252">' + esc(label) + '</text>');
-      else p.push('<text x="' + round(X(r.x) + 2.5, 2) + '" y="' + round(Y(r.y) + fs + 1.5, 2) + '" font-family="Roboto" font-size="' + fs + '" fill="#525252">' + esc(label) + '</text>');
+      if (r.poly) p.push('<text x="' + X(r.lx) + '" y="' + round(Y(r.ly) + fs * 0.35, 2) + '" text-anchor="middle" font-family="' + FONT + '" font-size="' + fs + '" fill="#222222">' + esc(label) + '</text>');
+      else p.push('<text x="' + round(X(r.x) + 2.5, 2) + '" y="' + round(Y(r.y) + fs + 1.5, 2) + '" font-family="' + FONT + '" font-size="' + fs + '" fill="#222222">' + esc(label) + '</text>');
     });
     sc.ext.forEach(function (e) {
-      const fill = e.t === 'op' ? '#c4291c' : (e.t === 'ou' ? '#171717' : '#737373');
-      p.push('<circle cx="' + X(e.x) + '" cy="' + Y(e.y) + '" r="4.6" fill="' + fill + '" stroke="#ffffff" stroke-width="0.8"/>');
-      p.push('<text x="' + X(e.x) + '" y="' + round(Y(e.y) + 2.1, 2) + '" text-anchor="middle" font-family="Roboto" font-size="5.6" fill="#ffffff">' +
+      const dark = e.t === 'ou';
+      p.push('<circle cx="' + X(e.x) + '" cy="' + Y(e.y) + '" r="4.6" fill="' + (dark ? '#000000' : '#ffffff') + '" stroke="#000000" stroke-width="0.7"/>');
+      p.push('<text x="' + X(e.x) + '" y="' + round(Y(e.y) + 2.1, 2) + '" text-anchor="middle" font-family="' + FONT + '" font-weight="bold" font-size="6" fill="' + (dark ? '#ffffff' : '#000000') + '">' +
         (e.t === 'op' ? 'П' : (e.t === 'ou' ? 'У' : '?')) + '</text>');
     });
     p.push('</svg>');

@@ -34,4 +34,59 @@ function readPng(file) {
   return { w, h, rgba };
 }
 
-module.exports = { readPng };
+// ---------- случайные объекты для проверок на свойства ----------
+const N = require('../js/norms.js');
+const P = require('../js/presets.js');
+
+// Повторяемый генератор случайных чисел: один и тот же seed — те же объекты.
+function mulberry32(seed) {
+  return function () {
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+const PURPOSES = Object.keys(P.BY_ID);
+const AREAS = [1, 9.5, 20, 60, 99, 100, 150, 199, 200, 201, 300, 399, 400, 450, 499, 500, 501, 600, 799, 800, 801, 1000, 1500, 1800, 1801, 2500];
+const CATS = Object.keys(N.CATEGORIES);
+const KINDS = ['public', 'industrial', 'warehouse'];
+
+function randomObject(rnd, id) {
+  const pick = list => list[Math.floor(rnd() * list.length)];
+  const floors = [];
+  const nf = 1 + Math.floor(rnd() * 3);
+  for (let f = 0; f < nf; f++) {
+    const rooms = [];
+    const nr = Math.floor(rnd() * 8);
+    for (let i = 0; i < nr; i++) {
+      const r = P.blankRoom(pick(PURPOSES));
+      r.id = 'o' + id + 'f' + f + 'r' + i;
+      r.name = 'П' + i;
+      r.area = rnd() < 0.75 ? pick(AREAS) : Math.round(rnd() * 30000) / 10;
+      if (rnd() < 0.2) r.count = 1 + Math.floor(rnd() * 4);
+      if (!r.t5 && rnd() < 0.25) { r.classes = ['A', 'B', 'C', 'D', 'E'].filter(() => rnd() < 0.4); if (!r.classes.length) r.classes = ['A']; }
+      if (!r.t5 && rnd() < 0.2) r.category = pick(CATS);
+      if (!r.t5 && rnd() < 0.15) r.sensitive = !r.sensitive;
+      if (rnd() < 0.15) r.autoSuppression = true;
+      if (rnd() < 0.3) { r.length = Math.round((2 + rnd() * 90) * 10) / 10; r.width = Math.round((2 + rnd() * 40) * 10) / 10; }
+      if (!r.t5 && rnd() < 0.1) r.forceType = pick(['P2', 'P5', 'P10', 'C2', 'C35']);
+      if (r.t5 === 'parking_open' || r.t5 === 'sto') r.t5Alt = rnd() < 0.3 ? 1 : 0;
+      rooms.push(r);
+    }
+    floors.push({ name: (f + 1) + ' этаж', rooms: rooms });
+  }
+  return { kind: pick(KINDS), floors: floors };
+}
+
+function randomOptions(rnd) {
+  return {
+    rounding: rnd() < 0.15 ? 'block' : 'proportional',
+    poolSmallRooms: rnd() < 0.8,
+    onlyPowderAndCO2: rnd() < 0.9,
+    wheeled: rnd() < 0.85,
+    floorMinAll: rnd() < 0.7
+  };
+}
+
+module.exports = { readPng, mulberry32, randomObject, randomOptions };

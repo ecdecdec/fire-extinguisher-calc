@@ -10,7 +10,7 @@ const path = require('node:path');
 
 const root = path.join(__dirname, '..');
 const pdfMake = require(path.join(root, 'vendor', 'pdfmake.min.js'));
-pdfMake.vfs = require(path.join(root, 'vendor', 'vfs_fonts.js')).pdfMake.vfs;
+pdfMake.vfs = require(path.join(root, 'vendor', 'vfs_report.js')).pdfMake.vfs;
 const E = require(path.join(root, 'js', 'engine.js'));
 const P = require(path.join(root, 'js', 'presets.js'));
 const PL = require(path.join(root, 'js', 'plan.js'));
@@ -34,7 +34,7 @@ Object.keys(P.EXAMPLES).forEach(async function (key) {
   const link = 'https://example.kz/#o=' + await SH.encode(input);
   const meta = { generatedAt: now, audit: audit, schemes: PL.schemes(input, result, audit), link: link };
   const file = path.join(outDir, key + '.pdf');
-  pdfMake.createPdf(R.buildDoc(result, meta)).getBuffer(function (buffer) {
+  pdfMake.createPdf(R.buildDoc(result, meta), null, R.FONTS).getBuffer(function (buffer) {
     fs.writeFileSync(file, Buffer.from(buffer));
     console.log(file + ' — ' + buffer.length + ' байт; итог: ' +
       result.totals.map(function (t) { return t.count + ' × ' + t.code; }).join(', '));
