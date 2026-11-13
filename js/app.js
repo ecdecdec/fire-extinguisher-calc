@@ -222,7 +222,7 @@
     return new Promise(function (resolve, reject) {
       try {
         if (!visionWorker) {
-          visionWorker = new Worker('js/vision.worker.js?v=8');
+          visionWorker = new Worker('js/vision.worker.js?v=9');
           visionWorker.onmessage = function (e) {
             const job = visionWaiting[e.data.id];
             if (!job) return;
@@ -727,12 +727,15 @@
       <div class="bp__panel" v-if="bp.img">
         <template v-if="!bp.rooms">
           <h3>Масштаб</h3>
-          <p class="hint">{{ bp.pts.length === 1 ? 'Нажмите на второй конец' : 'Нажмите на плане на два конца стены или линейки известной длины и укажите её. Или введите общую площадь этажа.' }}</p>
+          <p class="hint" data-test="bp-hint">{{ bpScaleHint }}</p>
           <div class="bp__row">
-            <label class="field"><span>Длина отрезка, м</span><input type="number" min="0" step="any" inputmode="decimal" v-model="bp.lenM" data-test="bp-len" :disabled="bp.pts.length < 2"></label>
+            <label class="field"><span>Длина отрезка, м<template v-if="bp.pts.length < 2"> (отмечено точек: {{ bp.pts.length }} из 2)</template></span><input type="number" min="0" step="any" inputmode="decimal" v-model="bp.lenM" data-test="bp-len"></label>
             <span class="bp__or">или</span>
             <label class="field"><span>Площадь этажа, м²</span><input type="number" min="0" step="any" inputmode="decimal" v-model="bp.areaM2" data-test="bp-area"></label>
           </div>
+          <p class="bp__error" data-test="bp-units" v-if="bpUnits">
+            {{ bpUnits.text }} <button type="button" class="link" @click="bpUnits.fix()">{{ bpUnits.label }}</button>
+          </p>
           <div class="bp__actions">
             <button type="button" class="btn btn--primary" data-test="bp-run" :disabled="!bpReady || bp.busy" @click="runBp">{{ bp.busy ? 'Ищу помещения…' : 'Найти помещения' }}</button>
             <button type="button" class="btn btn--quiet" v-if="bp.pts.length" @click="bp.pts = []">Сбросить точки</button>
@@ -760,6 +763,7 @@
             <button type="button" class="btn btn--primary" data-test="bp-apply" :disabled="!bpOn.length" @click="applyBp">Применить к этажу</button>
             <button type="button" class="btn" data-test="bp-apply-next" :disabled="!bpOn.length" @click="applyBpNext">Применить и добавить этаж</button>
           </div>
+          <p class="bp__error" data-test="bp-warn" v-if="bp.scale > 0 && bp.scale < 3">На 1 м плана меньше 3 точек: стены и двери сливаются, помещения могут не найтись. Проверьте масштаб (длина в метрах, площадь в м²) или снимите план крупнее, по частям.</p>
           <p class="hint">Распознано за {{ bp.ms }} мс на этом устройстве.</p>
         </template>
         <p class="bp__error" v-if="bp.error">{{ bp.error }}</p>
@@ -880,6 +884,23 @@
       bpReady: function () {
         const bp = this.bp;
         return !!bp && !!bp.img && ((bp.pts.length === 2 && toNum(bp.lenM) > 0) || toNum(bp.areaM2) > 0);
+      },
+      // Что сделать дальше, чтобы задать масштаб: длину можно вписать до того, как отмечены точки.
+      bpScaleHint: function () {
+        const bp = this.bp, len = toNum(bp.lenM), n = bp.pts.length;
+        if (n === 1) return 'Теперь нажмите на второй конец отрезка.';
+        if (len > 0 && n < 2) return 'Нажмите на плане на начало и конец отрезка длиной ' + E.fmt(len) + ' м: на стену или линейку, длина которой известна.';
+        if (n === 2 && !(len > 0) && !(toNum(bp.areaM2) > 0)) return 'Впишите длину отмеченного отрезка в метрах.';
+        return 'Нажмите на плане на начало и конец стены или линейки, длина которой известна, и впишите её длину в метрах. Или впишите общую площадь этажа.';
+      },
+      // Похоже на другие единицы: длина в миллиметрах или сантиметрах, площадь в см².
+      bpUnits: function () {
+        const bp = this.bp, len = toNum(bp.lenM), self = this;
+        if (len > 300) {
+          const m = len >= 3000 ? len / 1000 : len / 100, unit = len >= 3000 ? 'миллиметрах' : 'сантиметрах';
+          return { text: 'Отрезок длиннее 300 м. Если длина в ' + unit + ', это ' + E.fmt(m) + ' м.', label: 'Исправить на ' + E.fmt(m) + ' м', fix: function () { self.bp.lenM = String(m); } };
+        }
+        return null;
       },
       planModes: function () { return PLAN_MODES; },
       // Исходные данные для расчёта и схемы. Если имя помещения не введено, оно называется по назначению.
@@ -1566,7 +1587,7 @@
         const byLength = bp.pts.length === 2 && toNum(bp.lenM) > 0 ? V.scaleFromLength(bp.pts[0], bp.pts[1], toNum(bp.lenM)) : 0;
         const scaled = byLength
           ? Promise.resolve(byLength)
-          : runVision(px, bp.w, bp.h, {}).then(function (out) { return V.scaleFromArea(out.rooms, toNum(bp.areaM2)); });
+          : runVision(px, bp.w, bp.h, { areaM2: toNum(bp.areaM2) }).then(function (out) { return V.scaleFromArea(out.rooms, toNum(bp.areaM2)); });
         scaled.then(function (scale) {
           if (!(scale > 0)) throw new Error('Помещения не найдены — проверьте, что план целиком в кадре и стены видны');
           return runVision(px, bp.w, bp.h, { scale: scale }).then(function (out) {
@@ -1579,7 +1600,12 @@
           bp.busy = false;
           bp.scale = res.scale;
           bp.ms = res.out.ms;
-          if (!res.out.rooms.length) { bp.error = 'Помещения не найдены — проверьте масштаб и что стены на плане видны'; return; }
+          if (!res.out.rooms.length) {
+            bp.error = res.scale < 3
+              ? 'Помещения не найдены: при таком масштабе на 1 м плана меньше 3 точек. Проверьте длину (в метрах) или площадь (в м²)'
+              : 'Помещения не найдены — проверьте масштаб и что стены на плане видны';
+            return;
+          }
           const fallback = self.kind.purpose;
           const areas = V.roundAreas(res.out.rooms, res.scale);
           bp.rooms = res.out.rooms.map(function (r, i) {

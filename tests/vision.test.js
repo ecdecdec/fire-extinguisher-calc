@@ -57,6 +57,66 @@ function planImage(s, photo) {
   return { rgba, w, h };
 }
 
+// ---------- квартира с мебелью: мебель не помещение ----------
+// 12 × 9 м: сверху гостиная и спальня, посередине коридор 1,5 м, снизу кухня, санузел и
+// вторая спальня. Наружные стены 0,3 м, перегородки 0,12 м, двери 0,9 м. Мебель — тонкими
+// линиями (0,03 м): у стен, в углах и отдельно стоящая. У санузла дверь нарисована створкой
+// и дугой — так он замкнут, но остаётся помещением.
+const APT = { W: 12, H: 9, M: 2 };
+function apartmentImage(s) {
+  const w = Math.round((APT.W + 2 * APT.M) * s), h = Math.round((APT.H + 2 * APT.M) * s);
+  const rgba = new Uint8ClampedArray(w * h * 4).fill(255);
+  const P = m => (m + APT.M) * s;
+  // заливка с частичным покрытием крайних точек (как у сглаженного чертежа)
+  function fill(x0, y0, x1, y1, c) {
+    const ax = P(x0), bx = P(x1), ay = P(y0), by = P(y1);
+    for (let y = Math.floor(ay); y < Math.ceil(by); y++) for (let x = Math.floor(ax); x < Math.ceil(bx); x++) {
+      const cov = Math.max(0, Math.min(x + 1, bx) - Math.max(x, ax)) * Math.max(0, Math.min(y + 1, by) - Math.max(y, ay));
+      const o = (y * w + x) * 4;
+      for (let k = 0; k < 3; k++) rgba[o + k] = Math.min(rgba[o + k], 255 * (1 - cov) + c * cov);
+    }
+  }
+  const clear = (x0, y0, x1, y1) => {
+    for (let y = Math.round(P(y0)); y < Math.round(P(y1)); y++) for (let x = Math.round(P(x0)); x < Math.round(P(x1)); x++) { const o = (y * w + x) * 4; rgba[o] = rgba[o + 1] = rgba[o + 2] = 255; }
+  };
+  const t = 0.03; // линия мебели
+  const box = (x0, y0, x1, y1) => { fill(x0, y0, x1, y0 + t, 40); fill(x0, y1 - t, x1, y1, 40); fill(x0, y0, x0 + t, y1, 40); fill(x1 - t, y0, x1, y1, 40); };
+  const arc = (cx, cy, r, a0, a1) => { for (let k = 0; k <= 200; k++) { const a = a0 + (a1 - a0) * k / 200, x = cx + r * Math.cos(a), y = cy + r * Math.sin(a); fill(x - t / 2, y - t / 2, x + t / 2, y + t / 2, 40); } };
+  // стены
+  fill(0, 0, 12, 0.3, 0); fill(0, 8.7, 12, 9, 0); fill(0, 0, 0.3, 9, 0); fill(11.7, 0, 12, 9, 0);
+  fill(0.3, 3.94, 11.7, 4.06, 0); fill(0.3, 5.44, 11.7, 5.56, 0);  // стены коридора
+  fill(6.44, 0.3, 6.56, 3.94, 0);                                  // гостиная | спальня
+  fill(4.44, 5.56, 4.56, 8.7, 0); fill(6.94, 5.56, 7.06, 8.7, 0);  // кухня | санузел | спальня 2
+  // двери в коридор и вход
+  clear(2.8, 3.94, 3.7, 4.06); clear(8.8, 3.94, 9.7, 4.06);
+  clear(1.8, 5.44, 2.7, 5.56); clear(5.25, 5.44, 6.15, 5.56); clear(9.3, 5.44, 10.2, 5.56);
+  clear(0, 4.25, 0.3, 5.25);
+  // дверь санузла: створка внутрь и дуга от её конца до другого косяка
+  fill(5.25, 5.56, 5.25 + t, 6.46, 40); arc(5.25, 5.5, 0.9, 0, Math.PI / 2);
+  // спальня: кровать изголовьем к наружной стене, подушки; шкаф в углу; тумбочка
+  box(8.5, 0.3, 10.1, 2.3); box(8.65, 0.45, 9.25, 0.8); box(9.35, 0.45, 9.95, 0.8);
+  box(11.1, 0.3, 11.7, 2.3); box(7.9, 0.4, 8.35, 0.85);
+  // гостиная: диван у стены, журнальный столик и тумба отдельно
+  box(0.3, 1.0, 1.2, 3.2); box(2.2, 1.6, 3.2, 2.2); box(4.5, 0.6, 6.2, 1.0);
+  // кухня: тумба вдоль стены от угла, стол со стульями посередине
+  box(0.3, 8.1, 4.2, 8.7); box(1.6, 6.6, 2.8, 7.4);
+  [[1.8, 6.25], [2.4, 6.25], [1.8, 7.5], [2.4, 7.5]].forEach(([x, y]) => box(x, y, x + 0.4, y + 0.35));
+  // санузел: ванна в углу, унитаз и раковина
+  box(4.56, 8.0, 6.26, 8.7); box(6.3, 6.4, 6.94, 6.8); box(6.5, 7.2, 6.9, 7.8);
+  // спальня 2: кровать у стены, стол отдельно
+  box(10.8, 6.2, 11.7, 8.2); box(7.6, 7.6, 8.8, 8.2);
+  return { rgba, w, h };
+}
+// Помещения квартиры и их площади по внутренним граням стен (вместе с мебелью).
+const APT_ROOMS = [
+  { name: 'гостиная', x: 3, y: 2.5, area: 6.14 * 3.64 },
+  { name: 'спальня', x: 7.5, y: 3, area: 5.14 * 3.64 },
+  { name: 'коридор', x: 6, y: 4.75, area: 11.4 * 1.38 },
+  { name: 'кухня', x: 3, y: 6.2, area: 4.14 * 3.14 },
+  { name: 'санузел', x: 6.5, y: 7.3, area: 2.38 * 3.14 },
+  { name: 'спальня 2', x: 9, y: 7, area: 4.64 * 3.14 }
+];
+
 // Ожидаемые площади: по внутренним граням стен.
 function expectedRooms() {
   const rooms = [];
@@ -140,13 +200,75 @@ test('площади помещений округлены так, что их �
 test('масштаб по площади: найденная сумма площадей равна введённой (как в окне «Загрузить план»)', () => {
   const img = planImage(10, true);
   [500, 777.7, 1234.5].forEach(entered => {
-    // первый проход без масштаба, второй с масштабом по площади, затем масштаб уточняется
-    const first = V.findRooms(img.rgba, img.w, img.h);
+    // первый проход с масштабом по габариту здания, второй — по найденным помещениям, затем масштаб уточняется
+    const first = V.findRooms(img.rgba, img.w, img.h, { areaM2: entered });
     const out = V.findRooms(img.rgba, img.w, img.h, { scale: V.scaleFromArea(first.rooms, entered) });
     const scale = V.scaleFromArea(out.rooms, entered);
     const sum = V.roundAreas(out.rooms, scale).reduce((a, b) => a + b * 10, 0) / 10;
     assert.equal(Math.round(sum * 10) / 10, entered);
   });
+});
+
+test('мебель не помещение: кровать, шкаф, тумба, ванна, диван, стол входят в площадь своих помещений', () => {
+  const inPoly = (poly, x, y) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const a = poly[i], b = poly[j]; if ((a[1] > y) !== (b[1] > y) && x < (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]) + a[0]) c = !c; } return c; };
+  [50, 30, 25, 20].forEach(s => {
+    const img = apartmentImage(s);
+    const out = V.findRooms(img.rgba, img.w, img.h, { scale: s });
+    const P = m => (m + APT.M) * s;
+    const names = out.rooms.map(r => (APT_ROOMS.find(e => inPoly(r.poly, P(e.x), P(e.y))) || { name: '?' }).name);
+    assert.deepEqual(names.slice().sort(), APT_ROOMS.map(e => e.name).sort(), s + ' точек на метр: ' + out.rooms.map((r, i) => names[i] + ' ' + (r.px / s / s).toFixed(1)).join(', '));
+    out.rooms.forEach((r, i) => {
+      const e = APT_ROOMS.find(x => x.name === names[i]);
+      assert.ok(Math.abs(r.px / s / s - e.area) / e.area < 0.05, s + ': ' + e.name + ' ' + (r.px / s / s).toFixed(2) + ' м² вместо ' + e.area.toFixed(2));
+    });
+    // и по общей площади тоже (как в окне «Загрузить план»): находятся те же шесть помещений
+    const total = APT_ROOMS.reduce((t, e) => t + e.area, 0);
+    const first = V.findRooms(img.rgba, img.w, img.h, { areaM2: total });
+    const byArea = V.findRooms(img.rgba, img.w, img.h, { scale: V.scaleFromArea(first.rooms, total) });
+    assert.equal(byArea.rooms.length, APT_ROOMS.length, s + ': по площади, ' + byArea.rooms.map(r => (r.px / byArea.scale / byArea.scale).toFixed(1)).join(', '));
+  });
+});
+
+test('большое здание на одной картинке: 9,5 точки на метр, двери едва уже порога — все 188 помещений', () => {
+  // 160 × 84 м, четыре полосы «кабинеты | коридор | кабинеты», кабинеты 6 и 12 м, двери 1 м.
+  // При 9,5 точки на метр дверь занимает 10–11 точек: раньше кабинеты сливались с коридором.
+  const W = 160, H = 84, M = 4, s = 1600 / (W + 2 * M);
+  const w = Math.round((W + 2 * M) * s), h = Math.round((H + 2 * M) * s);
+  const rgba = new Uint8ClampedArray(w * h * 4).fill(255);
+  const fill = (x0, y0, x1, y1, c) => {
+    const ax = (x0 + M) * s, bx = (x1 + M) * s, ay = (y0 + M) * s, by = (y1 + M) * s;
+    for (let y = Math.floor(ay); y < Math.ceil(by); y++) for (let x = Math.floor(ax); x < Math.ceil(bx); x++) {
+      const cov = c === 255 ? 1 : Math.max(0, Math.min(x + 1, bx) - Math.max(x, ax)) * Math.max(0, Math.min(y + 1, by) - Math.max(y, ay));
+      const o = (y * w + x) * 4;
+      for (let k = 0; k < 3; k++) rgba[o + k] = c === 255 ? 255 : Math.min(rgba[o + k], 255 * (1 - cov));
+    }
+  };
+  let rooms = 0;
+  const doors = [];
+  fill(0, 0, W, 0.5, 0); fill(0, H - 0.5, W, H, 0); fill(0, 0, 0.5, H, 0); fill(W - 0.5, 0, W, H, 0);
+  for (let b = 0; b < 4; b++) {
+    const y0 = b * 21, cTop = y0 + 9, cBot = y0 + 12;
+    if (b > 0) fill(0, y0 - 0.1, W, y0 + 0.1, 0);
+    fill(0, cTop - 0.1, W, cTop + 0.1, 0); fill(0, cBot - 0.1, W, cBot + 0.1, 0);
+    doors.push([0, cTop + 0.75, 0.5, cBot - 0.75], [W - 0.5, cTop + 0.75, W, cBot - 0.75]);
+    [[y0, cTop, cTop], [cBot, y0 + 21, cBot]].forEach(([ra, rb, wy]) => {
+      for (let x = 0, k = 0; x < W - 0.01; k++) {
+        const width = Math.min(k % 5 === 4 ? 12 : 6, W - x);
+        if (x > 0) fill(x - 0.1, ra, x + 0.1, rb, 0);
+        doors.push([x + width / 2 - 0.5, wy - 0.1, x + width / 2 + 0.5, wy + 0.1]);
+        x += width; rooms += 1;
+      }
+    });
+    rooms += 1;
+  }
+  doors.forEach(d => fill(d[0], d[1], d[2], d[3], 255));
+  const out = V.findRooms(rgba, w, h, { scale: s });
+  assert.equal(out.rooms.length, rooms, 'по отрезку');
+  const total0 = 160 * 84 * 0.93;
+  const first = V.findRooms(rgba, w, h, { areaM2: total0 });
+  const total = out.rooms.reduce((t, r) => t + r.px, 0) / (s * s);
+  assert.equal(V.findRooms(rgba, w, h, { scale: V.scaleFromArea(first.rooms, total) }).rooms.length, rooms, 'по площади');
+  assert.ok(out.ms < 6000, 'быстро: ' + out.ms + ' мс');
 });
 
 test('пустая и сплошь тёмная картинка не ломают распознавание', () => {

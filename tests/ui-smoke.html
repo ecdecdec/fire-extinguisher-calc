@@ -391,6 +391,20 @@
       await click(q('[data-test=bp-example]'));
       for (let i = 0; i < 100 && qa('.bp__pt').length < 2; i++) await sleep(50);
       eq('пример плана: линейка 10 м уже отмечена', [qa('.bp__pt').length, q('[data-test=bp-len]').value], [2, '10']);
+      // длину можно вписать и до того, как отмечены точки: поле не заблокировано, подсказка говорит, что делать
+      await click(qa('.bp__actions .btn--quiet').find(b => text(b) === 'Сбросить точки'));
+      ok('после сброса точек поле длины открыто для ввода', !q('[data-test=bp-len]').disabled && qa('.bp__pt').length === 0);
+      ok('подсказка: отметить два конца отрезка длиной 10 м', text(q('[data-test=bp-hint]')).includes('отрезка длиной 10 м'), text(q('[data-test=bp-hint]')));
+      ok('без точек искать по длине нельзя', q('[data-test=bp-run]').disabled);
+      await setValue(q('[data-test=bp-len]'), '10000');
+      ok('10000 м — подсказка про миллиметры', text(q('[data-test=bp-units]')).includes('10 м'), text(q('[data-test=bp-units]')));
+      await click(q('[data-test=bp-units] button'));
+      eq('исправлено на метры', q('[data-test=bp-len]').value, '10');
+      // заново открыть пример с готовой линейкой
+      await click(q('[data-test=bp-close]'));
+      await click(q('[data-test=bp-tip-open]'));
+      await click(q('[data-test=bp-example]'));
+      for (let i = 0; i < 100 && qa('.bp__pt').length < 2; i++) await sleep(50);
       await click(q('[data-test=bp-run]'));
       for (let i = 0; i < 200 && !q('[data-test=bp-found]'); i++) await sleep(50);
       ok('найдено 16 помещений', text(q('[data-test=bp-found]')).startsWith('Найдено помещений: 16'), text(q('[data-test=bp-found]')) || text(q('.bp__error')));

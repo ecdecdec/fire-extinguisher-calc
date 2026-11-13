@@ -25,9 +25,15 @@
   'use strict';
 
   const DEFAULTS = {
-    doorM: 1.2,     // проём уже этого разделяет помещения, м
-    outM: 1.5,      // вход уже 2 × outM не соединяет здание с улицей, м
-    minRoomM2: 1    // меньше — не помещение (ниша, шахта, толщина стены)
+    doorM: 1.2,       // типичный дверной проём, м (для подсказок; разделение — по глубине, см. tauM)
+    outM: 1.5,        // вход уже 2 × outM не соединяет здание с улицей, м
+    minRoomM2: 1,     // меньше — не помещение (ниша, шахта, толщина стены)
+    tauM: 0.2,        // помещение отделяется проёмом, если поднимается над ним хотя бы на столько, м
+    openRatio: 0.75,  // проём не уже 3/4 ширины помещения — это одно помещение (арка, сужение)
+    furnitureM: 3,    // отдельно стоящий предмет меньше этого (мебель, колонна, значок) — не стена, м
+    thinM: 0.08,      // контур мебели у стены тоньше этого пересекается при поиске её помещения, м
+    hairM: 0.06,      // линии тоньше (мебель, дуги дверей, размеры) — не стены на крупном плане, м
+    furnitureM2: 10   // замкнутый контур у стены больше этого — не мебель, м²
   };
   const INF = 1e20;
 
@@ -249,18 +255,238 @@
 
   function round1(x) { return Math.round(x * 10) / 10; }
 
+  // ---------- помещения по глубине ----------
+
+  // Разбиение свободного места на помещения по глубине — расстоянию до стен.
+  // Точки обходятся от самых удалённых от стен к ближним (подсчётом, с шагом 1/4 точки).
+  // Каждый новый максимум начинает область; где две области встречаются (в проёме),
+  // меньшая присоединяется к большей, если поднимается над проёмом меньше чем на tau
+  // или проём почти так же широк, как она сама (ratio). Поэтому помещение отделяется
+  // от коридора дверью любой ширины, если само заметно шире проёма, а ниши, выступы
+  // и неровности стен остаются частью своего помещения. Порог не зависит от того,
+  // сколько точек приходится на ширину двери, — это и важно для больших зданий,
+  // снятых одной картинкой.
+  function segment(free, dist2, w, h, tau, ratio) {
+    const n = w * h, Q = 4, cap = Q * (w + h);
+    const depth = new Float32Array(n), key = new Int32Array(n);
+    let maxK = 0, total = 0;
+    for (let i = 0; i < n; i++) {
+      if (!free[i]) continue;
+      const d = Math.sqrt(dist2[i]), k = Math.min(cap, Math.floor(d * Q));
+      depth[i] = d; key[i] = k; total += 1;
+      if (k > maxK) maxK = k;
+    }
+    const at = new Int32Array(maxK + 2);
+    for (let i = 0; i < n; i++) if (free[i]) at[maxK - key[i] + 1] += 1;
+    for (let k = 1; k <= maxK + 1; k++) at[k] += at[k - 1];
+    const order = new Int32Array(total);
+    for (let i = 0; i < n; i++) if (free[i]) order[at[maxK - key[i]]++] = i;
+    const parent = key.fill(-1), peak = new Float32Array(n), sad = new Float32Array(n), roots = new Int32Array(4);
+    function find(i) { while (parent[i] !== i) { parent[i] = parent[parent[i]]; i = parent[i]; } return i; }
+    for (let t = 0; t < total; t++) {
+      const p = order[t], d = depth[p], x = p % w;
+      let m = 0;
+      for (let s = 0; s < 4; s++) {
+        let q;
+        if (s === 0) { if (x === 0) continue; q = p - 1; } else if (s === 1) { if (x === w - 1) continue; q = p + 1; } else if (s === 2) { if (p < w) continue; q = p - w; } else { if (p >= n - w) continue; q = p + w; }
+        if (parent[q] < 0) continue;
+        const r = find(q);
+        let seen = false;
+        for (let k = 0; k < m; k++) if (roots[k] === r) { seen = true; break; }
+        if (!seen) roots[m++] = r;
+      }
+      if (!m) { parent[p] = p; peak[p] = d; continue; }
+      // слияние: самая глубокая из встретившихся областей забирает неглубокие
+      let best = 0;
+      for (let k = 1; k < m; k++) if (peak[roots[k]] > peak[roots[best]]) best = k;
+      const R = roots[best];
+      for (let k = 0; k < m; k++) {
+        if (k === best) continue;
+        const S = roots[k];
+        if (peak[S] - d < tau || d >= ratio * peak[S]) {
+          parent[S] = R;
+          if (sad[S] > sad[R]) sad[R] = sad[S];
+        } else {
+          // остались разными: здесь проём между ними
+          if (d > sad[S]) sad[S] = d;
+          if (d > sad[R]) sad[R] = d;
+        }
+      }
+      parent[p] = R;
+    }
+    // Ядро помещения — точки глубже всех его проёмов. Ядра разрастаются до стен все
+    // сразу (поиск в ширину), поэтому граница проходит посередине проёма, а не уходит
+    // целиком в одно помещение и не ползёт вдоль стены в соседнее.
+    const label = new Int32Array(n), id = new Int32Array(n), queue = new Int32Array(total);
+    let count = 0, head = 0, tail = 0;
+    for (let t = 0; t < total; t++) {
+      const p = order[t], r = find(p);
+      if (depth[p] <= sad[r] + 0.5) continue;
+      if (!id[r]) id[r] = ++count;
+      label[p] = id[r];
+      queue[tail++] = p;
+    }
+    while (head < tail) {
+      const i = queue[head++], L = label[i], x = i % w;
+      let j;
+      if (x > 0 && free[j = i - 1] && !label[j]) { label[j] = L; queue[tail++] = j; }
+      if (x < w - 1 && free[j = i + 1] && !label[j]) { label[j] = L; queue[tail++] = j; }
+      if (i >= w && free[j = i - w] && !label[j]) { label[j] = L; queue[tail++] = j; }
+      if (i < n - w && free[j = i + w] && !label[j]) { label[j] = L; queue[tail++] = j; }
+    }
+    return { labels: label, count: count };
+  }
+
+  // Тонкие линии — контуры мебели, створки и дуги дверей, размерные линии — не стены, если
+  // план достаточно крупный, чтобы отличить их от стен. thinPx — толщина «тонкой» линии
+  // в точках (6 см в натуре, не больше 3 точек): от 2,5 точки убираются линии в 1–2 точки,
+  // от 1,5 — только в одну точку, мельче — ничего. Не включается и тогда, когда самые
+  // толстые стены тоньше 6 точек или после этого осталось меньше 40 % тёмного (стены
+  // нарисованы контуром из тонких линий).
+  function dropThin(obst, w, h, thinPx) {
+    if (!(thinPx >= 1.5)) return false;
+    const n = w * h, inv = new Uint8Array(n);
+    let total = 0;
+    for (let i = 0; i < n; i++) { if (obst[i]) total += 1; else inv[i] = 1; }
+    if (!total) return false;
+    const dIn = edt(inv, w, h);
+    let maxD = 0;
+    for (let i = 0; i < n; i++) if (obst[i] && dIn[i] > maxD) maxD = dIn[i];
+    if (maxD < 9) return false;
+    const core = new Uint8Array(n);
+    if (thinPx >= 2.5) {
+      for (let i = 0; i < n; i++) if (obst[i] && dIn[i] >= 4) core[i] = 1; // глубже 2 точек: линия от 3 точек
+    } else {
+      for (let i = 0; i < n - w; i++) { // есть сплошной квадрат 2 × 2: линия от 2 точек
+        if (i % w === w - 1 || !obst[i] || !obst[i + 1] || !obst[i + w] || !obst[i + w + 1]) continue;
+        core[i] = core[i + 1] = core[i + w] = core[i + w + 1] = 1;
+      }
+    }
+    const dCore = edt(core, w, h), near = thinPx >= 2.5 ? 4.5 : 1;
+    let kept = 0;
+    for (let i = 0; i < n; i++) if (obst[i] && dCore[i] <= near) kept += 1;
+    if (kept < 0.4 * total) return false;
+    for (let i = 0; i < n; i++) if (obst[i] && dCore[i] > near) obst[i] = 0;
+    return true;
+  }
+
+  // Мебель у стены (кровать, шкаф, ванна, кухня) — замкнутый контур внутри помещения:
+  // проёмом он ни с чем не соединён (разве что проколами в сглаженной линии), а за его
+  // тонкой линией почти со всех сторон одно и то же помещение. Такая область
+  // присоединяется к этому помещению вместе с линией контура (площадь под мебелью —
+  // площадь помещения). reach — сколько точек линии можно пересечь: дальше — уже стена.
+  // Возвращает число присоединённых областей.
+  function absorbFurniture(label, count, obst, street, w, h, reach, maxPx) {
+    const n = w * h, size = new Float64Array(count + 1), edgeN = new Float64Array(count + 1), touch = new Float64Array(count + 1);
+    const outside = new Uint8Array(count + 1);
+    const bx0 = new Int32Array(count + 1).fill(w), by0 = new Int32Array(count + 1).fill(h), bx1 = new Int32Array(count + 1).fill(-1), by1 = new Int32Array(count + 1).fill(-1);
+    for (let i = 0; i < n; i++) {
+      const L = label[i];
+      if (!L) continue;
+      size[L] += 1;
+      const x = i % w, y = (i - x) / w;
+      if (x < bx0[L]) bx0[L] = x;
+      if (x > bx1[L]) bx1[L] = x;
+      if (y < by0[L]) by0[L] = y;
+      if (y > by1[L]) by1[L] = y;
+      let border = false, other = false;
+      for (let s = 0; s < 4; s++) {
+        let j;
+        if (s === 0) { if (x === 0) { border = true; continue; } j = i - 1; } else if (s === 1) { if (x === w - 1) { border = true; continue; } j = i + 1; } else if (s === 2) { if (y === 0) { border = true; continue; } j = i - w; } else { if (y === h - 1) { border = true; continue; } j = i + w; }
+        if (label[j] === L) continue;
+        border = true;
+        if (street[j]) outside[L] = 1;
+        else if (label[j]) other = true;
+      }
+      if (border) edgeN[L] += 1;
+      if (other) touch[L] += 1;
+    }
+    // почти замкнута: касается соседей не больше чем десятой частью границы (проколы в линии)
+    const closed = function (L) { return !outside[L] && touch[L] <= Math.max(2, 0.1 * edgeN[L]); };
+    const votes = new Map(), crossed = [];
+    const DXS = [-1, 1, 0, 0], DYS = [0, 0, -1, 1];
+    for (let i = 0; i < n; i++) {
+      const L = label[i];
+      if (!L || size[L] > maxPx || !closed(L)) continue;
+      const x = i % w, y = (i - x) / w;
+      for (let s = 0; s < 4; s++) {
+        let cx = x + DXS[s], cy = y + DYS[s];
+        if (cx < 0 || cy < 0 || cx >= w || cy >= h) continue;
+        const j0 = cy * w + cx;
+        if (!obst[j0]) {
+          // прокол: соседняя область прямо за краем — тоже голос за неё
+          const M = label[j0];
+          if (M && M !== L) {
+            let rec = votes.get(L);
+            if (!rec) { rec = { total: 0, out: 0, by: new Map() }; votes.set(L, rec); }
+            rec.total += 1;
+            rec.by.set(M, (rec.by.get(M) || 0) + 1);
+          }
+          continue;
+        }
+        let v = L, k = 0;
+        const path = [];
+        while (k <= reach) {
+          if (cx < 0 || cy < 0 || cx >= w || cy >= h) { v = -2; break; }
+          const j = cy * w + cx;
+          if (street[j]) { v = -2; break; }
+          if (!obst[j]) { v = label[j] || -1; break; }
+          path.push(j);
+          cx += DXS[s]; cy += DYS[s]; k += 1;
+        }
+        if (k > reach) v = -1; // толстая линия — стена
+        if (v === L) continue; // вогнутость самого контура
+        let rec = votes.get(L);
+        if (!rec) { rec = { total: 0, out: 0, by: new Map() }; votes.set(L, rec); }
+        rec.total += 1;
+        if (v === -2) rec.out += 1;
+        else if (v > 0) { rec.by.set(v, (rec.by.get(v) || 0) + 1); for (let q = 0; q < path.length; q++) crossed.push(path[q], L, v); }
+      }
+    }
+    const map = new Int32Array(count + 1);
+    for (let L = 0; L <= count; L++) map[L] = L;
+    const root = function (L) { while (map[L] !== L) { map[L] = map[map[L]]; L = map[L]; } return L; };
+    const cands = Array.from(votes.keys()).sort(function (a, b) { return size[a] - size[b]; });
+    let merged = 0;
+    // Мебель: за тонкой линией почти везде одно помещение (у стены или в углу остальное —
+    // стены), сама область заметно меньше его и лежит внутри его габарита. Туалет за дверью
+    // с нарисованной дугой сюда не попадает: он не внутри габарита коридора.
+    cands.forEach(function (L) {
+      const rec = votes.get(L);
+      if (rec.out || !rec.total) return;
+      let top = 0, topN = 0, labeled = 0;
+      const sum = new Map();
+      rec.by.forEach(function (c, M) { const r = root(M); if (r !== L) { sum.set(r, (sum.get(r) || 0) + c); labeled += c; } });
+      sum.forEach(function (c, r) { if (c > topN) { topN = c; top = r; } });
+      if (!top || labeled < 0.25 * rec.total || topN < 0.85 * labeled || size[L] >= 0.3 * size[top]) return;
+      const t = reach + 1;
+      if (bx0[L] < bx0[top] - t || by0[L] < by0[top] - t || bx1[L] > bx1[top] + t || by1[L] > by1[top] + t) return;
+      map[L] = top;
+      size[top] += size[L];
+      merged += 1;
+    });
+    if (!merged) return 0;
+    for (let q = 0; q < crossed.length; q += 3) {
+      const L = crossed[q + 1];
+      if (root(L) !== L && !label[crossed[q]]) label[crossed[q]] = L;
+    }
+    for (let i = 0; i < n; i++) if (label[i]) label[i] = root(label[i]);
+    return merged;
+  }
+
   // ---------- главное ----------
 
-  // rgba — Uint8ClampedArray (w × h × 4). options.scale — точек на метр (если известен).
+  // rgba — Uint8ClampedArray (w × h × 4). options.scale — точек на метр (если известен);
+  // options.areaM2 — общая площадь этажа, если масштаб неизвестен: тогда масштаб для
+  // первого прохода оценивается по габариту здания на картинке (около 85 % габарита —
+  // помещения), а точный подбирается по найденным помещениям (scaleFromArea).
   function findRooms(rgba, w, h, options) {
     const t0 = now();
     const o = Object.assign({}, DEFAULTS, options || {});
-    const n = w * h, big = Math.max(w, h), scale = o.scale > 0 ? o.scale : 0;
+    const n = w * h, big = Math.max(w, h);
+    let scale = o.scale > 0 ? o.scale : 0;
     const ink = inkMask(rgba, w, h);
     removeSmall(ink, w, h, Math.max(6, Math.round(big * 0.015)));
-    const dist = edt(ink, w, h);
-    const rDoor = scale ? o.doorM * scale / 2 : big * 0.008;
-    const rOut = scale ? o.outM * scale : big * 0.02;
 
     // Стены здания — крупные тёмные линии. Надписи, линейка, условные обозначения и
     // рамка листа улицу не загораживают: рамка — линия у всех четырёх краёв картинки.
@@ -280,6 +506,10 @@
       sx0 = Math.min(sx0, f.x0); sy0 = Math.min(sy0, f.y0); sx1 = Math.max(sx1, f.x1); sy1 = Math.max(sy1, f.y1);
     }
     for (let i = 0; i < n; i++) if (ink[i] && keep[parts.labels[i]]) shell[i] = 1;
+    if (!scale && o.areaM2 > 0 && sx1 > sx0 && sy1 > sy0) scale = Math.sqrt((sx1 - sx0 + 1) * (sy1 - sy0 + 1) * 0.85 / o.areaM2);
+    // без масштаба пороги берутся от размера картинки
+    const rDoor = scale ? o.doorM * scale / 2 : big * 0.008;
+    const rOut = scale ? o.outM * scale : big * 0.02;
     const distShell = edt(shell, w, h);
 
     // улица: от края картинки через проходы шире 2 × rOut, плюс полоса rOut вдоль наружных стен
@@ -298,23 +528,38 @@
     const dOut = edt(wide, w, h), street = new Uint8Array(n);
     for (let i = 0; i < n; i++) if (!shell[i] && dOut[i] <= rOut2) street[i] = 1;
 
-    // ядра помещений и их разрастание до стен
-    const rDoor2 = rDoor * rDoor, core = new Uint8Array(n);
-    for (let i = 0; i < n; i++) if (!ink[i] && !street[i] && dist[i] > rDoor2) core[i] = 1;
-    const cc = components(core, w, h, false), label = cc.labels;
-    head = 0; tail = 0;
-    for (let i = 0; i < n; i++) if (label[i]) queue[tail++] = i;
-    while (head < tail) {
-      const i = queue[head++], L = label[i], x = i % w;
-      let j;
-      if (x > 0 && !label[j = i - 1] && !ink[j] && !street[j]) { label[j] = L; queue[tail++] = j; }
-      if (x < w - 1 && !label[j = i + 1] && !ink[j] && !street[j]) { label[j] = L; queue[tail++] = j; }
-      if (i >= w && !label[j = i - w] && !ink[j] && !street[j]) { label[j] = L; queue[tail++] = j; }
-      if (i < n - w && !label[j = i + w] && !ink[j] && !street[j]) { label[j] = L; queue[tail++] = j; }
+    // Препятствия — стены. Отдельно стоящие мелкие предметы (мебель, колонна, значок, надпись),
+    // не связанные со стенами здания, стенами не считаются: их площадь — площадь помещения.
+    // Но кусок стены между дверями, отделённый от остальных стен просветом в точку-другую,
+    // и прямая перегородка — стены: такой кусок почти касается стен здания или вытянут в линию.
+    const floatMax = scale ? o.furnitureM * scale : big * 0.04;
+    const nearShell = new Float64Array(parts.count + 1).fill(INF);
+    for (let i = 0; i < n; i++) {
+      if (!ink[i] || keep[parts.labels[i]]) continue;
+      const k = parts.labels[i];
+      if (distShell[i] < nearShell[k]) nearShell[k] = distShell[i];
     }
+    const wallish = new Uint8Array(parts.count + 1);
+    for (let k = 1; k <= parts.count; k++) {
+      const f = parts.info[k], a = f.x1 - f.x0 + 1, b = f.y1 - f.y0 + 1;
+      wallish[k] = keep[k] || Math.max(a, b) >= floatMax || nearShell[k] <= 2.25 || Math.max(a, b) >= 6 * Math.min(a, b) ? 1 : 0;
+    }
+    const obst = new Uint8Array(n);
+    for (let i = 0; i < n; i++) if (ink[i] && wallish[parts.labels[i]]) obst[i] = 1;
+    dropThin(obst, w, h, scale ? Math.min(3, o.hairM * scale) : 0);
+    const dist = edt(obst, w, h);
+
+    // помещения по глубине (segment), затем мебель у стен присоединяется к своим помещениям
+    const free = new Uint8Array(n);
+    for (let i = 0; i < n; i++) if (!obst[i] && !street[i]) free[i] = 1;
+    const tau = scale ? Math.max(2, o.tauM * scale) : Math.max(2, big * 0.002);
+    const seg = segment(free, dist, w, h, tau, o.openRatio);
+    const label = seg.labels;
+    const reach = scale ? Math.max(2, Math.round(o.thinM * scale)) : 2;
+    absorbFurniture(label, seg.count, obst, street, w, h, reach, scale ? o.furnitureM2 * scale * scale : n * 0.01);
 
     // сведения о помещениях
-    const K = cc.count;
+    const K = seg.count;
     const cnt = new Float64Array(K + 1), x0 = new Int32Array(K + 1).fill(w), y0 = new Int32Array(K + 1).fill(h);
     const x1 = new Int32Array(K + 1).fill(-1), y1 = new Int32Array(K + 1).fill(-1), edge = new Uint8Array(K + 1);
     const first = new Int32Array(K + 1).fill(-1), best = new Float64Array(K + 1).fill(-1), bestI = new Int32Array(K + 1);

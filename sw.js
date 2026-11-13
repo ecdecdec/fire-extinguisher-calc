@@ -6,7 +6,7 @@
  * файлы), а если сети нет или она не отвечает за 3,5 с — сохранённая копия.
  * При изменении списка файлов увеличьте номер в CACHE.
  */
-const CACHE = 'firecalc-v8';
+const CACHE = 'firecalc-v9';
 const SLOW_NETWORK_MS = 3500;
 const ASSETS = [
   './',
