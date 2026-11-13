@@ -222,7 +222,7 @@
     return new Promise(function (resolve, reject) {
       try {
         if (!visionWorker) {
-          visionWorker = new Worker('js/vision.worker.js?v=6');
+          visionWorker = new Worker('js/vision.worker.js?v=7');
           visionWorker.onmessage = function (e) {
             const job = visionWaiting[e.data.id];
             if (!job) return;
@@ -483,6 +483,7 @@
 
     <div class="section-foot">
       <button type="button" class="btn" data-test="add-floor" @click="addFloor">Добавить этаж</button>
+      <button type="button" class="btn" data-test="add-floor-bp" @click="addFloorByPlan(null)">Добавить этаж по плану</button>
     </div>
   </section>
 
@@ -735,6 +736,7 @@
           <div class="bp__actions">
             <button type="button" class="btn btn--primary" data-test="bp-run" :disabled="!bpReady || bp.busy" @click="runBp">{{ bp.busy ? 'Ищу помещения…' : 'Найти помещения' }}</button>
             <button type="button" class="btn btn--quiet" v-if="bp.pts.length" @click="bp.pts = []">Сбросить точки</button>
+            <label class="btn btn--quiet" v-if="!bp.busy">Другое фото<input type="file" accept="image/*" class="sr" data-test="bp-file" @change="pickBpFile"></label>
           </div>
         </template>
         <template v-else>
@@ -756,6 +758,7 @@
           <div class="bp__actions">
             <button type="button" class="btn" data-test="bp-back" @click="bp.rooms = null">Изменить масштаб</button>
             <button type="button" class="btn btn--primary" data-test="bp-apply" :disabled="!bpOn.length" @click="applyBp">Применить к этажу</button>
+            <button type="button" class="btn" data-test="bp-apply-next" :disabled="!bpOn.length" @click="applyBpNext">Применить и добавить этаж</button>
           </div>
           <p class="hint">Распознано за {{ bp.ms }} мс на этом устройстве.</p>
         </template>
@@ -1062,7 +1065,8 @@
         copy.rooms.forEach(function (r) { const id = uid('r'); idMap[r.id] = id; r.id = id; });
         // расположение помещений копируется, отметки огнетушителей — нет: факт у каждого этажа свой
         copy.plan = adoptPlan({ open: copy.plan && copy.plan.open, pos: copy.plan && copy.plan.pos }, idMap);
-        this.floors.splice(i + 1, 0, copy);
+        // копия с номером следующего этажа встаёт в конец, чтобы этажи шли по порядку
+        this.floors.splice(m ? this.floors.length : i + 1, 0, copy);
         this.say('Этаж скопирован: ' + copy.name);
       },
       // Добавляет помещение (в конец или после строки index) и ставит курсор в нужное поле.
@@ -1453,7 +1457,7 @@
       // ----- план этажа по картинке -----
       openBp: function (floor) {
         const self = this;
-        this.bp = { floorId: floor.id, img: '', imgKey: '', w: 0, h: 0, pts: [], lenM: '', areaM2: '', busy: false, rooms: null, sel: null, error: '', scale: 0, ms: 0 };
+        this.bp = { floorId: floor.id, img: '', imgKey: '', w: 0, h: 0, pts: [], lenM: '', areaM2: '', busy: false, rooms: null, sel: null, error: '', scale: 0, ms: 0, created: false };
         this._bpPixels = null;
         // план уже загружен — открывается с ним, масштаб прежний
         const old = PL.blueprintOf(floor);
@@ -1467,7 +1471,44 @@
           }).catch(function () { /* картинки нет — начинаем с выбора */ });
         }
       },
-      closeBp: function () { this.bp = null; this._bpPixels = null; },
+      closeBp: function () {
+        const bp = this.bp;
+        this.bp = null;
+        this._bpPixels = null;
+        // этаж, добавленный только ради плана, без плана не нужен
+        if (bp && bp.created) {
+          const f = this.floorById(bp.floorId), i = this.floors.indexOf(f);
+          if (i >= 0 && this.floors.length > 1 && this.floorBlank(f)) this.floors.splice(i, 1);
+        }
+      },
+      // Пустой этаж: ни плана, ни помещений с именем или площадью.
+      floorBlank: function (f) {
+        return !f.blueprint && !f.rooms.some(function (r) { return r.name || toNum(r.area); });
+      },
+      // План следующего этажа: пустой этаж сразу после after (без after — последний, если пуст),
+      // иначе новый этаж в конце списка.
+      addFloorByPlan: function (after) {
+        const floors = this.floors;
+        let floor = null, created = false;
+        if (after) {
+          const next = floors[floors.indexOf(after) + 1];
+          if (next && this.floorBlank(next)) floor = next;
+        } else if (this.floorBlank(floors[floors.length - 1])) {
+          floor = floors[floors.length - 1];
+        }
+        if (!floor) {
+          floor = newFloor(this.nextFloorNumber(), this.kind.purpose);
+          floors.push(floor);
+          created = true;
+        }
+        this.openBp(floor);
+        this.bp.created = created;
+      },
+      applyBpNext: function () {
+        const floor = this.floorById(this.bp.floorId);
+        this.applyBp();
+        if (!this.bp) this.addFloorByPlan(floor);
+      },
       setBpPicture: function (pic, key) {
         const bp = this.bp;
         if (!bp) return;

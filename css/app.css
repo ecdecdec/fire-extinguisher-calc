@@ -293,7 +293,7 @@ select.norm__cat { flex: 0 0 64px; width: 64px; padding: 0 0 0 8px; }
 .bp__item input.bp__name, .bp__item select { height: 32px; font-size: 13px; padding: 0 8px; }
 .bp__area { font: 400 12px/16px var(--mono); color: var(--ink-2); white-space: nowrap; }
 .bp__error { color: var(--red); font-size: 13px; }
-.section-foot { margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--hair); }
+.section-foot { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--hair); }
 
 /* ---------- результат ---------- */
 .res-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }

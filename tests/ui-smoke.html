@@ -410,6 +410,32 @@
       await click(q('[data-test=undo]'));
       eq('отмена возвращает прежние помещения', [rooms(floors()[0]).length, qa('.plan__room--bp').length], [1, 0]);
 
+      // --- несколько этажей по планам ---
+      const runExample = async () => {
+        await click(q('[data-test=bp-example]'));
+        for (let i = 0; i < 100 && qa('.bp__pt').length < 2; i++) await sleep(50);
+        await click(q('[data-test=bp-run]'));
+        for (let i = 0; i < 200 && !q('[data-test=bp-found]'); i++) await sleep(50);
+      };
+      await click(q('[data-test=add-floor-bp]'));
+      ok('«Добавить этаж по плану» на пустом объекте открывает план первого этажа', text(q('#bpTitle')).includes('1 этаж') && floors().length === 1, text(q('#bpTitle')));
+      await runExample();
+      await click(q('[data-test=bp-apply-next]'));
+      ok('«Применить и добавить этаж»: план применён, открыт план 2 этажа', rooms(floors()[0]).length === 16 && floors().length === 2 && text(q('#bpTitle')).includes('2 этаж'), [rooms(floors()[0]).length, floors().length, text(q('#bpTitle'))]);
+      ok('для нового этажа окно начинается с выбора картинки', !!q('[data-test=bp-file]') && !q('[data-test=bp-svg]'));
+      await click(q('[data-test=bp-close]'));
+      eq('закрыли без плана — добавленный пустой этаж убран', floors().length, 1);
+      await click(q('[data-test=add-floor-bp]'));
+      eq('«Добавить этаж по плану» под этажом с планом добавляет новый этаж', [floors().length, text(q('#bpTitle')).includes('2 этаж')], [2, true]);
+      await runExample();
+      await click(q('[data-test=bp-apply]'));
+      eq('у каждого этажа свой план', [rooms(floors()[0]).length, rooms(floors()[1]).length, qa('[data-test=bp-open]').map(text)], [16, 16, ['Заменить план этажа', 'Заменить план этажа']]);
+      await click(floors()[0].querySelector('[data-test=bp-open]'));
+      for (let i = 0; i < 60 && !q('[data-test=bp-svg]'); i++) await sleep(50);
+      ok('«Заменить план»: открыт прежний план, и можно выбрать другое фото', !!q('[data-test=bp-svg]') && !!q('[data-test=bp-file]'));
+      await click(q('[data-test=bp-close]'));
+      eq('закрытие без замены ничего не меняет', [floors().length, rooms(floors()[0]).length], [2, 16]);
+
       // --- телефон ---
       frame.style.width = '390px';
       await open('&demo=business');
