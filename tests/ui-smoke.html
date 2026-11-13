@@ -417,19 +417,24 @@
         await click(q('[data-test=bp-run]'));
         for (let i = 0; i < 200 && !q('[data-test=bp-found]'); i++) await sleep(50);
       };
-      await click(q('[data-test=add-floor-bp]'));
-      ok('«Добавить этаж по плану» на пустом объекте открывает план первого этажа', text(q('#bpTitle')).includes('1 этаж') && floors().length === 1, text(q('#bpTitle')));
+      // имя объекта не убирает кнопку плана вверху
+      await setValue(q('[data-test=title]'), 'Школа № 1');
+      eq('после ввода имени объекта кнопка плана вверху на месте', text(q('[data-test=bp-tip-open]')), 'Загрузить план');
+      await click(q('[data-test=bp-tip-open]'));
+      ok('кнопка вверху открывает план первого этажа', text(q('#bpTitle')).includes('1 этаж') && floors().length === 1, text(q('#bpTitle')));
       await runExample();
       await click(q('[data-test=bp-apply-next]'));
       ok('«Применить и добавить этаж»: план применён, открыт план 2 этажа', rooms(floors()[0]).length === 16 && floors().length === 2 && text(q('#bpTitle')).includes('2 этаж'), [rooms(floors()[0]).length, floors().length, text(q('#bpTitle'))]);
       ok('для нового этажа окно начинается с выбора картинки', !!q('[data-test=bp-file]') && !q('[data-test=bp-svg]'));
       await click(q('[data-test=bp-close]'));
-      eq('закрыли без плана — добавленный пустой этаж убран', floors().length, 1);
+      eq('закрыли без плана: этаж остаётся, вверху «Загрузить план: 2 этаж»', [floors().length, text(q('[data-test=bp-tip-open]'))], [2, 'Загрузить план: 2 этаж']);
+      eq('у этажа без плана кнопка «Загрузить план этажа»', text(floors()[1].querySelector('[data-test=bp-open]')), 'Загрузить план этажа');
       await click(q('[data-test=add-floor-bp]'));
-      eq('«Добавить этаж по плану» под этажом с планом добавляет новый этаж', [floors().length, text(q('#bpTitle')).includes('2 этаж')], [2, true]);
+      eq('«Добавить этаж по плану» берёт этот же пустой этаж, лишних не добавляет', [floors().length, text(q('#bpTitle')).includes('2 этаж')], [2, true]);
       await runExample();
       await click(q('[data-test=bp-apply]'));
       eq('у каждого этажа свой план', [rooms(floors()[0]).length, rooms(floors()[1]).length, qa('[data-test=bp-open]').map(text)], [16, 16, ['Заменить план этажа', 'Заменить план этажа']]);
+      ok('вверху видно, какие этажи по плану, и кнопка следующего', text(q('[data-test=bp-tip]')).includes('По плану: 1 этаж, 2 этаж') && text(q('[data-test=bp-tip-open]')) === 'Добавить этаж по плану', text(q('[data-test=bp-tip]')));
       await click(floors()[0].querySelector('[data-test=bp-open]'));
       for (let i = 0; i < 60 && !q('[data-test=bp-svg]'); i++) await sleep(50);
       ok('«Заменить план»: открыт прежний план, и можно выбрать другое фото', !!q('[data-test=bp-svg]') && !!q('[data-test=bp-file]'));

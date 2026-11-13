@@ -222,7 +222,7 @@
     return new Promise(function (resolve, reject) {
       try {
         if (!visionWorker) {
-          visionWorker = new Worker('js/vision.worker.js?v=7');
+          visionWorker = new Worker('js/vision.worker.js?v=8');
           visionWorker.onmessage = function (e) {
             const job = visionWaiting[e.data.id];
             if (!job) return;
@@ -321,9 +321,9 @@
       </label>
     </div>
     <p class="hint">{{ kindHint }}</p>
-    <div class="tip" v-if="isBlank(current)" data-test="bp-tip">
-      <span>Есть план эвакуации или техпаспорт? Сфотографируйте план этажа — помещения и площади найдутся сами, прямо на телефоне, без интернета.</span>
-      <button type="button" class="btn btn--sm" data-test="bp-tip-open" @click="openBp(floors[0])">Загрузить план</button>
+    <div class="tip" data-test="bp-tip">
+      <span>{{ planTip.text }}</span>
+      <button type="button" class="btn btn--sm" data-test="bp-tip-open" @click="addFloorByPlan(null)">{{ planTip.label }}</button>
     </div>
 
     <div class="floor" v-for="(floor, fi) in floors" :key="floor.id">
@@ -433,7 +433,7 @@
       <div class="plan">
         <div class="plan__head">
           <button type="button" class="btn btn--sm" data-test="plan-toggle" :aria-expanded="floor.plan.open" @click="floor.plan.open = !floor.plan.open">{{ floor.plan.open ? 'Скрыть схему' : 'Схема этажа' }}</button>
-          <button type="button" class="btn btn--sm" data-test="bp-open" @click="openBp(floor)">{{ floor.blueprint ? 'Заменить план этажа' : 'По плану этажа' }}</button>
+          <button type="button" class="btn btn--sm" data-test="bp-open" @click="openBp(floor)">{{ floor.blueprint ? 'Заменить план этажа' : 'Загрузить план этажа' }}</button>
           <span class="plan__stat" data-test="plan-stat">{{ planStat(floor) }}</span>
         </div>
         <template v-if="floor.plan.open">
@@ -862,6 +862,18 @@
       // окно «План этажа»
       areaPurposeGroups: function () { return P.PURPOSE_GROUPS.filter(function (g) { return !g.items.some(function (p) { return p.t5; }); }); },
       bpFloorName: function () { return this.bp ? (this.floorById(this.bp.floorId).name || '') : ''; },
+      // Подсказка над этажами видна всегда: имя объекта и введённые помещения её не убирают.
+      // Кнопка открывает план последнего этажа, если он пуст, иначе добавляет этаж.
+      planTip: function () {
+        const self = this, floors = this.floors, last = floors[floors.length - 1];
+        const withPlan = floors.filter(function (f) { return f.blueprint; }).map(function (f) { return f.name; });
+        let text;
+        if (withPlan.length) text = 'По плану: ' + withPlan.join(', ') + '. Следующий этаж тоже можно загрузить по фото плана.';
+        else if (floors.every(function (f) { return self.floorBlank(f); })) text = 'Есть план эвакуации или техпаспорт? Сфотографируйте план этажа — помещения и площади найдутся сами, прямо на телефоне, без интернета.';
+        else text = 'Помещения этажа можно найти по фото плана эвакуации или техпаспорта.';
+        const label = last && this.floorBlank(last) ? 'Загрузить план' + (floors.length > 1 ? ': ' + last.name : '') : 'Добавить этаж по плану';
+        return { text: text, label: label };
+      },
       bpFont: function () { return this.bp ? Math.max(12, Math.round(this.bp.w / 85)) : 12; },
       bpOn: function () { return this.bp && this.bp.rooms ? this.bp.rooms.filter(function (r) { return r.on; }) : []; },
       bpArea: function () { return Math.round(this.bpOn.reduce(function (s, r) { return s + r.area * 10; }, 0)) / 10; },
@@ -1457,7 +1469,7 @@
       // ----- план этажа по картинке -----
       openBp: function (floor) {
         const self = this;
-        this.bp = { floorId: floor.id, img: '', imgKey: '', w: 0, h: 0, pts: [], lenM: '', areaM2: '', busy: false, rooms: null, sel: null, error: '', scale: 0, ms: 0, created: false };
+        this.bp = { floorId: floor.id, img: '', imgKey: '', w: 0, h: 0, pts: [], lenM: '', areaM2: '', busy: false, rooms: null, sel: null, error: '', scale: 0, ms: 0 };
         this._bpPixels = null;
         // план уже загружен — открывается с ним, масштаб прежний
         const old = PL.blueprintOf(floor);
@@ -1471,16 +1483,8 @@
           }).catch(function () { /* картинки нет — начинаем с выбора */ });
         }
       },
-      closeBp: function () {
-        const bp = this.bp;
-        this.bp = null;
-        this._bpPixels = null;
-        // этаж, добавленный только ради плана, без плана не нужен
-        if (bp && bp.created) {
-          const f = this.floorById(bp.floorId), i = this.floors.indexOf(f);
-          if (i >= 0 && this.floors.length > 1 && this.floorBlank(f)) this.floors.splice(i, 1);
-        }
-      },
+      // Этаж, добавленный ради плана, остаётся и без плана: следующее «Добавить этаж по плану» возьмёт его же.
+      closeBp: function () { this.bp = null; this._bpPixels = null; },
       // Пустой этаж: ни плана, ни помещений с именем или площадью.
       floorBlank: function (f) {
         return !f.blueprint && !f.rooms.some(function (r) { return r.name || toNum(r.area); });
@@ -1489,7 +1493,7 @@
       // иначе новый этаж в конце списка.
       addFloorByPlan: function (after) {
         const floors = this.floors;
-        let floor = null, created = false;
+        let floor = null;
         if (after) {
           const next = floors[floors.indexOf(after) + 1];
           if (next && this.floorBlank(next)) floor = next;
@@ -1499,10 +1503,8 @@
         if (!floor) {
           floor = newFloor(this.nextFloorNumber(), this.kind.purpose);
           floors.push(floor);
-          created = true;
         }
         this.openBp(floor);
-        this.bp.created = created;
       },
       applyBpNext: function () {
         const floor = this.floorById(this.bp.floorId);
