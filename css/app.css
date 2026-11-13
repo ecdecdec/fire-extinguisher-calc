@@ -256,6 +256,43 @@ select.norm__cat { flex: 0 0 64px; width: 64px; padding: 0 0 0 8px; }
 /* размер букв задаётся в разметке (в метрах схемы), поэтому здесь его нет */
 .plan__ext text { fill: #fff; font-family: var(--sans); font-weight: 500; pointer-events: none; }
 .plan__hint { margin-top: 8px; font-size: 13px; color: var(--ink-2); max-width: 88ch; }
+/* схема по загруженному плану: картинка под настоящими контурами помещений */
+.plan__bg { opacity: .5; pointer-events: none; }
+.plan__room--bp { fill: rgba(255, 255, 255, .45); stroke-width: 1; }
+.plan__room--bp.plan__room--sens { fill: rgba(241, 241, 242, .75); }
+
+/* подсказка «загрузите план» */
+.tip { display: flex; align-items: center; gap: 12px 16px; flex-wrap: wrap; margin-top: 12px; padding: 12px 16px; border-radius: 8px; background: var(--raised); font-size: 13px; color: var(--ink-2); }
+.tip span { flex: 1 1 320px; }
+
+/* ---------- окно «План этажа» ---------- */
+.modal--full .modal__box.bp { width: min(100%, 1240px); max-height: calc(100vh - 32px); padding: 0; gap: 0; display: flex; flex-direction: column; overflow: hidden; }
+.bp__head { display: flex; align-items: center; gap: 12px; padding: 14px 20px; border-bottom: 1px solid var(--hair); }
+.bp__body { display: grid; grid-template-columns: minmax(0, 1fr) 380px; min-height: 0; flex: 1 1 auto; overflow: hidden; }
+.bp__stage { min-width: 0; overflow: auto; background: var(--side); padding: 16px; }
+.bp__svg { display: block; width: 100%; height: auto; max-height: calc(100vh - 150px); background: #fff; border: 1px solid var(--hair); border-radius: 6px; cursor: crosshair; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+.bp__room { fill: rgba(21, 128, 61, .14); stroke: var(--green); stroke-width: 2; vector-effect: non-scaling-stroke; cursor: pointer; }
+.bp__room--sens { fill: rgba(23, 23, 23, .12); stroke: var(--ink); }
+.bp__room--off { fill: rgba(115, 115, 115, .08); stroke: var(--ink-3); stroke-dasharray: 4 4; }
+.bp__room--sel { fill: rgba(196, 41, 28, .16); stroke: var(--red); stroke-width: 3; }
+.bp__label { font-family: var(--sans); font-weight: 500; fill: var(--ink); paint-order: stroke; stroke: #fff; stroke-width: 4px; stroke-linejoin: round; pointer-events: none; }
+.bp__ruler { stroke: var(--red); stroke-linecap: round; pointer-events: none; }
+.bp__pt { fill: var(--red); stroke: #fff; stroke-width: 2; vector-effect: non-scaling-stroke; pointer-events: none; }
+.bp__start { grid-column: 1 / -1; padding: 32px 24px; display: grid; gap: 12px; justify-items: start; max-width: 680px; }
+.bp__panel { border-left: 1px solid var(--hair); padding: 16px 20px; overflow-y: auto; display: grid; gap: 12px; align-content: start; }
+.bp__row { display: flex; gap: 12px; align-items: flex-end; }
+.bp__row .field { flex: 1 1 0; }
+.bp__or { padding-bottom: 10px; color: var(--ink-3); font-size: 13px; }
+.bp__actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.bp__list { display: grid; gap: 2px; max-height: 46vh; overflow-y: auto; }
+.bp__item { display: grid; grid-template-columns: 16px 22px minmax(0, 1fr) minmax(0, 1.25fr) auto; gap: 8px; align-items: center; padding: 4px 6px; border-radius: 6px; }
+.bp__item input[type="checkbox"] { width: 16px; height: 16px; margin: 0; accent-color: var(--ink); }
+.bp__item--sel { background: #fbecea; }
+.bp__item--off { opacity: .5; }
+.bp__no { font: 500 12px/16px var(--mono); color: var(--ink-3); text-align: right; }
+.bp__item input.bp__name, .bp__item select { height: 32px; font-size: 13px; padding: 0 8px; }
+.bp__area { font: 400 12px/16px var(--mono); color: var(--ink-2); white-space: nowrap; }
+.bp__error { color: var(--red); font-size: 13px; }
 .section-foot { margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--hair); }
 
 /* ---------- результат ---------- */
@@ -436,6 +473,20 @@ input.linkbox { font: 400 12px/20px var(--mono); }
   .seg--sm { display: inline-flex; width: auto; }
   .seg--sm .seg__opt { height: 32px; padding: 0 12px; flex: 0 0 auto; }
   .plan__svg { max-height: min(70vh, 440px); }
+  .modal--full { padding: 0; }
+  .modal--full .modal__box.bp { width: 100%; height: 100%; max-height: 100%; border-radius: 0; }
+  .bp__body { grid-template-columns: 1fr; overflow-y: auto; }
+  .bp__stage { padding: 8px; overflow: visible; }
+  .bp__svg { max-height: 55vh; }
+  .bp__panel { border-left: 0; border-top: 1px solid var(--hair); overflow: visible; }
+  .bp__list { max-height: none; }
+  .bp__item { grid-template-columns: 20px 22px minmax(0, 1fr) auto; padding: 6px 4px; }
+  .bp__item input[type="checkbox"], .bp__no { grid-row: 1; }
+  .bp__item input.bp__name { grid-column: 3; grid-row: 1; }
+  .bp__area { grid-column: 4; grid-row: 1; }
+  .bp__item select { grid-column: 3 / -1; grid-row: 2; }
+  .bp__row { flex-wrap: wrap; }
+  .bp__row .field { flex: 1 1 140px; }
 
   .chip { width: 40px; height: 40px; }
   .chip--add, .chip--alt { width: auto; height: 36px; }

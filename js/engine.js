@@ -83,7 +83,8 @@
 
   function categoryLabel(c) { return (N.CATEGORIES[c] || N.CATEGORIES.PUB).label; }
 
-  function step(ref, text) { return { ref: ref, text: text }; }
+  // kind: 'row' — строка таблицы норм, 'line' — формула количества (в PDF они в таблице, а не в пояснениях).
+  function step(ref, text, kind) { const s = { ref: ref, text: text }; if (kind) s.kind = kind; return s; }
 
   function plural(n, one, few, many) {
     const a = Math.abs(n) % 100, b = a % 10;
@@ -394,7 +395,7 @@
       lines: [], steps: [], warnings: [], notes: [], alternatives: [], placement: []
     };
 
-    unit.steps.push(step('Прил. 3, п. 3; табл. 1', rowStep(rep, plan)));
+    unit.steps.push(step('Прил. 3, п. 3; табл. 1', rowStep(rep, plan), 'row'));
     if (unit.pooled) {
       const parts = group.rooms.length <= 8
         ? group.rooms.map(function (r) { return r.count > 1 ? fmt(r.area) + ' × ' + r.count : fmt(r.area); }).join(' + ') + ' = ' + fmt(area) + ' м²'
@@ -433,7 +434,7 @@
       }
       text += ' Расчёт: ' + c.basis;
       if (p.forced) text += ' Тип выбран вручную.';
-      unit.steps.push(step('Прил. 3, табл. 1', text));
+      unit.steps.push(step('Прил. 3, табл. 1', text, 'line'));
       if (p.viaP9) {
         unit.steps.push(step('Прил. 3, п. 9', 'Помещение с дорогостоящим электронным оборудованием или ценностями: выбран углекислотный огнетушитель, чтобы не повредить их огнетушащим веществом.'));
       }
@@ -469,7 +470,8 @@
         ') — не менее ' + pl.points + ' ' + plural(pl.points, 'места', 'мест', 'мест') + ' размещения';
       if (pl.wallPoints === null) text += '; у стен требование не выполнить — нужны места в глубине помещения (на колоннах)';
       else if (pl.wallPoints > pl.points) text += ' (при размещении только у стен — ' + pl.wallPoints + ')';
-      unit.steps.push(step('Прил. 3, п. 4', text + '.'));
+      // одного места размещения хватает — в пояснениях отчёта такой шаг не повторяется
+      unit.steps.push(step('Прил. 3, п. 4', text + '.', pl.points <= 1 && pl.wallPoints === 1 ? 'minor' : undefined));
     });
     group.rooms.forEach(function (r) {
       if (r.purpose !== 'corridor' || (toNumber(r.length) > 0 && toNumber(r.width) > 0)) return;
@@ -631,7 +633,7 @@
         l.basis += ' Одинаковых объектов ' + mult + ': ' + one + ' × ' + mult + ' = ' + l.count + x.pcs;
       }
       const other = x.other.map(function (o) { return (o.n * blocks * mult) + ' × ' + o.code; });
-      unit.steps.push(step('Прил. 3, табл. 5', lineTitle(l) + ': ' + l.basis + (other.length ? ' Допустимая замена: ' + other.join(' или ') + '.' : '')));
+      unit.steps.push(step('Прил. 3, табл. 5', lineTitle(l) + ': ' + l.basis + (other.length ? ' Допустимая замена: ' + other.join(' или ') + '.' : ''), 'line'));
       if (other.length) unit.alternatives.push({ t5Alt: x.altIdx, text: other.join(' или ') });
     });
     if (room.autoSuppression) {

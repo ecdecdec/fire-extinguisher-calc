@@ -14,7 +14,10 @@
  *   — расстояние считается по прямой, без учёта стен и дверей (то же допущение,
  *     что и в расчёте п. 4). Фактический путь обхода может быть длиннее;
  *   — отмеченное на схеме — это фактическое наличие. Расстановку «по нормам»
- *     (propose) программа строит отдельно и с фактом не смешивает.
+ *     (propose) программа строит отдельно и с фактом не смешивает;
+ *   — если план этажа загружен картинкой (floor.blueprint), помещения, найденные
+ *     на нём, стоят на своих местах настоящими контурами (poly, в метрах) и не
+ *     двигаются; расстояния и расстановка считаются по этим контурам.
  */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory(require('./norms.js'), require('./engine.js'));
@@ -46,10 +49,19 @@
     return { w: w, h: S / w, approx: true };
   }
 
+  // Загруженный план этажа: { img, w, h, scale (точек на метр), rooms: [{ id, poly, bbox, lx, ly }] } в точках картинки.
+  function blueprintOf(floor) {
+    const bp = floor && floor.blueprint;
+    return bp && bp.scale > 0 && Array.isArray(bp.rooms) ? bp : null;
+  }
+
   // Каждая копия помещения (строка с количеством) — отдельный прямоугольник.
+  // Помещение с загруженного плана — его настоящий контур на своём месте.
   function instances(floor, building, floorIndex) {
     const list = [];
     let skipped = 0;
+    const bp = blueprintOf(floor), shapes = {};
+    if (bp) bp.rooms.forEach(function (g) { shapes[g.id] = g; });
     ((floor && floor.rooms) || []).forEach(function (r, ri) {
       const size = sizeOf(r);
       if (!size) return;
@@ -58,9 +70,10 @@
       const id = r.id || ('r' + (floorIndex || 0) + '_' + ri);
       const name = (r.name || '').trim() || (r.fallbackName || '').trim() || ('Помещение ' + (ri + 1));
       const copies = E.countOf(r);
+      const shape = bp && r.bp !== undefined && r.bp !== null ? shapes[r.bp] : null;
       for (let i = 0; i < copies; i++) {
         if (list.length >= MAX_RECTS) { skipped += 1; continue; }
-        list.push({
+        const item = {
           key: id + ':' + i, roomId: id, idx: i, copies: copies, name: name,
           w: size.w, h: size.h, approx: size.approx,
           corridor: r.purpose === 'corridor',
@@ -68,10 +81,38 @@
           limit: E.distanceLimit(category, building || { kind: 'public' }).m,
           // помещение категории Д менее 100 м² допускается не оснащать (п. 6) — расстояние не проверяется
           check: !(!t5 && category === 'CD' && num(r.area) < 100)
-        });
+        };
+        if (shape && i === 0) {
+          const s = bp.scale;
+          item.poly = shape.poly.map(function (p) { return [p[0] / s, p[1] / s]; });
+          item.x = shape.bbox[0] / s;
+          item.y = shape.bbox[1] / s;
+          item.w = (shape.bbox[2] - shape.bbox[0]) / s;
+          item.h = (shape.bbox[3] - shape.bbox[1]) / s;
+          item.lx = shape.lx / s;
+          item.ly = shape.ly / s;
+          item.fixed = true;
+          item.approx = false;
+        }
+        list.push(item);
       }
     });
     return { list: list, skipped: skipped };
+  }
+
+  // Точка внутри многоугольника (чётность пересечений).
+  function inPoly(poly, x, y) {
+    let inside = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      const xi = poly[i][0], yi = poly[i][1], xj = poly[j][0], yj = poly[j][1];
+      if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+    }
+    return inside;
+  }
+
+  function contains(r, x, y) {
+    if (x < r.x || x > r.x + r.w || y < r.y || y > r.y + r.h) return false;
+    return r.poly ? inPoly(r.poly, x, y) : true;
   }
 
   function bbox(rects) {
@@ -116,11 +157,14 @@
 
   // pos — расположение, заданное пользователем ({ ключ: [x, y] }), или null.
   // Помещения, добавленные после того как схему начали двигать, встают рядом ниже.
+  // Помещения с загруженного плана (fixed) стоят на своих местах; добавленные
+  // вручную встают под планом.
   function layout(list, pos) {
-    const auto = pos ? null : autoLayout(list);
+    const anyFixed = list.some(function (r) { return r.fixed; });
+    const auto = pos || anyFixed ? null : autoLayout(list);
     const placed = {}, loose = [];
     list.forEach(function (r) {
-      const p = pos ? pos[r.key] : auto[r.key];
+      const p = r.fixed ? [r.x, r.y] : (pos ? pos[r.key] : (auto ? auto[r.key] : null));
       if (p && isFinite(p[0]) && isFinite(p[1])) placed[r.key] = [Number(p[0]), Number(p[1])]; else loose.push(r);
     });
     if (loose.length) {
@@ -142,10 +186,7 @@
 
   // Верхнее помещение под точкой.
   function at(rects, x, y) {
-    for (let i = rects.length - 1; i >= 0; i--) {
-      const r = rects[i];
-      if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) return r;
-    }
+    for (let i = rects.length - 1; i >= 0; i--) if (contains(rects[i], x, y)) return rects[i];
     return null;
   }
 
@@ -191,6 +232,7 @@
 
   // ---------- проверка расстояния ----------
 
+  // Клетки помещений; у контура с плана — только клетки, центр которых внутри него.
   function cellsOf(rects) {
     let area = 0;
     rects.forEach(function (r) { if (r.check) area += r.w * r.h; });
@@ -202,7 +244,9 @@
       const cw = r.w / nx, ch = r.h / ny;
       for (let j = 0; j < ny; j++) {
         for (let i = 0; i < nx; i++) {
-          cells.push({ r: r, i: i, j: j, x0: r.x + i * cw, y0: r.y + j * ch, x1: r.x + (i + 1) * cw, y1: r.y + (j + 1) * ch, lim2: r.limit * r.limit, done: false });
+          const x0 = r.x + i * cw, y0 = r.y + j * ch;
+          if (r.poly && !inPoly(r.poly, x0 + cw / 2, y0 + ch / 2)) continue;
+          cells.push({ r: r, i: i, j: j, x0: x0, y0: y0, x1: x0 + cw, y1: y0 + ch, lim2: r.limit * r.limit, done: false });
         }
       }
     });
@@ -245,12 +289,35 @@
 
   // ---------- расстановка по нормам ----------
 
+  // Места вдоль стен контура с плана: на каждой стене через шаг gap, отступ внутрь INSET.
+  function polyCandidates(r, perWall, gap, out) {
+    const P = r.poly;
+    for (let k = 0; k < P.length; k++) {
+      const a = P[k], b = P[(k + 1) % P.length], len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      if (len < 0.6) continue;
+      const nx = -(b[1] - a[1]) / len, ny = (b[0] - a[0]) / len, cnt = Math.min(perWall, Math.max(1, Math.round(len / gap)));
+      for (let t = 0; t < cnt; t++) {
+        const f = (t + 0.5) / cnt, px = a[0] + (b[0] - a[0]) * f, py = a[1] + (b[1] - a[1]) * f;
+        if (inPoly(P, px + nx * INSET, py + ny * INSET)) out.push({ rect: r, x: px + nx * INSET, y: py + ny * INSET });
+        else if (inPoly(P, px - nx * INSET, py - ny * INSET)) out.push({ rect: r, x: px - nx * INSET, y: py - ny * INSET });
+      }
+    }
+    if (Math.min(r.w, r.h) > r.limit) {
+      const gx = Math.ceil(r.w / (1.4 * r.limit)), gy = Math.ceil(r.h / (1.4 * r.limit));
+      for (let i = 0; i < gx; i++) for (let j = 0; j < gy; j++) {
+        const x = r.x + r.w * (i + 0.5) / gx, y = r.y + r.h * (j + 0.5) / gy;
+        if (inPoly(P, x, y)) out.push({ rect: r, x: x, y: y });
+      }
+    }
+  }
+
   // Возможные места: вдоль стен, а в помещениях глубже предельного расстояния — ещё и в глубине (на колоннах).
   function candidates(rects, perWall) {
     const out = [];
     rects.forEach(function (r) {
       const ix = Math.min(INSET, r.w / 2), iy = Math.min(INSET, r.h / 2);
       const gap = Math.max(1.5, r.limit / 8); // шаг мест вдоль стены
+      if (r.poly) { polyCandidates(r, perWall, gap, out); return; }
       const nx = Math.min(perWall, Math.max(1, Math.round(r.w / gap))), ny = Math.min(perWall, Math.max(1, Math.round(r.h / gap)));
       for (let i = 0; i < nx; i++) {
         const x = r.x + r.w * (i + 0.5) / nx;
@@ -281,7 +348,8 @@
       const reachIt = cands.filter(function (c) { return reach2(c.x, c.y, anchor) <= anchor.lim2 + EPS; });
       if (reachIt.length) { pool = reachIt; break; }
     }
-    // при равенстве: дальше от уже занятых мест, затем ближе к середине стены
+    // при равенстве: дальше от уже занятых мест, затем ближе к середине стены.
+    // Место в коридоре ценится выше: огнетушители ставят на путях эвакуации (п. 12).
     let best = null, bestGain = -1, bestFar = -1, bestMid = Infinity;
     pool.forEach(function (c) {
       let gain = 0;
@@ -289,6 +357,7 @@
         for (let k = 0; k < cells.length; k++) {
           if (!cells[k].done && reach2(c.x, c.y, cells[k]) <= cells[k].lim2 + EPS) gain += 1;
         }
+        if (c.rect.corridor) gain *= 1.25;
       }
       let far = Infinity;
       for (let k = 0; k < placed.length; k++) {
@@ -421,10 +490,19 @@
       fa.skipped = inst.skipped;
       fa.marked = fa.ext.length > 0;
       fa.findings = [];
-      function add(level, text, ref) {
-        const f = { level: level, floorId: fr.id, floor: fr.name, text: text, ref: ref };
+      // f: level — 'bad' (нарушение) или 'warn' (проверить на месте); kind — 'deficit', 'powder', 'distance';
+      // text — что выявлено; action — что сделать; room — помещение, если нарушение в нём.
+      function add(level, text, ref, extra) {
+        const f = Object.assign({ level: level, floorId: fr.id, floor: fr.name, text: text, ref: ref, kind: '', action: '', room: '' }, extra || {});
         fa.findings.push(f);
         out.findings.push(f);
+      }
+      // типы огнетушителей одного вида, которые расчёт требует на этаже: «(ОП-5)»
+      function codesOf(agent) {
+        const set = {};
+        fr.units.forEach(function (u) { u.lines.forEach(function (l) { if (l.kind === 'portable' && l.agent === agent) set[l.code] = true; }); });
+        const list = Object.keys(set);
+        return list.length ? ' (' + list.join(' или ') + ')' : '';
       }
       if (fr.units.length) out.total += 1;
 
@@ -435,8 +513,16 @@
         // минимум на этаж: в общественном здании — п. 5; в остальных он применён по параметру расчёта
         const min = fr.units.filter(function (u) { return u.kind === 'floorMin'; })[0];
         const ref = !min ? 'Прил. 3, п. 3' : (min.byRules ? 'Прил. 3, п. 3 и п. 5' : 'Прил. 3, п. 3; минимум на этаж — параметр расчёта');
-        if (c.deficitOP > 0) add('bad', 'Порошковых огнетушителей (ОП) ' + c.installedOP + ' из ' + c.requiredOP + ' требуемых — не хватает ' + c.deficitOP + '.', ref);
-        if (c.deficitOU > 0) add('bad', 'Углекислотных огнетушителей (ОУ) ' + c.installedOU + ' из ' + c.requiredOU + ' требуемых — не хватает ' + c.deficitOU + '.', ref);
+        if (c.deficitOP > 0) {
+          add('bad', 'Порошковых огнетушителей (ОП) ' + c.installedOP + ' из ' + c.requiredOP + ' требуемых — не хватает ' + c.deficitOP + '.', ref, {
+            kind: 'deficit', action: 'Добавить ' + c.deficitOP + ' ' + E.plural(c.deficitOP, 'порошковый огнетушитель', 'порошковых огнетушителя', 'порошковых огнетушителей') + codesOf('powder')
+          });
+        }
+        if (c.deficitOU > 0) {
+          add('bad', 'Углекислотных огнетушителей (ОУ) ' + c.installedOU + ' из ' + c.requiredOU + ' требуемых — не хватает ' + c.deficitOU + '.', ref, {
+            kind: 'deficit', action: 'Добавить ' + c.deficitOU + ' ' + E.plural(c.deficitOU, 'углекислотный огнетушитель', 'углекислотных огнетушителя', 'углекислотных огнетушителей') + codesOf('co2')
+          });
+        }
       }
 
       // порошковый в помещении с электроникой
@@ -448,7 +534,7 @@
         if (unit && unit.lines.some(function (l) { return l.agent === 'powder'; })) return;
         seen[e.rect.roomId] = true;
         add('bad', '«' + e.rect.name + '»: стоит порошковый огнетушитель. В помещении с электронным оборудованием порошковые не применяются — заменить на углекислотный (ОУ).',
-          'Прил. 3, п. 9; СТ РК 1487-2006');
+          'Прил. 3, п. 9; СТ РК 1487-2006', { kind: 'powder', room: e.rect.name, action: 'Убрать порошковый огнетушитель, поставить углекислотный (ОУ)' });
       });
 
       // расстояние до огнетушителя — только если на схеме что-то отмечено
@@ -468,7 +554,12 @@
             '«' + g.name + '»' + (g.copies > 1 ? ' (' + g.n + ' из ' + g.copies + ')' : '') + ': до ближайшего огнетушителя до ' + fmt(Math.ceil(g.far * 10) / 10) +
             ' м при норме не более ' + g.limit + ' м — вне нормы ' + pct + ' % площади.' +
             (g.approx ? ' Размеры помещения не заданы — проверьте на месте.' : ''),
-            'Прил. 3, п. 4');
+            'Прил. 3, п. 4', {
+              kind: 'distance', room: g.name,
+              action: g.approx
+                ? 'Проверить на месте расстояние до огнетушителя: не более ' + g.limit + ' м'
+                : 'Добавить огнетушитель или перенести ближе: сейчас до ' + fmt(Math.ceil(g.far * 10) / 10) + ' м при норме ' + g.limit + ' м'
+            });
         });
       }
       out.floors.push(fa);
@@ -497,8 +588,9 @@
     p.push('<svg xmlns="http://www.w3.org/2000/svg" width="' + round(W, 2) + '" height="' + round(H, 2) + '" viewBox="0 0 ' + round(W, 2) + ' ' + round(H, 2) + '">');
     p.push('<defs><clipPath id="frame"><rect x="0" y="0" width="' + round(W, 2) + '" height="' + round(H, 2) + '"/></clipPath></defs>');
     sc.rects.forEach(function (r) {
-      p.push('<rect x="' + X(r.x) + '" y="' + Y(r.y) + '" width="' + S(r.w) + '" height="' + S(r.h) + '" fill="' + (r.sensitive ? '#f1f1f1' : '#ffffff') +
-        '" stroke="#171717" stroke-width="0.7"' + (r.approx ? ' stroke-dasharray="3 2"' : '') + '/>');
+      const fill = '" fill="' + (r.sensitive ? '#f1f1f1' : '#ffffff') + '" stroke="#171717" stroke-width="0.7"' + (r.approx ? ' stroke-dasharray="3 2"' : '') + '/>';
+      if (r.poly) p.push('<polygon points="' + r.poly.map(function (q) { return X(q[0]) + ',' + Y(q[1]); }).join(' ') + fill);
+      else p.push('<rect x="' + X(r.x) + '" y="' + Y(r.y) + '" width="' + S(r.w) + '" height="' + S(r.h) + fill);
     });
     gaps(sc).forEach(function (u) {
       p.push('<rect x="' + X(u.x) + '" y="' + Y(u.y) + '" width="' + S(u.w) + '" height="' + S(u.h) + '" fill="#c4291c" fill-opacity="0.3"/>');
@@ -514,7 +606,9 @@
       const max = Math.floor((S(r.w) - 5) / (fs * 0.56));
       if (S(r.h) < fs * 1.6 || max < 3) return;
       const label = r.name.length <= max ? r.name : r.name.slice(0, max - 1) + '.';
-      p.push('<text x="' + round(X(r.x) + 2.5, 2) + '" y="' + round(Y(r.y) + fs + 1.5, 2) + '" font-family="Roboto" font-size="' + fs + '" fill="#525252">' + esc(label) + '</text>');
+      // у контура с плана подпись — в самой просторной точке помещения, иначе — в левом верхнем углу
+      if (r.poly) p.push('<text x="' + X(r.lx) + '" y="' + round(Y(r.ly) + fs * 0.35, 2) + '" text-anchor="middle" font-family="Roboto" font-size="' + fs + '" fill="#525252">' + esc(label) + '</text>');
+      else p.push('<text x="' + round(X(r.x) + 2.5, 2) + '" y="' + round(Y(r.y) + fs + 1.5, 2) + '" font-family="Roboto" font-size="' + fs + '" fill="#525252">' + esc(label) + '</text>');
     });
     sc.ext.forEach(function (e) {
       const fill = e.t === 'op' ? '#c4291c' : (e.t === 'ou' ? '#171717' : '#737373');
@@ -529,6 +623,7 @@
   return {
     MAX_RECTS: MAX_RECTS,
     instances: instances, layout: layout, autoLayout: autoLayout, freeze: freeze, bbox: bbox, view: view,
+    blueprintOf: blueprintOf, inPoly: inPoly,
     at: at, snap: snap, resolve: resolve, coverage: coverage, propose: propose, scene: scene, gaps: gaps, tally: tally,
     audit: audit, schemes: schemes, svg: svg
   };

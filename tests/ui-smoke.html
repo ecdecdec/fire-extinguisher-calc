@@ -383,6 +383,33 @@
       await setValue(nameIn(), 'Кабинет'); await setValue(nameIn(), 'Кабинет', 'change');
       eq('назначение, выбранное из списка, по имени не меняется', purposeOf(), 'server');
 
+      // --- план этажа по картинке: помещения и площади находятся сами ---
+      await click(q('[data-test=new]'));
+      ok('на пустом объекте подсказка «загрузите план»', !!q('[data-test=bp-tip]'));
+      await click(q('[data-test=bp-tip-open]'));
+      ok('окно «План этажа» открыто', !!q('[data-test=bp-dialog]'));
+      await click(q('[data-test=bp-example]'));
+      for (let i = 0; i < 100 && qa('.bp__pt').length < 2; i++) await sleep(50);
+      eq('пример плана: линейка 10 м уже отмечена', [qa('.bp__pt').length, q('[data-test=bp-len]').value], [2, '10']);
+      await click(q('[data-test=bp-run]'));
+      for (let i = 0; i < 200 && !q('[data-test=bp-found]'); i++) await sleep(50);
+      ok('найдено 16 помещений', text(q('[data-test=bp-found]')).startsWith('Найдено помещений: 16'), text(q('[data-test=bp-found]')) || text(q('.bp__error')));
+      eq('на плане 16 контуров', qa('.bp__room').length, 16);
+      ok('коридор узнан сам', qa('.bp__item select').some(s => s.value === 'corridor'));
+      const bpRow = n => q('[data-bp-item="' + n + '"]');
+      await setValue(bpRow(5).querySelector('.bp__name'), 'Серверная'); await setValue(bpRow(5).querySelector('.bp__name'), 'Серверная', 'change');
+      eq('имя в списке подставляет назначение', bpRow(5).querySelector('select').value, 'server');
+      await click(bpRow(16).querySelector('input[type=checkbox]'));
+      ok('лишнее снимается галочкой', text(q('[data-test=bp-found]')).startsWith('Найдено помещений: 15'));
+      await click(q('[data-test=bp-apply]'));
+      eq('на этаже 15 помещений с плана', rooms(floors()[0]).length, 15);
+      for (let i = 0; i < 60 && !q('.plan__bg'); i++) await sleep(50);
+      ok('схема по плану: контуры помещений и картинка', qa('.plan__room--bp').length === 15 && !!q('.plan__bg'));
+      ok('в серверной — углекислотный', need(floors()[0]).includes('ОУ-3'), need(floors()[0]));
+      ok('расстановка по нормам без мест дальше нормы', qa('.plan__gap').length === 0);
+      await click(q('[data-test=undo]'));
+      eq('отмена возвращает прежние помещения', [rooms(floors()[0]).length, qa('.plan__room--bp').length], [1, 0]);
+
       // --- телефон ---
       frame.style.width = '390px';
       await open('&demo=business');

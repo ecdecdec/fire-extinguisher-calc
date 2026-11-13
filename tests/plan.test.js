@@ -255,6 +255,52 @@ test('схемы для отчёта: этажи с отметками или о
   assert.deepEqual(PL.schemes(f.input, f.result, f.audit), []);
 });
 
+// ---------- этаж по загруженному плану ----------
+
+test('этаж по плану с картинки: контуры на своих местах, расстановка по ним, PDF-рисунок', () => {
+  const V = require('../js/vision.js');
+  const { readPng } = require('./helpers.js');
+  const dir = require('node:path').join(__dirname, '..', 'examples');
+  const meta = JSON.parse(require('node:fs').readFileSync(dir + '/plan-school.json', 'utf8'));
+  const img = readPng(dir + '/plan-school.png');
+  const found = V.findRooms(img.rgba, img.w, img.h, { scale: meta.scale });
+  const blueprint = { img: 'k', w: img.w, h: img.h, scale: meta.scale, rooms: found.rooms.map(r => ({ id: r.id, poly: r.poly, bbox: r.bbox, lx: r.lx, ly: r.ly })) };
+  const rooms = found.rooms.map((r, i) => {
+    const purpose = meta.rooms[i].name === 'Серверная' ? 'server' : (V.looksLikeCorridor(r, meta.scale) ? 'corridor' : 'office');
+    return Object.assign(P.blankRoom(purpose), { id: 'p' + r.id, name: meta.rooms[i].name, area: r.area, length: 1, width: 1, bp: r.id });
+  });
+  rooms.push(Object.assign(P.blankRoom('storeroom'), { id: 'extra', name: 'Склад во дворе', area: 20 })); // добавлено вручную
+  const input = { kind: 'public', floors: [{ rooms, blueprint, plan: { open: true, ext: [] } }] };
+  const result = E.calculate(input);
+  const fa = PL.audit(input, result).floors[0];
+  const planned = fa.rects.filter(r => r.fixed);
+  assert.equal(planned.length, 16);
+  assert.ok(planned.every(r => r.poly && r.poly.length >= 4 && !r.approx));
+  // помещение стоит там же, где на картинке (в метрах)
+  assert.ok(Math.abs(planned[0].x - found.rooms[0].bbox[0] / meta.scale) < 1e-9);
+  assert.ok(Math.abs(planned[0].y - found.rooms[0].bbox[1] / meta.scale) < 1e-9);
+  // добавленное вручную — под планом, не поверх него
+  const extra = fa.rects.find(r => !r.fixed);
+  assert.ok(extra.y >= Math.max(...planned.map(r => r.y + r.h)), 'вручную добавленное — ниже плана');
+  // попадание в контур: точка внутри рамки, но вне контура L-образного помещения не считается
+  const corridor = planned.find(r => r.corridor);
+  assert.equal(PL.at(fa.rects, corridor.lx, corridor.ly).key, corridor.key);
+  // расстановка по нормам: все места внутри своих контуров, мест дальше нормы нет
+  const want = PL.scene(fa.rects, PL.propose(fa.rects, result.floors[0]));
+  assert.equal(want.cover.bad, 0);
+  want.ext.forEach(e => assert.ok(!e.rect.poly || PL.inPoly(e.rect.poly, e.x, e.y), 'место внутри контура: ' + e.rect.name));
+  // в серверной — только углекислотный, в коридоре стоит хотя бы один огнетушитель
+  assert.ok(want.ext.filter(e => e.rect.name === 'Серверная').every(e => e.t === 'ou'));
+  assert.ok(want.ext.some(e => e.rect.corridor), 'огнетушитель в коридоре');
+  // рисунок для отчёта: 16 контуров многоугольниками и одно помещение прямоугольником
+  const pic = PL.svg(want, 400, 230);
+  assert.equal((pic.svg.match(/<polygon /g) || []).length, 16);
+  assert.ok(!/NaN|undefined/.test(pic.svg));
+  // без картинки плана (например, открыто по ссылке) схема строится обычным способом
+  const noPlan = { kind: 'public', floors: [{ rooms, plan: { open: true, ext: [] } }] };
+  assert.ok(PL.audit(noPlan, E.calculate(noPlan)).floors[0].rects.every(r => !r.fixed));
+});
+
 // ---------- ссылка на расчёт ----------
 
 test('ссылка: объект упаковывается и восстанавливается с тем же расчётом и теми же нарушениями', async () => {

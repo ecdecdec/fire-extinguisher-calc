@@ -14,7 +14,7 @@
   'use strict';
 
   const N = window.FireNorms, E = window.FireEngine, P = window.FirePresets, R = window.FireReport;
-  const PL = window.FirePlan, SH = window.FireShare;
+  const PL = window.FirePlan, SH = window.FireShare, V = window.FireVision;
 
   // ?ns=имя — отдельное хранилище (им пользуется страница проверки интерфейса,
   // чтобы не трогать рабочие данные).
@@ -64,6 +64,17 @@
     return out;
   }
   function unit(x) { const n = Number(x); return isFinite(n) ? Math.round(Math.min(1, Math.max(0, n)) * 1000) / 1000 : 0.5; }
+
+  // Загруженный план этажа: ключ картинки, её размер, масштаб и контуры помещений (в точках картинки).
+  function adoptBlueprint(bp) {
+    if (!bp || typeof bp !== 'object' || !(Number(bp.scale) > 0) || !Array.isArray(bp.rooms)) return null;
+    const rooms = bp.rooms.filter(function (r) {
+      return r && Array.isArray(r.poly) && r.poly.length >= 3 && Array.isArray(r.bbox) && r.bbox.length === 4;
+    }).map(function (r) {
+      return { id: r.id, poly: r.poly.map(function (p) { return [Number(p[0]) || 0, Number(p[1]) || 0]; }), bbox: r.bbox.map(Number), lx: Number(r.lx) || 0, ly: Number(r.ly) || 0 };
+    });
+    return { img: typeof bp.img === 'string' ? bp.img : '', w: Number(bp.w) || 0, h: Number(bp.h) || 0, scale: Number(bp.scale), rooms: rooms };
+  }
   function blankObject(inspector) {
     return {
       id: uid('o'), example: '',
@@ -95,7 +106,8 @@
         installedOP: f.installedOP === undefined || f.installedOP === null ? '' : f.installedOP,
         installedOU: f.installedOU === undefined || f.installedOU === null ? '' : f.installedOU,
         rooms: rooms,
-        plan: adoptPlan(f.plan, idMap)
+        plan: adoptPlan(f.plan, idMap),
+        blueprint: adoptBlueprint(f.blueprint)
       };
     });
     return { id: data.id || base.id, example: data.example || '', building: building, floors: floors.length ? floors : base.floors };
@@ -138,6 +150,102 @@
     }
     if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text).catch(legacy);
     return legacy();
+  }
+
+  // ---------- план этажа по картинке ----------
+
+  const MAX_PLAN_SIDE = 1600; // длинная сторона картинки плана, точек: больше — уменьшается
+  const EXAMPLE_PLAN = { src: 'examples/plan-school.png', ruler: [[50, 543], [250, 543]], meters: 10 }; // линейка 10 м на примере
+
+  // Картинки планов лежат в IndexedDB (в localStorage им тесно), по ключу из floor.blueprint.img.
+  const IMG = (function () {
+    let opened = null;
+    function db() {
+      if (!opened) {
+        opened = new Promise(function (resolve, reject) {
+          if (!window.indexedDB) { reject(new Error('хранилище картинок недоступно')); return; }
+          const req = window.indexedDB.open('firecalc' + SUFFIX, 1);
+          req.onupgradeneeded = function () { req.result.createObjectStore('img'); };
+          req.onsuccess = function () { resolve(req.result); };
+          req.onerror = function () { reject(req.error); };
+        });
+        opened.catch(function () { opened = null; });
+      }
+      return opened;
+    }
+    function run(mode, fn) {
+      return db().then(function (d) {
+        return new Promise(function (resolve, reject) {
+          const t = d.transaction('img', mode), req = fn(t.objectStore('img'));
+          t.oncomplete = function () { resolve(req.result); };
+          t.onerror = function () { reject(t.error); };
+        });
+      });
+    }
+    return {
+      put: function (key, value) { return run('readwrite', function (s) { return s.put(value, key); }); },
+      get: function (key) { return run('readonly', function (s) { return s.get(key); }); }
+    };
+  }());
+
+  // Картинка (файл или адрес) → уменьшенная копия для хранения и пиксели для распознавания.
+  function loadPicture(src) {
+    return new Promise(function (resolve, reject) {
+      const isFile = typeof src !== 'string', url = isFile ? URL.createObjectURL(src) : src, img = new Image();
+      img.onload = function () {
+        const k = Math.min(1, MAX_PLAN_SIDE / Math.max(img.naturalWidth, img.naturalHeight));
+        const w = Math.max(1, Math.round(img.naturalWidth * k)), h = Math.max(1, Math.round(img.naturalHeight * k));
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(img, 0, 0, w, h);
+        if (isFile) URL.revokeObjectURL(url);
+        try {
+          const rgba = ctx.getImageData(0, 0, w, h).data;
+          const png = isFile ? /png|gif|svg/.test(src.type) : /\.(png|svg)(\?|$)/i.test(src);
+          resolve({ img: canvas.toDataURL(png ? 'image/png' : 'image/jpeg', 0.85), w: w, h: h, rgba: rgba });
+        } catch (e) { reject(new Error('не удалось прочитать картинку')); }
+      };
+      img.onerror = function () { if (isFile) URL.revokeObjectURL(url); reject(new Error('не удалось открыть картинку — нужен снимок или картинка (JPG, PNG)')); };
+      img.src = url;
+    });
+  }
+
+  // Распознавание в фоновом потоке; если потоки недоступны (страница открыта из файла) — здесь же.
+  let visionWorker = null, visionJobs = 0;
+  const visionWaiting = {};
+  function runVision(rgba, w, h, opts) {
+    function here() { return V.findRooms(rgba, w, h, opts); }
+    return new Promise(function (resolve, reject) {
+      try {
+        if (!visionWorker) {
+          visionWorker = new Worker('js/vision.worker.js?v=5');
+          visionWorker.onmessage = function (e) {
+            const job = visionWaiting[e.data.id];
+            if (!job) return;
+            delete visionWaiting[e.data.id];
+            if (e.data.ok) job.resolve(e.data.out); else job.reject(new Error(e.data.error));
+          };
+          visionWorker.onerror = function () {
+            // поток не запустился — считаем ожидающие задания здесь
+            visionWorker = null;
+            Object.keys(visionWaiting).forEach(function (id) {
+              const job = visionWaiting[id];
+              delete visionWaiting[id];
+              try { job.resolve(job.here()); } catch (err) { job.reject(err); }
+            });
+          };
+        }
+        const id = ++visionJobs, copy = new Uint8ClampedArray(rgba);
+        visionWaiting[id] = { resolve: resolve, reject: reject, here: here };
+        visionWorker.postMessage({ id: id, w: w, h: h, buffer: copy.buffer, opts: opts }, [copy.buffer]);
+      } catch (e) {
+        try { resolve(here()); } catch (err) { reject(err); }
+      }
+    });
   }
 
   // pdfmake и шрифты (2 МБ) подгружаются только когда нужен PDF.
@@ -213,6 +321,10 @@
       </label>
     </div>
     <p class="hint">{{ kindHint }}</p>
+    <div class="tip" v-if="isBlank(current)" data-test="bp-tip">
+      <span>Есть план эвакуации или техпаспорт? Сфотографируйте план этажа — помещения и площади найдутся сами, прямо на телефоне, без интернета.</span>
+      <button type="button" class="btn btn--sm" data-test="bp-tip-open" @click="openBp(floors[0])">Загрузить план</button>
+    </div>
 
     <div class="floor" v-for="(floor, fi) in floors" :key="floor.id">
       <div class="floor__head">
@@ -321,6 +433,7 @@
       <div class="plan">
         <div class="plan__head">
           <button type="button" class="btn btn--sm" data-test="plan-toggle" :aria-expanded="floor.plan.open" @click="floor.plan.open = !floor.plan.open">{{ floor.plan.open ? 'Скрыть схему' : 'Схема этажа' }}</button>
+          <button type="button" class="btn btn--sm" data-test="bp-open" @click="openBp(floor)">{{ floor.blueprint ? 'Заменить план этажа' : 'По плану этажа' }}</button>
           <span class="plan__stat" data-test="plan-stat">{{ planStat(floor) }}</span>
         </div>
         <template v-if="floor.plan.open">
@@ -345,12 +458,16 @@
                  :viewBox="viewBox(floor)" :style="{ aspectRatio: viewRatio(floor) }"
                  @click="planClick(floor, $event)" @pointerdown="planDown(floor, $event)" @pointermove="planMove(floor, $event)"
                  @pointerup="planUp(floor, $event)" @pointercancel="planUp(floor, $event)">
-              <rect v-for="r in sceneOf(floor).rects" :key="r.key" :data-key="r.key"
-                    :class="['plan__room', { 'plan__room--approx': r.approx, 'plan__room--sens': r.sensitive }]"
-                    :x="r.x" :y="r.y" :width="r.w" :height="r.h"><title>{{ r.name }}</title></rect>
+              <image v-if="bgOf(floor)" class="plan__bg" :href="bgOf(floor).src" x="0" y="0" :width="bgOf(floor).w" :height="bgOf(floor).h" preserveAspectRatio="none"></image>
+              <template v-for="r in sceneOf(floor).rects" :key="r.key">
+                <polygon v-if="r.poly" :data-key="r.key" :class="['plan__room', 'plan__room--bp', { 'plan__room--sens': r.sensitive }]"
+                         :points="polyPts(r.poly)"><title>{{ r.name }}</title></polygon>
+                <rect v-else :data-key="r.key" :class="['plan__room', { 'plan__room--approx': r.approx, 'plan__room--sens': r.sensitive }]"
+                      :x="r.x" :y="r.y" :width="r.w" :height="r.h"><title>{{ r.name }}</title></rect>
+              </template>
               <rect v-for="(g, gi) in planGaps(floor)" :key="'g' + gi" class="plan__gap" :x="g.x" :y="g.y" :width="g.w" :height="g.h"></rect>
               <circle v-for="e in sceneOf(floor).ext" :key="'c' + e.id" class="plan__reach" :cx="e.x" :cy="e.y" :r="e.rect.limit"></circle>
-              <text v-for="l in planLabels(floor)" :key="'l' + l.key" class="plan__label" :x="l.x" :y="l.y" :font-size="l.size">{{ l.text }}</text>
+              <text v-for="l in planLabels(floor)" :key="'l' + l.key" class="plan__label" :x="l.x" :y="l.y" :font-size="l.size" :text-anchor="l.anchor">{{ l.text }}</text>
               <g v-for="e in sceneOf(floor).ext" :key="e.id" :data-ext="e.id" :class="['plan__ext', 'plan__ext--' + e.t]" :transform="'translate(' + e.x + ' ' + e.y + ')'">
                 <circle class="plan__hit" :r="px(floor, 16)"></circle>
                 <circle class="plan__dot" :r="px(floor, 9)" :stroke-width="px(floor, 1.5)"></circle>
@@ -576,6 +693,78 @@
   </div>
 </div>
 
+<!-- ПЛАН ЭТАЖА ПО КАРТИНКЕ -->
+<div class="modal modal--full" v-if="bp" @click.self="closeBp">
+  <div class="modal__box bp" role="dialog" aria-modal="true" aria-labelledby="bpTitle" data-test="bp-dialog">
+    <div class="bp__head">
+      <h2 id="bpTitle">План этажа{{ bpFloorName ? ' · ' + bpFloorName : '' }}</h2>
+      <span class="spacer"></span>
+      <button type="button" class="btn btn--sm btn--quiet" data-test="bp-close" @click="closeBp">Закрыть</button>
+    </div>
+    <div class="bp__body">
+      <div class="bp__stage" v-if="bp.img">
+        <svg class="bp__svg" :viewBox="'0 0 ' + bp.w + ' ' + bp.h" :style="{ aspectRatio: bp.w + ' / ' + bp.h }" data-test="bp-svg" @click="bpClick">
+          <image :href="bp.img" x="0" y="0" :width="bp.w" :height="bp.h"></image>
+          <template v-if="bp.rooms">
+            <polygon v-for="r in bp.rooms" :key="r.id" :data-bp="r.id" :points="polyPts(r.poly)"
+                     :class="['bp__room', { 'bp__room--off': !r.on, 'bp__room--sel': bp.sel === r.id, 'bp__room--sens': isSensitive(r.purpose) }]"></polygon>
+            <text v-for="r in bp.rooms" :key="'t' + r.id" class="bp__label" :x="r.lx" :y="r.ly + bpFont * 0.35" :font-size="bpFont" text-anchor="middle">{{ r.id }} · {{ fmt(r.area) }} м²</text>
+          </template>
+          <line v-if="bp.pts.length === 2" class="bp__ruler" :x1="bp.pts[0][0]" :y1="bp.pts[0][1]" :x2="bp.pts[1][0]" :y2="bp.pts[1][1]" :stroke-width="bpFont / 4"></line>
+          <circle v-for="(p, i) in bp.pts" :key="'p' + i" class="bp__pt" :cx="p[0]" :cy="p[1]" :r="bpFont / 2"></circle>
+        </svg>
+      </div>
+      <div class="bp__start" v-else>
+        <p>Сфотографируйте план эвакуации этажа или загрузите план из техпаспорта. Помещения и их площади найдутся сами — на этом устройстве, без интернета.</p>
+        <p class="hint">Снимайте прямо, чтобы план был целиком в кадре.</p>
+        <div class="bp__actions">
+          <label class="btn btn--primary">Выбрать фото или картинку<input type="file" accept="image/*" class="sr" data-test="bp-file" @change="pickBpFile"></label>
+          <button type="button" class="btn" data-test="bp-example" @click="loadBpExample">Пример: план школы</button>
+        </div>
+        <p class="bp__error" v-if="bp.error">{{ bp.error }}</p>
+      </div>
+      <div class="bp__panel" v-if="bp.img">
+        <template v-if="!bp.rooms">
+          <h3>Масштаб</h3>
+          <p class="hint">{{ bp.pts.length === 1 ? 'Нажмите на второй конец' : 'Нажмите на плане на два конца стены или линейки известной длины и укажите её. Или введите общую площадь этажа.' }}</p>
+          <div class="bp__row">
+            <label class="field"><span>Длина отрезка, м</span><input type="number" min="0" step="any" inputmode="decimal" v-model="bp.lenM" data-test="bp-len" :disabled="bp.pts.length < 2"></label>
+            <span class="bp__or">или</span>
+            <label class="field"><span>Площадь этажа, м²</span><input type="number" min="0" step="any" inputmode="decimal" v-model="bp.areaM2" data-test="bp-area"></label>
+          </div>
+          <div class="bp__actions">
+            <button type="button" class="btn btn--primary" data-test="bp-run" :disabled="!bpReady || bp.busy" @click="runBp">{{ bp.busy ? 'Ищу помещения…' : 'Найти помещения' }}</button>
+            <button type="button" class="btn btn--quiet" v-if="bp.pts.length" @click="bp.pts = []">Сбросить точки</button>
+          </div>
+        </template>
+        <template v-else>
+          <h3 data-test="bp-found">Найдено помещений: {{ bpOn.length }} · {{ fmt(bpArea) }} м²</h3>
+          <p class="hint">Проверьте назначение: серверной, щитовой, складу укажите своё — или впишите имя, назначение подставится. Лишнее снимите галочкой. Нажмите на помещение на плане — оно выделится в списке.</p>
+          <div class="bp__list">
+            <div v-for="r in bp.rooms" :key="r.id" :data-bp-item="r.id" :class="['bp__item', { 'bp__item--sel': bp.sel === r.id, 'bp__item--off': !r.on }]">
+              <input type="checkbox" v-model="r.on" :aria-label="'Учитывать помещение ' + r.id">
+              <span class="bp__no">{{ r.id }}</span>
+              <input type="text" class="bp__name" v-model.trim="r.name" :placeholder="shortName(r.purpose)" :aria-label="'Имя помещения ' + r.id" @change="bpName(r)" @focus="bp.sel = r.id">
+              <select v-model="r.purpose" :aria-label="'Назначение помещения ' + r.id" @change="r.purposeSet = true" @focus="bp.sel = r.id">
+                <optgroup v-for="g in areaPurposeGroups" :key="g.group" :label="g.group">
+                  <option v-for="p in g.items" :key="p.id" :value="p.id">{{ p.label }}</option>
+                </optgroup>
+              </select>
+              <span class="bp__area">{{ fmt(r.area) }} м²</span>
+            </div>
+          </div>
+          <div class="bp__actions">
+            <button type="button" class="btn" data-test="bp-back" @click="bp.rooms = null">Изменить масштаб</button>
+            <button type="button" class="btn btn--primary" data-test="bp-apply" :disabled="!bpOn.length" @click="applyBp">Применить к этажу</button>
+          </div>
+          <p class="hint">Распознано за {{ bp.ms }} мс на этом устройстве.</p>
+        </template>
+        <p class="bp__error" v-if="bp.error">{{ bp.error }}</p>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="toast" v-if="notice" role="status">
   <span>{{ notice }}</span>
   <button type="button" class="toast__undo" data-test="undo" v-if="undoFn" @click="undo">Отменить</button>
@@ -618,6 +807,8 @@
         planSize: {},   // размеры схем на экране, px: { id этажа: [ширина, высота] }
         drag: null,     // перетаскивание на схеме
         linkDialog: '', // ссылка на расчёт, если её не удалось скопировать автоматически
+        bp: null,       // окно «План этажа»: картинка, масштаб, найденные помещения
+        bpImages: {},   // картинки планов, уже прочитанные из хранилища: ключ → data URL
         offline: typeof navigator !== 'undefined' && navigator.onLine === false,
         swReady: false,
         tab: 'input',
@@ -665,6 +856,16 @@
       },
       quick: function () { return this.kind.quick; },
       planViews: function () { return PLAN_VIEWS; },
+      // окно «План этажа»
+      areaPurposeGroups: function () { return P.PURPOSE_GROUPS.filter(function (g) { return !g.items.some(function (p) { return p.t5; }); }); },
+      bpFloorName: function () { return this.bp ? (this.floorById(this.bp.floorId).name || '') : ''; },
+      bpFont: function () { return this.bp ? Math.max(12, Math.round(this.bp.w / 85)) : 12; },
+      bpOn: function () { return this.bp && this.bp.rooms ? this.bp.rooms.filter(function (r) { return r.on; }) : []; },
+      bpArea: function () { return this.bpOn.reduce(function (s, r) { return s + r.area; }, 0); },
+      bpReady: function () {
+        const bp = this.bp;
+        return !!bp && !!bp.img && ((bp.pts.length === 2 && toNum(bp.lenM) > 0) || toNum(bp.areaM2) > 0);
+      },
       planModes: function () { return PLAN_MODES; },
       // Исходные данные для расчёта и схемы. Если имя помещения не введено, оно называется по назначению.
       input: function () {
@@ -895,6 +1096,7 @@
       duplicateRoom: function (floor, i) {
         const copy = clone(floor.rooms[i]);
         copy.id = uid('r');
+        delete copy.bp; // контур на плане один — у копии его нет
         floor.rooms.splice(i + 1, 0, copy);
         this.openRoom = copy.id;
       },
@@ -963,6 +1165,7 @@
       },
       dimsMismatch: function (room) {
         const L = toNum(room.length), W = toNum(room.width), S = toNum(room.area);
+        if (!(L && W && S) || room.bp) return ''; // у помещения с плана длина и ширина — по рамке контура
         if (!(L && W && S)) return '';
         return Math.abs(L * W - S) / S > 0.1 ? E.fmt(L * W) : '';
       },
@@ -1094,9 +1297,29 @@
         this.sceneOf(floor).rects.forEach(function (r) {
           const max = Math.floor((r.w - 2 * pad) / (size * 0.58));
           if (r.h < size * 1.5 || max < 3) return;
-          out.push({ key: r.key, x: r.x + pad, y: r.y + pad + size * 0.8, size: size, text: r.name.length <= max ? r.name : r.name.slice(0, max - 1) + '…' });
+          const text = r.name.length <= max ? r.name : r.name.slice(0, max - 1) + '…';
+          // помещение с плана подписывается в самой просторной точке, остальные — в левом верхнем углу
+          if (r.poly) out.push({ key: r.key, x: r.lx, y: r.ly + size * 0.35, size: size, text: text, anchor: 'middle' });
+          else out.push({ key: r.key, x: r.x + pad, y: r.y + pad + size * 0.8, size: size, text: text, anchor: 'start' });
         });
         return out;
+      },
+      polyPts: function (poly) { return poly.map(function (p) { return p[0] + ',' + p[1]; }).join(' '); },
+      isSensitive: function (purpose) { return !!(P.BY_ID[purpose] && P.BY_ID[purpose].sensitive); },
+      // Картинка плана под схемой этажа (читается из хранилища при первом показе).
+      bgOf: function (floor) {
+        const bp = PL.blueprintOf(floor);
+        if (!bp || !bp.img) return null;
+        const src = this.bpImages[bp.img], self = this;
+        if (src === undefined) {
+          this._bgLoading = this._bgLoading || {};
+          if (!this._bgLoading[bp.img]) {
+            this._bgLoading[bp.img] = true;
+            IMG.get(bp.img).then(function (v) { self.bpImages[bp.img] = v || ''; }, function () { self.bpImages[bp.img] = ''; });
+          }
+          return null;
+        }
+        return src ? { src: src, w: bp.w / bp.scale, h: bp.h / bp.scale } : null;
       },
       planStat: function (floor) {
         const fa = this.factOf(floor);
@@ -1116,9 +1339,12 @@
           return 'Расстановка по расчёту: ' + sc.ext.length + ' ' + E.plural(sc.ext.length, 'огнетушитель', 'огнетушителя', 'огнетушителей') +
             (extra ? ', из них ' + extra + ' — по расстоянию (п. 4)' : '') + '.' +
             (fr && fr.wheeled ? ' Передвижные (' + fr.wheeled + ') на схеме не показаны.' : '') +
-            ' В PDF попадает как предлагаемая схема. Помещения можно перетаскивать.' + approx;
+            ' В PDF попадает как предлагаемая схема.' +
+            (floor.blueprint ? ' Помещения — по загруженному плану.' : ' Помещения можно перетаскивать.') + approx;
         }
-        if (this.planMode === 'move') return 'Перетащите помещения так, как они стоят на этаже. Огнетушители тоже двигаются.' + approx;
+        if (this.planMode === 'move') {
+          return (floor.blueprint ? 'Помещения стоят по загруженному плану. Огнетушители можно перетаскивать.' : 'Перетащите помещения так, как они стоят на этаже. Огнетушители тоже двигаются.') + approx;
+        }
         return 'Нажмите на помещение — отметится огнетушитель, который там стоит. Нажмите на него ещё раз — уберётся.' + reach + approx;
       },
       extTitle: function (e) {
@@ -1176,7 +1402,8 @@
         } else {
           const key = ev.target.getAttribute ? ev.target.getAttribute('data-key') : '';
           const r = sc.rects.filter(function (x) { return x.key === key; })[0];
-          if (r) drag = { kind: 'room', key: key, ox: r.x, oy: r.y, froze: !floor.plan.pos };
+          // помещения с загруженного плана стоят на своих местах
+          if (r && !r.fixed) drag = { kind: 'room', key: key, ox: r.x, oy: r.y, froze: !floor.plan.pos };
         }
         if (!drag) return;
         drag.floorId = floor.id;
@@ -1221,6 +1448,139 @@
           this._dragged = true;
           setTimeout(function () { self._dragged = false; }, 0);
         }
+      },
+
+      // ----- план этажа по картинке -----
+      openBp: function (floor) {
+        const self = this;
+        this.bp = { floorId: floor.id, img: '', imgKey: '', w: 0, h: 0, pts: [], lenM: '', areaM2: '', busy: false, rooms: null, sel: null, error: '', scale: 0, ms: 0 };
+        this._bpPixels = null;
+        // план уже загружен — открывается с ним, масштаб прежний
+        const old = PL.blueprintOf(floor);
+        if (old && old.img) {
+          IMG.get(old.img).then(function (src) {
+            if (!src || !self.bp || self.bp.floorId !== floor.id) return;
+            return loadPicture(src).then(function (pic) {
+              self.setBpPicture(pic, old.img);
+              self.bp.areaM2 = String(Math.round(self.floorArea(floor)));
+            });
+          }).catch(function () { /* картинки нет — начинаем с выбора */ });
+        }
+      },
+      closeBp: function () { this.bp = null; this._bpPixels = null; },
+      setBpPicture: function (pic, key) {
+        const bp = this.bp;
+        if (!bp) return;
+        this._bpPixels = pic.rgba;
+        bp.img = pic.img; bp.imgKey = key || ''; bp.w = pic.w; bp.h = pic.h;
+        bp.pts = []; bp.rooms = null; bp.sel = null; bp.error = '';
+      },
+      pickBpFile: function (ev) {
+        const file = ev.target.files && ev.target.files[0], self = this;
+        ev.target.value = '';
+        if (!file || !this.bp) return;
+        this.bp.error = '';
+        loadPicture(file).then(function (pic) { self.setBpPicture(pic, ''); }, function (e) { if (self.bp) self.bp.error = e.message; });
+      },
+      loadBpExample: function () {
+        const self = this;
+        loadPicture(EXAMPLE_PLAN.src).then(function (pic) {
+          self.setBpPicture(pic, '');
+          self.bp.pts = EXAMPLE_PLAN.ruler.map(function (p) { return p.slice(); });
+          self.bp.lenM = String(EXAMPLE_PLAN.meters);
+        }, function (e) { if (self.bp) self.bp.error = e.message; });
+      },
+      // Нажатие на план: до распознавания — концы отрезка для масштаба, после — выбор помещения.
+      bpClick: function (ev) {
+        const bp = this.bp;
+        if (!bp || bp.busy) return;
+        if (bp.rooms) {
+          const el = ev.target.closest ? ev.target.closest('[data-bp]') : null;
+          let id = el ? Number(el.getAttribute('data-bp')) : 0;
+          if (!id) { // нажали на подпись или рядом — помещение по точке
+            const q = this.planPoint(ev.currentTarget, ev);
+            const hit = q && bp.rooms.filter(function (r) { return PL.inPoly(r.poly, q.x, q.y); })[0];
+            id = hit ? hit.id : 0;
+          }
+          if (!id) return;
+          bp.sel = id;
+          this.$nextTick(function () {
+            const row = document.querySelector('[data-bp-item="' + bp.sel + '"]');
+            if (row && row.scrollIntoView) row.scrollIntoView({ block: 'nearest' });
+          });
+          return;
+        }
+        const p = this.planPoint(ev.currentTarget, ev);
+        if (!p) return;
+        const pt = [Math.round(p.x * 10) / 10, Math.round(p.y * 10) / 10];
+        bp.pts = bp.pts.length >= 2 ? [pt] : bp.pts.concat([pt]);
+      },
+      runBp: function () {
+        const bp = this.bp, px = this._bpPixels, self = this;
+        if (!bp || !px || !this.bpReady) return;
+        bp.busy = true;
+        bp.error = '';
+        const byLength = bp.pts.length === 2 && toNum(bp.lenM) > 0 ? V.scaleFromLength(bp.pts[0], bp.pts[1], toNum(bp.lenM)) : 0;
+        const scaled = byLength
+          ? Promise.resolve(byLength)
+          : runVision(px, bp.w, bp.h, {}).then(function (out) { return V.scaleFromArea(out.rooms, toNum(bp.areaM2)); });
+        scaled.then(function (scale) {
+          if (!(scale > 0)) throw new Error('Помещения не найдены — проверьте, что план целиком в кадре и стены видны');
+          return runVision(px, bp.w, bp.h, { scale: scale }).then(function (out) { return { scale: scale, out: out }; });
+        }).then(function (res) {
+          if (!self.bp || self.bp !== bp) return;
+          bp.busy = false;
+          bp.scale = res.scale;
+          bp.ms = res.out.ms;
+          if (!res.out.rooms.length) { bp.error = 'Помещения не найдены — проверьте масштаб и что стены на плане видны'; return; }
+          const fallback = self.kind.purpose;
+          bp.rooms = res.out.rooms.map(function (r) {
+            return Object.assign({}, r, { name: '', on: true, purposeSet: false, purpose: V.looksLikeCorridor(r, res.scale) ? 'corridor' : fallback });
+          });
+        }).catch(function (e) {
+          if (!self.bp || self.bp !== bp) return;
+          bp.busy = false;
+          bp.error = e && e.message ? e.message : String(e);
+        });
+      },
+      // Имя в списке подсказывает назначение, как и в строке помещения.
+      bpName: function (r) {
+        if (r.purposeSet) return;
+        const guess = P.guessPurpose(r.name);
+        if (guess && P.BY_ID[guess] && !P.BY_ID[guess].t5) r.purpose = guess;
+      },
+      // Найденные помещения становятся помещениями этажа; схема строится по плану.
+      applyBp: function () {
+        const bp = this.bp, floor = this.floorById(bp.floorId), keep = this.bpOn, self = this;
+        if (!keep.length || !floor.rooms) return;
+        const prev = { rooms: floor.rooms, blueprint: floor.blueprint || null, plan: clone(floor.plan) };
+        const key = bp.imgKey || uid('img'), s = bp.scale;
+        this.bpImages[key] = bp.img;
+        IMG.put(key, bp.img).catch(function () { self.say('Картинку плана сохранить не удалось — после перезагрузки схема будет без неё'); });
+        function r1(x) { return Math.round(x * 10) / 10; }
+        floor.blueprint = {
+          img: key, w: bp.w, h: bp.h, scale: Math.round(s * 10000) / 10000,
+          rooms: keep.map(function (r) {
+            return { id: r.id, poly: r.poly.map(function (p) { return [r1(p[0]), r1(p[1])]; }), bbox: r.bbox, lx: r1(r.lx), ly: r1(r.ly) };
+          })
+        };
+        floor.rooms = keep.map(function (r) {
+          return Object.assign(P.blankRoom(r.purpose), {
+            id: uid('r'), more: false, name: r.name, area: r1(r.px / (s * s)), count: 1,
+            length: r1((r.bbox[2] - r.bbox[0]) / s), width: r1((r.bbox[3] - r.bbox[1]) / s), bp: r.id, purposeSet: !!r.purposeSet
+          });
+        });
+        floor.plan.open = true;
+        floor.plan.view = 'want';
+        floor.plan.pos = null;
+        floor.plan.ext = [];
+        const total = r1(keep.reduce(function (t, r) { return t + r.px / (s * s); }, 0));
+        this.closeBp();
+        this.say('По плану: ' + keep.length + ' ' + E.plural(keep.length, 'помещение', 'помещения', 'помещений') + ', ' + E.fmt(total) + ' м²', function () {
+          floor.rooms = prev.rooms;
+          floor.blueprint = prev.blueprint;
+          floor.plan = prev.plan;
+        });
       },
 
       // ----- ссылка на расчёт -----
@@ -1318,7 +1678,7 @@
       const self = this;
       document.addEventListener('click', function () { self.menuOpen = false; });
       document.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape') { self.menuOpen = false; self.pdfDialog = false; self.linkDialog = ''; }
+        if (e.key === 'Escape') { self.menuOpen = false; self.pdfDialog = false; self.linkDialog = ''; if (self.bp && !self.bp.busy) self.closeBp(); }
       });
 
       this.openFirstRoomIfBlank();
