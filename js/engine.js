@@ -21,9 +21,9 @@
  * стрелок, скобок «потолка» и других знаков, которых нет в этом шрифте.
  */
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory(require('./norms.js'));
-  else root.FireEngine = factory(root.FireNorms);
-}(typeof self !== 'undefined' ? self : this, function (N) {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./norms.js'), require('./signs.js'));
+  else root.FireEngine = factory(root.FireNorms, root.FireSigns);
+}(typeof self !== 'undefined' ? self : this, function (N, S) {
   'use strict';
 
   const DEFAULT_OPTIONS = {
@@ -697,6 +697,7 @@
   // Огнетушители, отмеченные на схеме этажа (floor.plan.ext), — это фактическое
   // наличие: если отмечен хотя бы один, числа «есть» берутся со схемы.
   // Метка привязана к помещению ключом «id помещения:номер копии».
+  // Пожарные краны, кнопки, выходы и прочие знаки на схеме огнетушителями не считаются.
   function markedOnPlan(f) {
     const ext = f && f.plan && Array.isArray(f.plan.ext) ? f.plan.ext : [];
     if (!ext.length) return null;
@@ -706,6 +707,7 @@
     ext.forEach(function (e) {
       const m = /^(.*):(\d+)$/.exec(String(e && e.k));
       if (!m || !(parseInt(m[2], 10) < (copies[m[1]] || 0))) return;
+      if (!S.isExt(e.t)) return;
       sum.n += 1;
       if (e.t === 'op') sum.op += 1; else if (e.t === 'ou') sum.ou += 1;
     });

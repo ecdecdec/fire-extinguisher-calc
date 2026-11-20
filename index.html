@@ -4,13 +4,21 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Расчёт огнетушителей — СТ РК 1487-2006</title>
-  <meta name="description" content="Проверка объекта на огнетушители (ОП, ОУ) по Приложению 3 к Правилам пожарной безопасности РК и СТ РК 1487-2006: расчёт по плану этажа, схема, перечень нарушений и отчёт в PDF. Работает без сети.">
+  <meta name="description" content="Проверка объекта на огнетушители (ОП, ОУ) по Приложению 3 к Правилам пожарной безопасности РК и СТ РК 1487-2006: расчёт по плану этажа, схема со знаками по ГОСТ 12.4.026-2015, перечень нарушений и отчёт в PDF. Работает без сети.">
   <meta name="theme-color" content="#ffffff">
+  <meta name="color-scheme" content="light">
+  <meta name="application-name" content="Огнетушители">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Огнетушители">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="format-detection" content="telephone=no">
   <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="icons/icon-192.png" type="image/png" sizes="192x192">
   <link rel="apple-touch-icon" href="icons/icon-180.png">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='11' y='10' width='10' height='18' rx='3' fill='%23c4291c'/%3E%3Crect x='13' y='4' width='6' height='5' rx='1' fill='%23171717'/%3E%3C/svg%3E">
-  <!-- ?v=… — номер версии: меняйте его при обновлении файлов, чтобы браузеры не брали старые из кэша -->
-  <link rel="stylesheet" href="css/app.css?v=9">
+  <!-- ?v=… — номер сборки: его ставит tools/build.js, чтобы браузеры не брали старые файлы из кэша -->
+  <link rel="stylesheet" href="css/app.css?v=f8c279d73e">
 </head>
 <body>
   <div id="app">
@@ -18,14 +26,18 @@
     <noscript><div class="boot">Для работы сервиса включите JavaScript в браузере.</div></noscript>
   </div>
 
+  <script src="js/config.js?v=f8c279d73e"></script>
   <script src="vendor/vue.global.prod.js"></script>
-  <script src="js/norms.js?v=9"></script>
-  <script src="js/engine.js?v=9"></script>
-  <script src="js/presets.js?v=9"></script>
-  <script src="js/plan.js?v=9"></script>
-  <script src="js/vision.js?v=9"></script>
-  <script src="js/share.js?v=9"></script>
-  <script src="js/report.js?v=9"></script>
-  <script src="js/app.js?v=9"></script>
+  <script src="js/signs.js?v=f8c279d73e"></script>
+  <script src="js/norms.js?v=f8c279d73e"></script>
+  <script src="js/engine.js?v=f8c279d73e"></script>
+  <script src="js/presets.js?v=f8c279d73e"></script>
+  <script src="js/plan.js?v=f8c279d73e"></script>
+  <script src="js/vision.js?v=f8c279d73e"></script>
+  <script src="js/share.js?v=f8c279d73e"></script>
+  <script src="js/report.js?v=f8c279d73e"></script>
+  <script src="js/library.js?v=f8c279d73e"></script>
+  <script src="js/platform.js?v=f8c279d73e"></script>
+  <script src="js/app.js?v=f8c279d73e"></script>
 </body>
 </html>

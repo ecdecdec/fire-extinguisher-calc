@@ -17,12 +17,16 @@
  *     (propose) программа строит отдельно и с фактом не смешивает;
  *   — если план этажа загружен картинкой (floor.blueprint), помещения, найденные
  *     на нём, стоят на своих местах настоящими контурами (poly, в метрах) и не
- *     двигаются; расстояния и расстановка считаются по этим контурам.
+ *     двигаются; расстояния и расстановка считаются по этим контурам;
+ *   — кроме огнетушителей на схеме отмечают пожарные краны, кнопки пожарной
+ *     сигнализации, телефоны, пожарные щиты и эвакуационные выходы (как на плане
+ *     эвакуации, ППБ РК прил. 2). Они рисуются знаками (signs.js), но в подсчёт
+ *     огнетушителей и в проверку расстояния не входят.
  */
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory(require('./norms.js'), require('./engine.js'));
-  else root.FirePlan = factory(root.FireNorms, root.FireEngine);
-}(typeof self !== 'undefined' ? self : this, function (N, E) {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./norms.js'), require('./engine.js'), require('./signs.js'));
+  else root.FirePlan = factory(root.FireNorms, root.FireEngine, root.FireSigns);
+}(typeof self !== 'undefined' ? self : this, function (N, E, S) {
   'use strict';
 
   const MAX_RECTS = 150;   // больше помещений на одном этаже на схеме не рисуется
@@ -209,11 +213,10 @@
     return [round(nx, 2), round(ny, 2)];
   }
 
-  // ---------- огнетушители на схеме ----------
-
-  function typeOf(t) { return t === 'ou' ? 'ou' : (t === 'op' ? 'op' : 'x'); }
+  // ---------- огнетушители и другие отметки на схеме ----------
 
   // Метки → точки с координатами. Метки удалённых помещений пропускаются.
+  // isExt — огнетушитель (остальное — пожарный кран, кнопка, выход и т. п.).
   function resolve(rects, ext) {
     const by = {};
     rects.forEach(function (r) { by[r.key] = r; });
@@ -221,13 +224,20 @@
     (Array.isArray(ext) ? ext : []).forEach(function (e, i) {
       const r = e && by[e.k];
       if (!r) return;
-      const u = clamp01(e.u), v = clamp01(e.v);
+      const u = clamp01(e.u), v = clamp01(e.v), t = S.typeOf(e.t);
       out.push({
-        id: e.id || ('e' + i), k: e.k, u: u, v: v, t: typeOf(e.t), code: e.code || '', extra: !!e.extra,
+        id: e.id || ('e' + i), k: e.k, u: u, v: v, t: t, isExt: S.isExt(t), code: e.code || '', extra: !!e.extra,
         x: r.x + u * r.w, y: r.y + v * r.h, rect: r
       });
     });
     return out;
+  }
+
+  function extOnly(pts) { return pts.filter(function (p) { return p.isExt; }); }
+
+  // Отметки, которые не огнетушители (выходы, краны…): они есть и на схеме «по нормам».
+  function objectsOf(ext) {
+    return (Array.isArray(ext) ? ext : []).filter(function (e) { return e && !S.isExt(e.t); });
   }
 
   // ---------- проверка расстояния ----------
@@ -484,31 +494,49 @@
     const out = [];
     au.floors.forEach(function (fa, i) {
       const plan = input.floors[i] && input.floors[i].plan;
-      if (!fa.rects.length || !(fa.marked || (plan && plan.open))) return;
-      out.push({ name: fa.name, fact: fa.marked ? fa : null, want: scene(fa.rects, propose(fa.rects, result.floors[i])) });
+      if (!fa.rects.length || !(fa.hasMarks || (plan && plan.open))) return;
+      out.push({ name: fa.name, fact: fa.hasMarks ? fa : null, want: wantScene(fa.rects, result.floors[i], plan && plan.ext) });
     });
     return out;
   }
 
-  function scene(rects, ext) {
-    const pts = resolve(rects, ext);
-    return { rects: rects, ext: pts, cover: coverage(rects, pts), box: bbox(rects), limits: limitsText(rects) };
+  // Расстановка по расчёту; выходы, краны и прочие отмеченные предметы показываются и на ней.
+  function wantScene(rects, floorResult, ext) {
+    return scene(rects, propose(rects, floorResult).concat(objectsOf(ext)));
   }
 
-  // Полосы «дальше нормы» для рисования. Пока на схеме ничего не отмечено,
-  // факт неизвестен — красным ничего не закрашивается.
+  function scene(rects, ext) {
+    const pts = resolve(rects, ext);
+    return { rects: rects, ext: pts, cover: coverage(rects, extOnly(pts)), box: bbox(rects), limits: limitsText(rects) };
+  }
+
+  // Полосы «дальше нормы» для рисования. Пока на схеме не отмечено ни одного
+  // огнетушителя, факт неизвестен — красным ничего не закрашивается.
   function gaps(sc) {
     const out = [];
-    if (!sc.ext.length) return out;
+    if (!sc.ext.some(function (e) { return e.isExt; })) return out;
     Object.keys(sc.cover.per).forEach(function (key) { sc.cover.per[key].runs.forEach(function (r) { out.push(r); }); });
     return out;
   }
 
-  // Сколько чего на схеме: «ОП — 3, ОУ — 1».
+  // Сколько чего на схеме: огнетушители по типам и прочие отметки по видам (items: { pk: 2, exit: 1 }).
   function tally(sc) {
     let op = 0, ou = 0, other = 0;
-    sc.ext.forEach(function (e) { if (e.t === 'op') op += 1; else if (e.t === 'ou') ou += 1; else other += 1; });
-    return { op: op, ou: ou, other: other };
+    const items = {};
+    sc.ext.forEach(function (e) {
+      if (e.t === 'op') op += 1;
+      else if (e.t === 'ou') ou += 1;
+      else if (e.isExt) other += 1;
+      else items[e.t] = (items[e.t] || 0) + 1;
+    });
+    return { op: op, ou: ou, other: other, items: items };
+  }
+
+  // Виды знаков на схемах (для условных обозначений), в порядке S.ORDER.
+  function kindsOf(scenes) {
+    const seen = {};
+    scenes.forEach(function (sc) { if (sc) sc.ext.forEach(function (e) { seen[e.t] = true; }); });
+    return S.ORDER.filter(function (t) { return seen[t]; });
   }
 
   // Проверка объекта: по каждому этажу — схема с отмеченными огнетушителями и
@@ -525,7 +553,9 @@
       fa.id = fr.id;
       fa.name = fr.name;
       fa.skipped = inst.skipped;
-      fa.marked = fa.ext.length > 0;
+      // marked — отмечен хотя бы один огнетушитель (факт известен); hasMarks — отмечено хоть что-то
+      fa.marked = fa.ext.some(function (e) { return e.isExt; });
+      fa.hasMarks = fa.ext.length > 0;
       fa.findings = [];
       // f: level — 'bad' (нарушение) или 'warn' (проверить на месте); kind — 'deficit', 'powder', 'distance';
       // what — что выявлено; place — где («Серверная», «Офисы» (2 из 4)), пусто для этажа в целом;
@@ -614,8 +644,10 @@
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
-  // Чёрно-белый рисунок, как в служебном документе: шрифт отчёта (Tinos), чёрные контуры,
-  // места дальше нормы — серым, порошковый — белый кружок с «П», углекислотный — чёрный с «У».
+  // Рисунок, как в служебном документе: шрифт отчёта (Tinos), чёрные контуры, места дальше
+  // нормы — серым. Цветные только знаки, как требует ГОСТ 12.4.026-2015: огнетушитель —
+  // красный знак F04 с буквой типа (П — порошковый, У — углекислотный), пожарный кран,
+  // кнопка, телефон, щит — красные знаки, эвакуационный выход — зелёный.
   // sc — сцена этажа (scene); width, maxHeight — в пунктах. Возвращает { svg, width, height }.
   function svg(sc, width, maxHeight) {
     const FONT = 'Tinos';
@@ -625,48 +657,69 @@
     const H = v.h * k;
     function X(x) { return round((x - v.x) * k, 2); }
     function Y(y) { return round((y - v.y) * k, 2); }
-    function S(d) { return round(d * k, 2); }
+    function Len(d) { return round(d * k, 2); }
     const p = [];
     p.push('<svg xmlns="http://www.w3.org/2000/svg" width="' + round(W, 2) + '" height="' + round(H, 2) + '" viewBox="0 0 ' + round(W, 2) + ' ' + round(H, 2) + '">');
     p.push('<defs><clipPath id="frame"><rect x="0" y="0" width="' + round(W, 2) + '" height="' + round(H, 2) + '"/></clipPath></defs>');
     sc.rects.forEach(function (r) {
       const fill = '" fill="' + (r.sensitive ? '#eeeeee' : '#ffffff') + '" stroke="#000000" stroke-width="0.6"' + (r.approx ? ' stroke-dasharray="3 2"' : '') + '/>';
       if (r.poly) p.push('<polygon points="' + r.poly.map(function (q) { return X(q[0]) + ',' + Y(q[1]); }).join(' ') + fill);
-      else p.push('<rect x="' + X(r.x) + '" y="' + Y(r.y) + '" width="' + S(r.w) + '" height="' + S(r.h) + fill);
+      else p.push('<rect x="' + X(r.x) + '" y="' + Y(r.y) + '" width="' + Len(r.w) + '" height="' + Len(r.h) + fill);
     });
     gaps(sc).forEach(function (u) {
-      p.push('<rect x="' + X(u.x) + '" y="' + Y(u.y) + '" width="' + S(u.w) + '" height="' + S(u.h) + '" fill="#000000" fill-opacity="0.22"/>');
+      p.push('<rect x="' + X(u.x) + '" y="' + Y(u.y) + '" width="' + Len(u.w) + '" height="' + Len(u.h) + '" fill="#000000" fill-opacity="0.22"/>');
     });
     p.push('<g clip-path="url(#frame)">');
-    const ring = sc.ext.length > 8 ? '#c9c9c9' : '#8a8a8a'; // когда огнетушителей много, круги бледнее
-    sc.ext.forEach(function (e) {
-      p.push('<circle cx="' + X(e.x) + '" cy="' + Y(e.y) + '" r="' + S(e.rect.limit) + '" fill="none" stroke="' + ring + '" stroke-width="0.5" stroke-dasharray="2 2"/>');
+    const exts = extOnly(sc.ext);
+    const ring = exts.length > 8 ? '#c9c9c9' : '#8a8a8a'; // когда огнетушителей много, круги бледнее
+    exts.forEach(function (e) {
+      p.push('<circle cx="' + X(e.x) + '" cy="' + Y(e.y) + '" r="' + Len(e.rect.limit) + '" fill="none" stroke="' + ring + '" stroke-width="0.5" stroke-dasharray="2 2"/>');
     });
     p.push('</g>');
     const fs = 6.5;
     sc.rects.forEach(function (r) {
-      const max = Math.floor((S(r.w) - 5) / (fs * 0.56));
-      if (S(r.h) < fs * 1.6 || max < 3) return;
+      const max = Math.floor((Len(r.w) - 5) / (fs * 0.56));
+      if (Len(r.h) < fs * 1.6 || max < 3) return;
       const label = r.name.length <= max ? r.name : r.name.slice(0, max - 1) + '.';
       // у контура с плана подпись — в самой просторной точке помещения, иначе — в левом верхнем углу
       if (r.poly) p.push('<text x="' + X(r.lx) + '" y="' + round(Y(r.ly) + fs * 0.35, 2) + '" text-anchor="middle" font-family="' + FONT + '" font-size="' + fs + '" fill="#222222">' + esc(label) + '</text>');
       else p.push('<text x="' + round(X(r.x) + 2.5, 2) + '" y="' + round(Y(r.y) + fs + 1.5, 2) + '" font-family="' + FONT + '" font-size="' + fs + '" fill="#222222">' + esc(label) + '</text>');
     });
-    sc.ext.forEach(function (e) {
-      const dark = e.t === 'ou';
-      p.push('<circle cx="' + X(e.x) + '" cy="' + Y(e.y) + '" r="4.6" fill="' + (dark ? '#000000' : '#ffffff') + '" stroke="#000000" stroke-width="0.7"/>');
-      p.push('<text x="' + X(e.x) + '" y="' + round(Y(e.y) + 2.1, 2) + '" text-anchor="middle" font-family="' + FONT + '" font-weight="bold" font-size="6" fill="' + (dark ? '#ffffff' : '#000000') + '">' +
-        (e.t === 'op' ? 'П' : (e.t === 'ou' ? 'У' : '?')) + '</text>');
+    // огнетушители поверх прочих знаков: они главное на схеме
+    sc.ext.filter(function (e) { return !e.isExt; }).concat(exts).forEach(function (e) {
+      p.push(S.svgAt(e.t, X(e.x), Y(e.y), SIGN_PT, FONT));
     });
     p.push('</svg>');
     return { svg: p.join(''), width: round(W, 2), height: round(H, 2) };
+  }
+
+  const SIGN_PT = 10.5; // сторона знака на схеме в PDF, пунктов (около 3,7 мм)
+
+  // Условные обозначения для PDF: знаки слева, расшифровка справа, шрифт отчёта.
+  // kinds — виды знаков (kindsOf); extra — строки без знака (круг, заливка). width — в пунктах.
+  function legendSvg(kinds, extra, width) {
+    const FONT = 'Tinos', fs = 8.5, rowH = 15, colW = width / 2;
+    const rows = kinds.map(function (t) { return { t: t, text: S.item(t).name + (S.item(t).badge ? ' (буква ' + S.item(t).badge + ')' : '') + ', знак ' + S.item(t).sign }; })
+      .concat((extra || []).map(function (x) { return { draw: x.draw, text: x.text }; }));
+    const per = Math.ceil(rows.length / 2), H = per * rowH + 2;
+    const p = ['<svg xmlns="http://www.w3.org/2000/svg" width="' + round(width, 2) + '" height="' + H + '" viewBox="0 0 ' + round(width, 2) + ' ' + H + '">'];
+    rows.forEach(function (r, i) {
+      const x = (i < per ? 0 : colW), y = (i % per) * rowH + rowH / 2 + 1;
+      if (r.t) p.push(S.svgAt(r.t, x + 7, y, SIGN_PT, FONT));
+      else if (r.draw === 'ring') p.push('<circle cx="' + (x + 7) + '" cy="' + y + '" r="5.5" fill="none" stroke="#8a8a8a" stroke-width="0.6" stroke-dasharray="2 2"/>');
+      else if (r.draw === 'gap') p.push('<rect x="' + (x + 1.5) + '" y="' + (y - 5) + '" width="11" height="10" fill="#000000" fill-opacity="0.22" stroke="#000000" stroke-width="0.4"/>');
+      p.push('<text x="' + (x + 19) + '" y="' + round(y + fs * 0.35, 2) + '" font-family="' + FONT + '" font-size="' + fs + '" fill="#000000">' + esc(r.text) + '</text>');
+    });
+    p.push('</svg>');
+    return { svg: p.join(''), width: round(width, 2), height: H };
   }
 
   return {
     MAX_RECTS: MAX_RECTS,
     instances: instances, layout: layout, autoLayout: autoLayout, freeze: freeze, bbox: bbox, view: view,
     blueprintOf: blueprintOf, inPoly: inPoly,
-    at: at, snap: snap, resolve: resolve, coverage: coverage, propose: propose, scene: scene, gaps: gaps, tally: tally,
-    audit: audit, schemes: schemes, svg: svg
+    at: at, snap: snap, resolve: resolve, coverage: coverage, propose: propose, scene: scene, wantScene: wantScene, objectsOf: objectsOf,
+    gaps: gaps, tally: tally, kindsOf: kindsOf,
+    audit: audit, schemes: schemes, svg: svg, legendSvg: legendSvg
   };
 }));

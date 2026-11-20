@@ -277,7 +277,11 @@ test('рисунок схемы для отчёта: все помещения, 
   const pic = PL.svg(x.audit.floors[0], 250, 230);
   assert.ok(pic.svg.startsWith('<svg ') && pic.svg.endsWith('</svg>'));
   assert.ok(pic.width <= 250 && pic.height <= 230.01);
-  assert.equal((pic.svg.match(/<circle /g) || []).length, 6); // 3 огнетушителя: круг расстояния и метка
+  // 3 огнетушителя: пунктирный круг расстояния у каждого и красный знак F04 с буквой П;
+  // выход и пожарный кран — знаками, без круга
+  assert.equal((pic.svg.match(/stroke-dasharray="2 2"/g) || []).length, 3);
+  assert.equal((pic.svg.match(/>П<\/text>/g) || []).length, 3);
+  assert.ok(pic.svg.includes('#008351') && pic.svg.includes('#C1121C'), 'зелёный знак выхода и красные знаки');
   assert.ok(pic.svg.includes('Офисы'));
   assert.ok(!/NaN|undefined|Infinity/.test(pic.svg));
   // имя помещения с разметкой не ломает рисунок
@@ -372,11 +376,11 @@ test('ссылка: повреждённые и чужие данные не о�
   await assert.rejects(SH.decode('z' + 'A'.repeat(20000)));
   assert.throws(() => SH.unpack([2, [], []]));
   // лишние и неверные поля отбрасываются
-  const odd = SH.unpack([1, ['Объект', 5, null, '', 'вчера', 9, 1], [['Этаж', 'x', -1, [['Комната', 'нет такого назначения', '12,5', 5000, 'ZZ', 'AEEQ', 7, 'a', null, 'p5']], 1, [[0, 0, 1, 2], [9, 0, 1, 1]], [[0, 0, 5, -1, 7], [0, 4999, 0, 0, 0]]]]]);
+  const odd = SH.unpack([1, ['Объект', 5, null, '', 'вчера', 9, 1], [['Этаж', 'x', -1, [['Комната', 'нет такого назначения', '12,5', 5000, 'ZZ', 'AEEQ', 7, 'a', null, 'p5']], 1, [[0, 0, 1, 2], [9, 0, 1, 1]], [[0, 0, 5, -1, 99], [0, 4999, 0, 0, 0]]]]]);
   assert.deepEqual(odd.building, { name: 'Объект', address: '', owner: '', inspector: '', date: '', kind: 'public', autoSuppressionAll: true });
   const r = odd.floors[0].rooms[0];
   assert.deepEqual([r.area, r.count, r.category, r.classes, r.forceType, r.length], [12.5, 999, 'PUB', ['A', 'E'], '', '']);
   assert.deepEqual(odd.floors[0].plan.pos, { 's0_0:0': [1, 2] });
-  assert.deepEqual(odd.floors[0].plan.ext, [{ k: 's0_0:0', u: 1, v: 0, t: 'x', code: '' }]);
+  assert.deepEqual(odd.floors[0].plan.ext, [{ k: 's0_0:0', u: 1, v: 0, t: 'x', code: '' }]); // неизвестный вид отметки — «другой огнетушитель»
   assert.equal(odd.floors[0].installedOU, '');
 });

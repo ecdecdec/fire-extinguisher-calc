@@ -1,0 +1,85 @@
+{
+  "name": "firecalc-apps",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Приложения «Огнетушители» для Android и Windows: сборка из того же кода, что и сайт",
+  "main": "desktop/main.js",
+  "author": "Smart Inspector",
+  "devDependencies": {
+    "@capacitor/android": "8.6.2",
+    "@capacitor/app": "8.1.2",
+    "@capacitor/cli": "8.6.2",
+    "@capacitor/core": "8.6.2",
+    "@capacitor/filesystem": "8.1.5",
+    "@capacitor/share": "8.0.3",
+    "electron": "45.4.1",
+    "electron-builder": "26.18.0"
+  },
+  "build": {
+    "appId": "kz.firecalc.app",
+    "productName": "Огнетушители",
+    "executableName": "Ognetushiteli",
+    "copyright": "Smart Inspector",
+    "directories": {
+      "output": "dist-desktop",
+      "buildResources": "desktop/build"
+    },
+    "files": [
+      "desktop/main.js",
+      "desktop/preload.js",
+      "desktop/www/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "electronLanguages": [
+      "ru",
+      "kk",
+      "en-US"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "desktop/build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Огнетушители",
+      "artifactName": "Ognetushiteli-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "Ognetushiteli-${version}-portable.${ext}"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "icon": "desktop/build/icon.png",
+      "category": "Utility",
+      "artifactName": "Ognetushiteli-${version}.${ext}"
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "icon": "desktop/build/icon.png",
+      "category": "public.app-category.productivity",
+      "artifactName": "Ognetushiteli-${version}.${ext}"
+    }
+  }
+}

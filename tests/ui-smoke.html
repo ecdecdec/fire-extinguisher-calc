@@ -259,7 +259,9 @@
       await open('&demo=business');
       const W = () => doc().defaultView;
       const svg = () => q('[data-test=plan-svg]');
-      const marks = () => svg().querySelectorAll('.plan__ext').length;
+      // огнетушители; выход и пожарный кран из примера — тоже знаки на схеме, но не огнетушители
+      const exts = () => svg().querySelectorAll('.plan__ext:not(.plan__ext--obj)');
+      const marks = () => exts().length;
       const finds = () => qa('[data-test=finds] .find').map(text);
       const planRoom = name => Array.from(svg().querySelectorAll('.plan__room')).find(r => text(r.querySelector('title')) === name);
       const verdict = () => text(q('.verdict__title'));
@@ -274,9 +276,13 @@
       eq('три нарушения из примера', finds().length, 3);
       ok('порошковый в серверной назван нарушением', finds().join(' ').includes('«Серверная»: установлен порошковый огнетушитель'));
       eq('числа «есть» взяты со схемы', checkRows()[0], ['1 этаж', '4', '3', '1', '1', '0', '1']);
-      ok('под схемой — сводка отмеченного', text(q('[data-test=plan-stat]')) === 'Отмечено: ОП 3 · ОУ 0 · расстояние в норме', text(q('[data-test=plan-stat]')));
+      ok('под схемой — сводка отмеченного', text(q('[data-test=plan-stat]')) === 'Отмечено: ОП 3 · ОУ 0 · ПК 1 · Выход 1 · расстояние в норме', text(q('[data-test=plan-stat]')));
+      eq('знаки по ГОСТ 12.4.026: огнетушители, пожарный кран и выход', ['op', 'pk', 'exit'].map(t => svg().querySelectorAll('.plan__ext--' + t + ' use[href="#sg-' + t + '"]').length), [3, 1, 1]);
+      ok('символы знаков есть на странице', !!doc().getElementById('sg-op') && !!doc().getElementById('sg-exit'));
+      eq('условные обозначения под схемой', qa('[data-test=plan-legend] .legend__item').length, 3);
+      ok('в инструментах — все предметы плана эвакуации', ['op', 'ou', 'pk', 'btn', 'tel', 'post', 'exit', 'move'].every(m => !!q('[data-test=plan-mode-' + m + ']')));
 
-      await tap(svg().querySelectorAll('.plan__ext')[2], 0.5, 0.5);
+      await tap(exts()[2], 0.5, 0.5);
       ok('нажатие на огнетушитель убирает его', marks() === 2 && toast().includes('убран'));
       eq('нарушение по серверной снято, нехватка выросла', finds().length === 2 && checkRows()[0][2], '2');
       await click(q('[data-test=plan-mode-ou]'));
@@ -289,7 +295,7 @@
       await tap(planRoom('Серверная'), 0.2, 0.3);
       ok('порошковый в серверной сразу называется нарушением', toast().includes('нарушение') && verdict() === 'Не соответствует');
       ok('количество в норме, нарушение по размещению', text(q('.verdict')).includes('Количество достаточное, но есть нарушения по размещению.'), text(q('.verdict')));
-      await tap(svg().querySelectorAll('.plan__ext')[5], 0.5, 0.5);
+      await tap(exts()[5], 0.5, 0.5);
       eq('лишний убран', [marks(), verdict()], [5, 'Соответствует']);
 
       // «по нормам» — расчётная расстановка, факт не меняется

@@ -16,7 +16,8 @@
 
   const VERSION = 1;
   const KINDS = ['public', 'industrial', 'warehouse'];
-  const TYPES = ['op', 'ou', 'x'];
+  // виды отметок на схеме; новые — только в конец списка, чтобы старые ссылки читались так же
+  const TYPES = ['op', 'ou', 'x', 'pk', 'btn', 'tel', 'post', 'exit'];
   const MAX_CODE = 12000; // знаков в ссылке; больше не читаем
 
   function str(v, max) { return typeof v === 'string' ? v.slice(0, max || 200) : ''; }

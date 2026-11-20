@@ -237,6 +237,7 @@
     return { width: width, stack: [{ svg: pic.svg, width: pic.width, height: pic.height, alignment: 'center' }, { text: caption, style: 'caption', alignment: 'center', margin: [0, 3, 0, 0] }] };
   }
 
+  // «ОП 3, ОУ 1»; прочие отметки (пожарные краны, выходы…) — в условных обозначениях, не в подписи.
   function countMarks(sc) {
     const n = PL.tally(sc);
     return 'ОП ' + n.op + ', ОУ ' + n.ou + (n.other ? ', других ' + n.other : '');
@@ -364,8 +365,19 @@
           : { columns: blocks, columnGap: 14 };
         content.push({ stack: [{ text: sc.name, bold: true, margin: [0, 6, 0, 4] }, body], unbreakable: true, margin: [0, 0, 0, 8] });
       });
-      const notes = ['П (белый круг): порошковый огнетушитель', 'У (чёрный круг): углекислотный', 'пунктирная окружность: предельное расстояние до огнетушителя по прямой (п. 4)', 'серая заливка: места дальше нормы'];
-      content.push({ text: 'Условные обозначения: ' + notes.join('; ') + '.', style: 'note' });
+      // условные обозначения: знаки по ГОСТ 12.4.026-2015, буквы типа огнетушителя по ГОСТ 28130-89 (п. 1.2, 1.5)
+      const kinds = PL.kindsOf([].concat.apply([], schemes.map(function (sc) { return [sc.fact, sc.want]; })));
+      const legend = PL.legendSvg(kinds, [
+        { draw: 'ring', text: 'Предельное расстояние до огнетушителя по прямой (п. 4)' },
+        { draw: 'gap', text: 'Места дальше нормы' }
+      ], 500);
+      content.push({
+        stack: [
+          { text: 'Условные обозначения. Знаки безопасности по ГОСТ 12.4.026-2015 (п. 18 Правил), тип огнетушителя обозначен буквой у знака (ГОСТ 28130-89, п. 1.2).', style: 'note', margin: [0, 2, 0, 4] },
+          { svg: legend.svg, width: legend.width, height: legend.height }
+        ],
+        unbreakable: true
+      });
       const extra = [];
       if (planned) extra.push('контуры помещений построены по загруженному плану этажа');
       if (approx) extra.push('помещения с пунктирным контуром введены без размеров, их форма условная');

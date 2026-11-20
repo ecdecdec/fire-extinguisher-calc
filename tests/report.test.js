@@ -7,6 +7,7 @@ const E = require('../js/engine.js');
 const P = require('../js/presets.js');
 const PL = require('../js/plan.js');
 const R = require('../js/report.js');
+const S = require('../js/signs.js');
 const { mulberry32, randomObject, randomOptions } = require('./helpers.js');
 
 // Множество знаков шрифта отчёта (таблица cmap файла vendor/fonts/*.ttf).
@@ -144,7 +145,7 @@ test('служебный документ: заголовок, разделы, �
   assert.ok(text3.includes('Замечания к исходным данным (') && text3.includes('Замечания к исходным данным\n'));
 });
 
-test('не похоже на сгенерированное: без длинных тире и «·», без цветов, без надписей заглавными над разделами', () => {
+test('не похоже на сгенерированное: без длинных тире и «·», цвет только у знаков на схемах, без надписей заглавными над разделами', () => {
   const all = inputs();
   [all.business, all.factory].forEach(input => {
     const dd = fullDoc(input, {}, 'https://x.kz/#o=zAb');
@@ -160,10 +161,17 @@ test('не похоже на сгенерированное: без длинны
     colors.add(String(dd.defaultStyle.color).toLowerCase());
     assert.deepEqual([...colors].filter(c => !['#000000', '#333333'].includes(c)), [], 'цвета');
     assert.equal(nodes(dd.content, 'fillColor').length, 0, 'заливки');
-    strings.filter(s => s.startsWith('<svg')).forEach(s => {
-      assert.ok(!/#c4291c|#b3261e|#1a7f4b/i.test(s), 'цвет на схеме');
+    // на схемах цветные только знаки безопасности: сигнальные цвета ГОСТ 12.4.026-2015
+    const allowed = new Set(['#000000', '#ffffff', '#222222', '#eeeeee', '#8a8a8a', '#c9c9c9'].concat(Object.values(S.COLORS).map(c => c.toLowerCase())));
+    const svgs = strings.filter(s => s.startsWith('<svg'));
+    if (input === all.business) assert.ok(svgs.length > 0, 'у примера «бизнес-центр» есть схемы');
+    svgs.forEach(s => {
+      const used = (s.match(/#[0-9a-f]{6}/gi) || []).map(c => c.toLowerCase());
+      assert.deepEqual(used.filter(c => !allowed.has(c)), [], 'цвет на схеме');
       assert.ok(!s.includes('Roboto') && s.includes('font-family="Tinos"'));
     });
+    // знак огнетушителя красный (F04), а не чёрно-белый кружок, как раньше
+    if (svgs.length) assert.ok(svgs.some(s => s.includes(S.COLORS.red)), 'красный знак F04');
     // надписи заглавными: только сам заголовок «РАСЧЁТ»
     const caps = strings.filter(s => s.length > 3 && s === s.toUpperCase() && /[А-ЯЁ]{4,}/.test(s));
     assert.deepEqual(caps, ['РАСЧЁТ']);
@@ -216,7 +224,7 @@ test('отчёт проверки: нарушения и меры, схемы «
   // QR небольшой: 2–4 см, клетка не меньше 1 pt (pdfmake округляет её вниз до целого пункта)
   assert.ok(qr[0].fit >= 60 && qr[0].fit <= 115, 'сторона ' + qr[0].fit);
   [10, 100, 450, 1000].forEach(n => { const side = R.qrSide('https://x.kz/#o=' + 'a'.repeat(n)); assert.ok(side >= 49 && side <= 115, n + ': ' + side); });
-  assert.equal(strings.filter(x => x.startsWith('<svg ')).length, 4); // два этажа, по две схемы
+  assert.equal(strings.filter(x => x.startsWith('<svg ')).length, 5); // два этажа по две схемы и условные обозначения
   assert.deepEqual(missingGlyphs(strings), []);
   // количество в норме, а нарушение по размещению есть — вывод всё равно «не соответствует»
   const placed = { kind: 'public', floors: [{ rooms: [

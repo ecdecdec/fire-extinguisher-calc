@@ -15,6 +15,8 @@
 
   const N = window.FireNorms, E = window.FireEngine, P = window.FirePresets, R = window.FireReport;
   const PL = window.FirePlan, SH = window.FireShare, V = window.FireVision;
+  const S = window.FireSigns, LIB = window.FireLibrary || [], PF = window.FirePlatform;
+  const UI_FONT = 'IBM Plex Sans, Segoe UI, Arial, sans-serif';
 
   // ?ns=имя — отдельное хранилище (им пользуется страница проверки интерфейса,
   // чтобы не трогать рабочие данные).
@@ -58,7 +60,7 @@
       if (!key) return;
       out.ext.push({
         id: uid('e'), k: key, u: unit(e.u), v: unit(e.v),
-        t: e.t === 'ou' ? 'ou' : (e.t === 'op' ? 'op' : 'x'), code: typeof e.code === 'string' ? e.code.slice(0, 12) : ''
+        t: S.typeOf(e.t), code: typeof e.code === 'string' ? e.code.slice(0, 12) : ''
       });
     });
     return out;
@@ -222,7 +224,7 @@
     return new Promise(function (resolve, reject) {
       try {
         if (!visionWorker) {
-          visionWorker = new Worker('js/vision.worker.js?v=9');
+          visionWorker = new Worker('js/vision.worker.js?v=' + encodeURIComponent((window.FIRECALC_CONFIG && window.FIRECALC_CONFIG.build) || '1'));
           visionWorker.onmessage = function (e) {
             const job = visionWaiting[e.data.id];
             if (!job) return;
@@ -275,7 +277,7 @@
   const TEMPLATE = `
 <header class="top">
   <div class="top__in">
-    <div class="brand__name">Расчёт огнетушителей</div>
+    <div class="brand__name"><span class="full">Расчёт огнетушителей</span><span class="short">Огнетушители</span></div>
     <span class="net" v-if="offline" data-test="offline">без сети</span>
     <span class="spacer"></span>
     <div class="menu">
@@ -292,9 +294,16 @@
           <span class="muted">Примеры</span>
           <button type="button" class="link" data-test="example" v-for="(ex, key) in examples" :key="key" @click="loadExample(key)">{{ ex.title }}</button>
         </div>
-        <div class="menu__note" v-if="swReady">Приложение сохранено на устройстве и работает без сети</div>
+        <div class="menu__foot">
+          <span class="muted">Приложение</span>
+          <button type="button" class="link" data-test="menu-norms" @click="openLibrary()">Нормы</button>
+          <button type="button" class="link" data-test="install" v-if="installable" @click="installApp">Установить на это устройство</button>
+        </div>
+        <div class="menu__note" v-if="installHint">{{ installHint }}</div>
+        <div class="menu__note" v-if="appNote">{{ appNote }}</div>
       </div>
     </div>
+    <button type="button" class="btn btn--sm btn--quiet top__norms" data-test="norms" @click="openLibrary()">Нормы</button>
     <button type="button" class="btn btn--sm" data-test="new" @click="newObject"><span class="full">Новый расчёт</span><span class="short">Новый</span></button>
   </div>
   <nav class="tabs" aria-label="Разделы">
@@ -445,16 +454,17 @@
                   <input type="radio" class="sr" :name="'pv' + floor.id" :value="v.id" v-model="floor.plan.view" :data-test="'plan-view-' + v.id"><span>{{ v.label }}</span>
                 </label>
               </div>
-              <div class="seg seg--sm" role="radiogroup" aria-label="Что делает нажатие на схему" v-if="floor.plan.view === 'fact'">
-                <label v-for="m in planModes" :key="m.id" :class="['seg__opt', { 'seg__opt--on': planMode === m.id }]" :title="m.hint">
-                  <input type="radio" class="sr" :name="'pm' + floor.id" :value="m.id" v-model="planMode" :data-test="'plan-mode-' + m.id"><span>{{ m.label }}</span>
-                </label>
-              </div>
               <span class="spacer"></span>
-              <button type="button" class="btn btn--sm btn--quiet" data-test="plan-clear" v-if="floor.plan.view === 'fact' && factOf(floor).marked" @click="clearExt(floor)">Убрать все</button>
+              <button type="button" class="btn btn--sm btn--quiet" data-test="plan-clear" v-if="floor.plan.view === 'fact' && factOf(floor).hasMarks" @click="clearExt(floor)">Убрать все</button>
               <button type="button" class="btn btn--sm btn--quiet" data-test="plan-reset" v-if="floor.plan.pos" @click="resetLayout(floor)">Расставить заново</button>
             </div>
-            <svg :class="['plan__svg', 'plan__svg--' + modeOf(floor), { 'plan__svg--dense': sceneOf(floor).ext.length > 8 }]" :data-floor="floor.id" data-test="plan-svg" role="img" :aria-label="'Схема: ' + floor.name"
+            <div class="tools" role="radiogroup" aria-label="Что отметить нажатием на схему" v-if="floor.plan.view === 'fact'">
+              <label v-for="m in planModes" :key="m.id" :class="['tool', { 'tool--on': planMode === m.id }]" :title="m.hint">
+                <input type="radio" class="sr" :name="'pm' + floor.id" :value="m.id" v-model="planMode" :data-test="'plan-mode-' + m.id">
+                <span class="tool__ic" v-if="m.icon" v-html="m.icon" aria-hidden="true"></span><span>{{ m.label }}</span>
+              </label>
+            </div>
+            <svg :class="['plan__svg', 'plan__svg--' + modeOf(floor), { 'plan__svg--dense': extMarks(floor).length > 8 }]" :data-floor="floor.id" data-test="plan-svg" role="img" :aria-label="'Схема: ' + floor.name"
                  :viewBox="viewBox(floor)" :style="{ aspectRatio: viewRatio(floor) }"
                  @click="planClick(floor, $event)" @pointerdown="planDown(floor, $event)" @pointermove="planMove(floor, $event)"
                  @pointerup="planUp(floor, $event)" @pointercancel="planUp(floor, $event)">
@@ -466,15 +476,21 @@
                       :x="r.x" :y="r.y" :width="r.w" :height="r.h"><title>{{ r.name }}</title></rect>
               </template>
               <rect v-for="(g, gi) in planGaps(floor)" :key="'g' + gi" class="plan__gap" :x="g.x" :y="g.y" :width="g.w" :height="g.h"></rect>
-              <circle v-for="e in sceneOf(floor).ext" :key="'c' + e.id" class="plan__reach" :cx="e.x" :cy="e.y" :r="e.rect.limit"></circle>
+              <circle v-for="e in extMarks(floor)" :key="'c' + e.id" class="plan__reach" :cx="e.x" :cy="e.y" :r="e.rect.limit"></circle>
               <text v-for="l in planLabels(floor)" :key="'l' + l.key" class="plan__label" :x="l.x" :y="l.y" :font-size="l.size" :text-anchor="l.anchor">{{ l.text }}</text>
-              <g v-for="e in sceneOf(floor).ext" :key="e.id" :data-ext="e.id" :class="['plan__ext', 'plan__ext--' + e.t]" :transform="'translate(' + e.x + ' ' + e.y + ')'">
+              <g v-for="e in sceneMarks(floor)" :key="e.id" :data-ext="e.id" :class="['plan__ext', 'plan__ext--' + e.t, { 'plan__ext--obj': !e.isExt }]" :transform="'translate(' + e.x + ' ' + e.y + ')'">
                 <circle class="plan__hit" :r="px(floor, 16)"></circle>
-                <circle class="plan__dot" :r="px(floor, 9)" :stroke-width="px(floor, 1.5)"></circle>
-                <text text-anchor="middle" :font-size="px(floor, 10)" :y="px(floor, 3.5)">{{ e.t === 'op' ? 'П' : (e.t === 'ou' ? 'У' : '?') }}</text>
+                <use class="plan__sign" :href="'#sg-' + e.t" :x="-px(floor, 10)" :y="-px(floor, 10)" :width="px(floor, 20)" :height="px(floor, 20)"></use>
+                <template v-if="badgeOf(e.t)">
+                  <circle class="plan__badge" :cx="px(floor, 8.5)" :cy="px(floor, 8.5)" :r="px(floor, 6.5)" :stroke-width="px(floor, 1)"></circle>
+                  <text class="plan__badge-t" text-anchor="middle" :x="px(floor, 8.5)" :y="px(floor, 11.6)" :font-size="px(floor, 9)">{{ badgeOf(e.t) }}</text>
+                </template>
                 <title>{{ extTitle(e) }}</title>
               </g>
             </svg>
+            <div class="legend" data-test="plan-legend" v-if="legendOf(floor).length">
+              <span class="legend__item" v-for="t in legendOf(floor)" :key="t"><span class="legend__ic" v-html="signIcon(t, 18)" aria-hidden="true"></span>{{ itemName(t) }}</span>
+            </div>
             <p class="plan__hint">{{ planHint(floor) }}</p>
           </template>
         </template>
@@ -505,7 +521,7 @@
     <template v-else>
       <div class="ledger">
         <div v-for="t in result.totals" :key="t.kind + t.code + t.charge" :class="['total', 'total--' + t.agent]">
-          <span class="total__sw"></span>
+          <span class="total__sw" v-html="totalIcon(t)" aria-hidden="true"></span>
           <div>
             <div class="total__code">{{ t.code }}</div>
             <div class="total__name">{{ t.name }}<template v-if="t.charge">, порошок {{ t.charge }}</template></div>
@@ -653,6 +669,7 @@
             <ul><li v-for="(a, i) in methodology" :key="i">{{ a }}</li></ul>
             <div>Нормативные источники</div>
             <ul><li v-for="s in sources" :key="s.id">{{ s.title }}</li></ul>
+            <p><button type="button" class="link" data-test="fold-norms" @click="openLibrary()">Тексты пунктов норм: справочник</button></p>
           </div>
         </details>
       </div>
@@ -719,7 +736,8 @@
         <p>Сфотографируйте план эвакуации этажа или загрузите план из техпаспорта. Помещения и их площади найдутся сами — на этом устройстве, без интернета.</p>
         <p class="hint">Снимайте прямо, чтобы план был целиком в кадре.</p>
         <div class="bp__actions">
-          <label class="btn btn--primary">Выбрать фото или картинку<input type="file" accept="image/*" class="sr" data-test="bp-file" @change="pickBpFile"></label>
+          <label class="btn btn--primary" v-if="touch">Сфотографировать план<input type="file" accept="image/*" capture="environment" class="sr" data-test="bp-camera" @change="pickBpFile"></label>
+          <label :class="['btn', { 'btn--primary': !touch }]">{{ touch ? 'Выбрать из галереи' : 'Выбрать фото или картинку' }}<input type="file" accept="image/*" class="sr" data-test="bp-file" @change="pickBpFile"></label>
           <button type="button" class="btn" data-test="bp-example" @click="loadBpExample">Пример: план школы</button>
         </div>
         <p class="bp__error" v-if="bp.error">{{ bp.error }}</p>
@@ -772,6 +790,48 @@
   </div>
 </div>
 
+<!-- СПРАВОЧНИК НОРМ -->
+<div class="modal modal--full" v-if="library" @click.self="closeLibrary">
+  <div class="modal__box lib" role="dialog" aria-modal="true" aria-labelledby="libTitle" data-test="library">
+    <div class="bp__head">
+      <h2 id="libTitle">Нормы</h2>
+      <span class="spacer"></span>
+      <button type="button" class="btn btn--sm btn--quiet" data-test="library-close" @click="closeLibrary">Закрыть</button>
+    </div>
+    <div class="lib__body">
+      <input type="search" class="lib__q" data-test="library-q" v-model.trim="library.q" placeholder="Поиск: огнетушитель, знак, 20 м, категория…" aria-label="Поиск по тексту норм">
+      <p class="hint">Дословные тексты пунктов, на которые опирается расчёт. Справочник хранится в приложении и открывается без сети.</p>
+      <div class="lib__signs" v-if="!library.q">
+        <h3>Значки на схеме этажа</h3>
+        <p class="hint">Знаки безопасности по ГОСТ 12.4.026-2015: знаки пожарной безопасности красные, эвакуационные зелёные (п. 18 и п. 166 Правил, приложение 2). Корпус огнетушителя любого типа красный, поэтому тип показан буквой у знака (ГОСТ 28130-89, п. 1.2).</p>
+        <div class="lib__sign" v-for="t in allSigns" :key="t"><span class="legend__ic" v-html="signIcon(t, 24)" aria-hidden="true"></span><span>{{ itemName(t) }}<small>{{ signName(t) }}</small></span></div>
+      </div>
+      <p class="hint" v-if="library.q && !libraryDocs.length" data-test="library-empty">Ничего не найдено</p>
+      <details class="lib__doc" v-for="d in libraryDocs" :key="d.id" :open="!!library.q || library.open === d.id" :data-doc="d.id">
+        <summary><span class="lib__short">{{ d.short }}</span><span class="lib__title">{{ d.title }}</span></summary>
+        <div class="lib__meta">{{ d.doc }}. {{ d.status }}.</div>
+        <p class="lib__use">{{ d.use }}</p>
+        <div class="lib__item" v-for="(it, i) in d.items" :key="i">
+          <div class="ref">{{ it.ref }}</div>
+          <p v-for="(t, j) in (it.text || [])" :key="j">{{ t }}</p>
+          <div class="scroll" v-if="it.rows">
+            <table class="lib__table">
+              <thead v-if="it.head"><tr><th v-for="h in it.head" :key="h">{{ h }}</th></tr></thead>
+              <tbody><tr v-for="(r, k) in it.rows" :key="k"><td v-for="(c, m) in r" :key="m">{{ c }}</td></tr></tbody>
+            </table>
+          </div>
+          <p class="lib__why" v-if="it.why">{{ it.why }}</p>
+        </div>
+      </details>
+    </div>
+  </div>
+</div>
+
+<div class="toast toast--update" v-if="updateReady" role="status" data-test="update">
+  <span>Вышла новая версия приложения</span>
+  <button type="button" class="toast__undo" data-test="update-apply" @click="applyUpdate">Обновить</button>
+</div>
+
 <div class="toast" v-if="notice" role="status">
   <span>{{ notice }}</span>
   <button type="button" class="toast__undo" data-test="undo" v-if="undoFn" @click="undo">Отменить</button>
@@ -790,11 +850,11 @@
     { id: 'fact', label: 'Как есть', hint: 'Огнетушители, которые стоят на объекте: отметьте их нажатием' },
     { id: 'want', label: 'По нормам', hint: 'Расстановка, которую даёт расчёт' }
   ];
-  const PLAN_MODES = [
-    { id: 'op', label: '+ ОП', hint: 'Нажатие отмечает порошковый огнетушитель' },
-    { id: 'ou', label: '+ ОУ', hint: 'Нажатие отмечает углекислотный огнетушитель' },
-    { id: 'move', label: 'Двигать', hint: 'Перетаскивание помещений и огнетушителей' }
-  ];
+  // Что отмечает нажатие на схему: огнетушители и другие предметы плана эвакуации (ППБ РК, прил. 2, п. 1).
+  const PLAN_MODES = S.MARKABLE.map(function (t) {
+    const it = S.ITEMS[t];
+    return { id: t, label: it.short, hint: 'Нажатие отмечает: ' + it.name.toLowerCase() + ' (знак ' + it.sign + ')', icon: S.icon(t, 16, UI_FONT) };
+  }).concat([{ id: 'move', label: 'Двигать', hint: 'Перетаскивание помещений и отметок', icon: '' }]);
   const DEFAULT_STEP = 0.75; // м, средняя длина шага
   const MAX_QR_LINK = 1000;  // знаков: длиннее — QR-код в отчёте получается слишком мелким для камеры
   const EMPTY_SCENE = { rects: [], ext: [], cover: { per: {}, bad: 0, total: 0, share: 0 }, box: PL.bbox([]), limits: '', marked: false, findings: [] };
@@ -818,6 +878,11 @@
         bpImages: {},   // картинки планов, уже прочитанные из хранилища: ключ → data URL
         offline: typeof navigator !== 'undefined' && navigator.onLine === false,
         swReady: false,
+        updateReady: null,   // новая версия скачана: функция, которая её включает
+        installable: false,  // браузер готов установить приложение
+        persisted: false,    // браузер обещал не удалять сохранённые данные
+        library: null,       // открытый справочник норм: { q — поиск, open — раскрытый документ }
+        touch: PF.touch,
         tab: 'input',
         open: {},
         openRoom: '',
@@ -903,6 +968,35 @@
         return null;
       },
       planModes: function () { return PLAN_MODES; },
+      allSigns: function () { return S.MARKABLE; },
+      // Справочник норм: документы и пункты, где встречается текст поиска.
+      libraryDocs: function () {
+        const q = this.library ? this.library.q.toLowerCase().replace(/ё/g, 'е') : '';
+        if (!q) return LIB;
+        function has(s) { return String(s).toLowerCase().replace(/ё/g, 'е').indexOf(q) >= 0; }
+        return LIB.map(function (d) {
+          const head = has(d.title) || has(d.short);
+          const items = d.items.filter(function (it) {
+            return head || has(it.ref) || (it.text || []).some(has) || (it.rows || []).some(function (r) { return r.some(has); }) || (it.why && has(it.why));
+          });
+          return items.length ? Object.assign({}, d, { items: items }) : null;
+        }).filter(Boolean);
+      },
+      // Подсказка, как установить приложение, если браузер не предлагает кнопку (iPhone, iPad).
+      installHint: function () {
+        if (PF.kind !== 'web' || this.installable || PF.standalone()) return '';
+        if (PF.ios) return 'На iPhone и iPad: откройте сайт в Safari, нажмите «Поделиться» и выберите «На экран «Домой»».';
+        return '';
+      },
+      appNote: function () {
+        const v = PF.version ? 'Версия ' + PF.version + '. ' : '';
+        if (PF.kind === 'android') return v + 'Приложение для Android: всё хранится на телефоне, сеть не нужна.';
+        if (PF.kind === 'desktop') return v + 'Приложение для компьютера: всё хранится на этом компьютере, сеть не нужна.';
+        const parts = [];
+        if (this.swReady) parts.push(PF.standalone() ? 'Установлено на устройство и работает без сети.' : 'Сохранено в браузере и работает без сети.');
+        if (this.persisted) parts.push('Данные защищены от автоматической очистки.');
+        return parts.length ? v + parts.join(' ') : '';
+      },
       // Исходные данные для расчёта и схемы. Если имя помещения не введено, оно называется по назначению.
       input: function () {
         const floors = this.floors.map(function (f) {
@@ -921,7 +1015,7 @@
         this.audit.floors.forEach(function (fa, i) {
           const floor = self.floors[i];
           const want = floor && floor.plan.open && floor.plan.view === 'want';
-          map[fa.id] = want ? PL.scene(fa.rects, PL.propose(fa.rects, self.result.floors[i])) : fa;
+          map[fa.id] = want ? PL.wantScene(fa.rects, self.result.floors[i], floor.plan.ext) : fa;
         });
         return map;
       },
@@ -1360,10 +1454,28 @@
       },
       planStat: function (floor) {
         const fa = this.factOf(floor);
-        if (!fa.marked) return '';
+        if (!fa.hasMarks) return '';
         const n = PL.tally(fa);
-        return 'Отмечено: ОП ' + n.op + ' · ОУ ' + n.ou + (n.other ? ' · других ' + n.other : '') + ' · ' +
-          (fa.cover.bad > 0 ? 'дальше нормы ' + Math.max(1, Math.round(fa.cover.share * 100)) + ' % площади' : 'расстояние в норме');
+        const items = S.ORDER.filter(function (t) { return n.items[t]; }).map(function (t) { return S.ITEMS[t].short + ' ' + n.items[t]; });
+        return 'Отмечено: ОП ' + n.op + ' · ОУ ' + n.ou + (n.other ? ' · других ' + n.other : '') + (items.length ? ' · ' + items.join(' · ') : '') +
+          (fa.marked ? ' · ' + (fa.cover.bad > 0 ? 'дальше нормы ' + Math.max(1, Math.round(fa.cover.share * 100)) + ' % площади' : 'расстояние в норме') : '');
+      },
+      // Отметки для рисования: огнетушители поверх остальных знаков.
+      sceneMarks: function (floor) {
+        const ext = this.sceneOf(floor).ext;
+        return ext.filter(function (e) { return !e.isExt; }).concat(ext.filter(function (e) { return e.isExt; }));
+      },
+      extMarks: function (floor) { return this.sceneOf(floor).ext.filter(function (e) { return e.isExt; }); },
+      legendOf: function (floor) { return PL.kindsOf([this.sceneOf(floor)]); },
+      badgeOf: function (t) { return S.item(t).badge || ''; },
+      itemName: function (t) { return S.item(t).name + (S.item(t).badge ? ' (' + S.item(t).badge + ')' : ''); },
+      signName: function (t) { return 'Знак ' + S.SIGN_NAMES[S.item(t).sign]; },
+      signIcon: function (t, size) { return S.icon(t, size || 18, UI_FONT); },
+      // Значок в итоге: знак огнетушителя с буквой типа, у пожарного щита — знак F06.
+      totalIcon: function (t) {
+        if (t.kind === 'shield') return S.icon('post', 16, UI_FONT);
+        const type = t.agent === 'powder' ? 'op' : (t.agent === 'co2' ? 'ou' : 'x');
+        return S.icon(type, 16, UI_FONT, type === 'x');
       },
       planHint: function (floor) {
         const sc = this.sceneOf(floor);
@@ -1371,21 +1483,25 @@
           (this.factOf(floor).skipped ? ' На схеме показаны первые ' + PL.MAX_RECTS + ' помещений этажа.' : '');
         const reach = sc.limits ? ' Круг — ' + sc.limits + ' по прямой, красным — дальше нормы.' : '';
         if (floor.plan.view === 'want') {
-          const extra = sc.ext.filter(function (e) { return e.extra; }).length;
+          // выходы, краны и прочие отмеченные предметы видны и здесь, но огнетушителями не считаются
+          const exts = sc.ext.filter(function (e) { return e.isExt; });
+          const extra = exts.filter(function (e) { return e.extra; }).length;
           const fr = this.resultFloor(floor.id);
-          return 'Расстановка по расчёту: ' + sc.ext.length + ' ' + E.plural(sc.ext.length, 'огнетушитель', 'огнетушителя', 'огнетушителей') +
+          return 'Расстановка по расчёту: ' + exts.length + ' ' + E.plural(exts.length, 'огнетушитель', 'огнетушителя', 'огнетушителей') +
             (extra ? ', из них ' + extra + ' — по расстоянию (п. 4)' : '') + '.' +
             (fr && fr.wheeled ? ' Передвижные (' + fr.wheeled + ') на схеме не показаны.' : '') +
             ' В PDF попадает как предлагаемая схема.' +
             (floor.blueprint ? ' Помещения — по загруженному плану.' : ' Помещения можно перетаскивать.') + approx;
         }
         if (this.planMode === 'move') {
-          return (floor.blueprint ? 'Помещения стоят по загруженному плану. Огнетушители можно перетаскивать.' : 'Перетащите помещения так, как они стоят на этаже. Огнетушители тоже двигаются.') + approx;
+          return (floor.blueprint ? 'Помещения стоят по загруженному плану. Отметки можно перетаскивать.' : 'Перетащите помещения так, как они стоят на этаже. Отметки тоже двигаются.') + approx;
         }
-        return 'Нажмите на помещение — отметится огнетушитель, который там стоит. Нажмите на него ещё раз — уберётся.' + reach + approx;
+        const what = S.ITEMS[this.planMode] ? S.ITEMS[this.planMode].name.toLowerCase() : 'огнетушитель';
+        return 'Нажмите на помещение — отметится ' + what + ' на том месте, где он стоит. Нажмите на значок ещё раз — уберётся. ' +
+          'Пожарные краны, кнопки, телефоны, щиты и выходы показываются на схеме и в PDF, но в число огнетушителей не входят.' + reach + approx;
       },
       extTitle: function (e) {
-        return (e.code || (e.t === 'op' ? 'ОП, порошковый' : (e.t === 'ou' ? 'ОУ, углекислотный' : 'другой'))) + ' · ' + e.rect.name;
+        return (e.code || S.item(e.t).name) + ' · ' + e.rect.name;
       },
       // Точка нажатия в метрах схемы.
       planPoint: function (svg, ev) {
@@ -1406,7 +1522,7 @@
         const p = this.planPoint(ev.currentTarget, ev);
         const rect = p && PL.at(this.sceneOf(floor).rects, p.x, p.y);
         if (!rect) { this.say('Нажмите внутри помещения'); return; }
-        floor.plan.ext.push({ id: uid('e'), k: rect.key, u: unit((p.x - rect.x) / rect.w), v: unit((p.y - rect.y) / rect.h), t: this.planMode, code: '' });
+        floor.plan.ext.push({ id: uid('e'), k: rect.key, u: unit((p.x - rect.x) / rect.w), v: unit((p.y - rect.y) / rect.h), t: S.typeOf(this.planMode), code: '' });
         if (this.planMode === 'op' && rect.sensitive) this.say('«' + rect.name + '»: порошковый в помещении с электроникой — нарушение');
       },
       removeExt: function (floor, id) {
@@ -1414,7 +1530,7 @@
         const i = list.map(function (e) { return e.id; }).indexOf(id);
         if (i < 0) return;
         const removed = list.splice(i, 1)[0];
-        this.say('Огнетушитель убран со схемы', function () { list.splice(Math.min(i, list.length), 0, removed); });
+        this.say((S.isExt(removed.t) ? 'Огнетушитель' : S.item(removed.t).short) + ' убран со схемы', function () { list.splice(Math.min(i, list.length), 0, removed); });
       },
       clearExt: function (floor) {
         const plan = floor.plan, prev = plan.ext;
@@ -1651,6 +1767,7 @@
         // та же сумма, что в списке найденного и в итоге этажа
         const total = r1(floor.rooms.reduce(function (t, r) { return t + r.area; }, 0));
         this.closeBp();
+        this.keepData();
         this.say('По плану: ' + keep.length + ' ' + E.plural(keep.length, 'помещение', 'помещения', 'помещений') + ', ' + E.fmt(total) + ' м²', function () {
           floor.rooms = prev.rooms;
           floor.blueprint = prev.blueprint;
@@ -1661,20 +1778,28 @@
       // ----- ссылка на расчёт -----
       // Код расчёта для адреса. Весь объект лежит в самой ссылке, сервер не нужен.
       shareCode: function () { return SH.encode(this.current); },
-      linkFor: function (code) { return window.location.href.split('#')[0].split('?')[0] + '#o=' + code; },
-      // Копирует ссылку; если браузер не даёт (страница открыта по http с другого
-      // устройства) — показывает её в окне, откуда её можно скопировать вручную.
+      // Ссылка ведёт на опубликованный сайт: на сайте — на него же, в приложениях — на адрес из js/config.js.
+      linkFor: function (code) { const base = PF.publicBase(); return base ? base + '#o=' + code : ''; },
+      // Отправляет ссылку меню «Поделиться» (телефон) или копирует; если браузер не даёт
+      // скопировать (страница открыта по http с другого устройства) — показывает её в окне.
       share: function () {
         const self = this;
+        if (!PF.publicBase()) {
+          this.say('Ссылка на расчёт появится, когда в настройках приложения будет указан адрес опубликованного сайта');
+          return;
+        }
         this.shareCode().then(function (code) {
           const link = self.linkFor(code);
-          return copyText(link).then(function () {
-            self.say('Ссылка скопирована: по ней откроется этот расчёт');
-          }, function () {
-            self.linkDialog = link;
-            self.$nextTick(function () {
-              const el = document.querySelector('.linkbox');
-              if (el) { el.focus(); el.select(); }
+          return PF.shareLink('Расчёт огнетушителей: ' + self.objectName(self.current), link).then(function (sent) {
+            if (sent) return;
+            return copyText(link).then(function () {
+              self.say('Ссылка скопирована: по ней откроется этот расчёт');
+            }, function () {
+              self.linkDialog = link;
+              self.$nextTick(function () {
+                const el = document.querySelector('.linkbox');
+                if (el) { el.focus(); el.select(); }
+              });
             });
           });
         }).catch(function (e) { self.say('Не удалось собрать ссылку: ' + (e && e.message ? e.message : e)); });
@@ -1724,8 +1849,8 @@
       makePdf: function () {
         const self = this, result = this.result, audit = this.audit, now = new Date();
         const schemes = PL.schemes(this.input, result, audit);
-        // QR-код в отчёте ведёт на этот же расчёт — если сайт открыт по адресу и ссылка помещается в код.
-        const link = /^https?:$/.test(window.location.protocol)
+        // QR-код в отчёте ведёт на этот же расчёт — если известен адрес сайта и ссылка помещается в код.
+        const link = PF.publicBase()
           ? this.shareCode().then(function (code) { const l = self.linkFor(code); return l.length <= MAX_QR_LINK ? l : ''; }).catch(function () { return ''; })
           : Promise.resolve('');
         return Promise.all([ensurePdf(), link]).then(function (x) {
@@ -1737,15 +1862,60 @@
         const self = this;
         this.pdfBusy = true;
         this.makePdf().then(function (x) {
-          x.pdf.download(x.name, function () {
+          return PF.savePdf(x.pdf, x.name).then(function (r) {
             self.pdfBusy = false;
             self.pdfDialog = false;
-            self.say('PDF сохранён: ' + x.name);
+            if (r && r.how === 'share') self.say(r.cancelled ? 'PDF готов: ' + x.name + '. Чтобы отправить, нажмите «Скачать PDF» ещё раз' : 'PDF готов: ' + x.name);
+            else self.say('PDF сохранён: ' + x.name);
+            self.keepData();
           });
         }).catch(function (e) {
           self.pdfBusy = false;
           self.say('Не удалось сформировать PDF: ' + (e && e.message ? e.message : e));
         });
+      },
+
+      // ----- справочник норм -----
+      openLibrary: function (docId) {
+        this.menuOpen = false;
+        this.library = { q: '', open: docId || '' };
+      },
+      closeLibrary: function () { this.library = null; },
+
+      // ----- приложение: установка, обновление, хранение -----
+      installApp: function () {
+        const self = this;
+        this.menuOpen = false;
+        PF.install().then(function (ok) { if (ok) { self.say('Приложение устанавливается на устройство'); self.keepData(); } });
+      },
+      applyUpdate: function () {
+        const fn = this.updateReady;
+        this.updateReady = null;
+        if (fn) fn();
+      },
+      // Просит браузер не удалять объекты и картинки планов (один раз, когда в них уже есть работа).
+      keepData: function () {
+        const self = this;
+        if (PF.kind !== 'web' || this.persisted) return;
+        PF.persist().then(function (ok) { self.persisted = !!ok; });
+      },
+      // Картинка плана пришла извне («Поделиться» на телефоне, «Открыть с помощью» на компьютере).
+      takePicture: function (file) {
+        const self = this;
+        this.go('input');
+        this.addFloorByPlan(null);
+        loadPicture(file).then(function (pic) { self.setBpPicture(pic, ''); self.say('Фото плана получено: задайте масштаб'); },
+          function (e) { if (self.bp) self.bp.error = e.message; });
+      },
+      // Кнопка «Назад» на Android: сначала закрываются окна и меню. true — что-то закрыто.
+      back: function () {
+        if (this.bp && !this.bp.busy) { this.closeBp(); return true; }
+        if (this.library) { this.library = null; return true; }
+        if (this.pdfDialog) { this.pdfDialog = false; return true; }
+        if (this.linkDialog) { this.linkDialog = ''; return true; }
+        if (this.menuOpen) { this.menuOpen = false; return true; }
+        if (this.tab === 'result' && window.matchMedia('(max-width: 1180px)').matches) { this.go('input'); return true; }
+        return false;
       }
     },
     updated: function () { this.measurePlans(); },
@@ -1753,8 +1923,9 @@
       const self = this;
       document.addEventListener('click', function () { self.menuOpen = false; });
       document.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape') { self.menuOpen = false; self.pdfDialog = false; self.linkDialog = ''; if (self.bp && !self.bp.busy) self.closeBp(); }
+        if (e.key === 'Escape') { self.menuOpen = false; self.pdfDialog = false; self.linkDialog = ''; self.library = null; if (self.bp && !self.bp.busy) self.closeBp(); }
       });
+      PF.onBack(function () { return self.back(); });
 
       this.openFirstRoomIfBlank();
 
@@ -1771,13 +1942,17 @@
         });
       });
 
-      // работа без сети: служебный сценарий кладёт приложение в память браузера
+      // работа без сети: служебный сценарий кладёт приложение в память браузера;
+      // новая версия скачивается сама и включается по кнопке «Обновить»
       window.addEventListener('online', function () { self.offline = false; });
       window.addEventListener('offline', function () { self.offline = true; });
-      if ('serviceWorker' in navigator && /^https?:$/.test(window.location.protocol)) {
-        navigator.serviceWorker.register('sw.js').catch(function () { /* без него приложение работает как обычный сайт */ });
-        navigator.serviceWorker.ready.then(function () { self.swReady = true; }).catch(function () {});
-      }
+      PF.registerServiceWorker(function (apply) { self.updateReady = apply; }, function () { self.swReady = true; });
+      // установка на устройство (Chrome, Edge, Android) и защита данных от очистки
+      this.installable = PF.canInstall();
+      PF.onInstallChange(function () { self.installable = PF.canInstall(); });
+      PF.persisted().then(function (p) { self.persisted = !!p; if (!p && PF.standalone()) self.keepData(); });
+      // фото плана, переданное через «Поделиться» или «Открыть с помощью»
+      PF.onIncomingPicture(function (file) { self.takePicture(file); });
 
       // расчёт по ссылке (QR-код из отчёта)
       window.addEventListener('hashchange', function () { self.importLink(); });
@@ -1791,6 +1966,14 @@
       }
       const step = q.get('step');
       if (step === '3' || step === 'result') this.tab = 'result';
+      // ярлыки установленного приложения (manifest.webmanifest, shortcuts)
+      const action = q.get('action');
+      if (action === 'new') this.newObject();
+      else if (action === 'plan') this.addFloorByPlan(null);
+      else if (action === 'norms') this.openLibrary();
+      if (action || q.get('inbox')) {
+        try { window.history.replaceState(null, '', window.location.pathname + window.location.hash); } catch (e) { /* адрес остаётся как есть */ }
+      }
       if (q.get('open') === 'all') {
         this.result.floors.forEach(function (f) { f.units.forEach(function (u) { self.open[u.id] = true; }); });
       }
@@ -1815,5 +1998,7 @@
     document.body.appendChild(box);
   };
 
+  // символы знаков для схемы (<use href="#sg-…">) — один раз на страницу, вне области Vue
+  document.body.insertAdjacentHTML('afterbegin', S.sprite());
   app.mount('#app');
 }());

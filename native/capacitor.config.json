@@ -1,0 +1,12 @@
+{
+  "appId": "kz.firecalc.app",
+  "appName": "Огнетушители",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false,
+    "webContentsDebuggingEnabled": false
+  },
+  "plugins": {
+    "SystemBars": { "insetsHandling": "native", "style": "LIGHT" }
+  }
+}

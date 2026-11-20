@@ -1,2 +1,11 @@
 out/
 node_modules/
+# готовые приложения (APK, EXE) — собираются tools/native.js
+release/
+# временные папки сборки приложений
+native/www/
+native/desktop/www/
+native/dist-desktop/
+native/android/keystore.properties
+*.jks
+*.keystore
