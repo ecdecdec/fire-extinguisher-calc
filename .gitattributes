@@ -1,0 +1,8 @@
+# Скрипт gradlew должен оставаться с переводами строк LF (иначе не запустится в Linux и macOS)
+native/android/gradlew text eol=lf
+*.bat text eol=crlf
+*.png binary
+*.ico binary
+*.jar binary
+*.woff2 binary
+*.ttf binary
