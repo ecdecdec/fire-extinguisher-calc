@@ -575,20 +575,23 @@
 
   // ---------- размерные линии с засечками (для hollow / БТИ) ----------
 
-  function drawDimensionChain(rgba, w, h, axisCoords, offsetPx, horiz, lineW, color, scale) {
+  // towardPx: координата здания поперек линии (определяет, куда смотрят выносные линии)
+  function drawDimensionChain(rgba, w, h, axisCoords, offsetPx, horiz, lineW, color, scale, towardPx) {
     const tick = Math.max(3, 0.16 * scale);
-    const extStart = horiz ? (offsetPx < 0 ? offsetPx + tick * 2.5 : offsetPx - tick * 2.5) : (offsetPx < 0 ? offsetPx + tick * 2.5 : offsetPx - tick * 2.5);
+    const dir = towardPx < offsetPx ? -1 : 1;
+    // выносная линия идёт от размерной линии к зданию
+    const extFrom = offsetPx - dir * tick;
+    const extTo = offsetPx + dir * tick * 2.5;
     const a0 = axisCoords[0], a1 = axisCoords[axisCoords.length - 1];
+    const cell = Math.max(1.0, Math.min(1.6, 0.045 * scale));
     if (horiz) {
       drawLineAA(rgba, w, h, a0 - tick, offsetPx, a1 + tick, offsetPx, lineW, color, 1);
       for (let i = 0; i < axisCoords.length; i++) {
         const x = axisCoords[i];
-        drawLineAA(rgba, w, h, x, extStart, x, offsetPx + (offsetPx < extStart ? -tick : tick), lineW, color, 0.9);
+        drawLineAA(rgba, w, h, x, extFrom, x, extTo, lineW, color, 0.9);
         drawLineAA(rgba, w, h, x - tick * 0.7, offsetPx + tick * 0.7, x + tick * 0.7, offsetPx - tick * 0.7, lineW * 1.2, color, 1);
         if (i + 1 < axisCoords.length) {
-          const segM = (axisCoords[i + 1] - x) / scale;
-          const label = String(Math.round(segM * 1000));
-          const cell = Math.max(1.0, Math.min(1.6, 0.045 * scale));
+          const label = String(Math.round((axisCoords[i + 1] - x) / scale * 1000));
           drawDigits(rgba, w, h, label, (x + axisCoords[i + 1]) * 0.5, offsetPx - cell * 6, cell, color, 1);
         }
       }
@@ -596,8 +599,13 @@
       drawLineAA(rgba, w, h, offsetPx, a0 - tick, offsetPx, a1 + tick, lineW, color, 1);
       for (let i = 0; i < axisCoords.length; i++) {
         const y = axisCoords[i];
-        drawLineAA(rgba, w, h, extStart, y, offsetPx + (offsetPx < extStart ? -tick : tick), y, lineW, color, 0.9);
+        drawLineAA(rgba, w, h, extFrom, y, extTo, y, lineW, color, 0.9);
         drawLineAA(rgba, w, h, offsetPx - tick * 0.7, y + tick * 0.7, offsetPx + tick * 0.7, y - tick * 0.7, lineW * 1.2, color, 1);
+        if (i + 1 < axisCoords.length) {
+          const label = String(Math.round((axisCoords[i + 1] - y) / scale * 1000));
+          // цифры слева от линии, по центру отрезка
+          drawDigits(rgba, w, h, label, offsetPx - cell * 14, (y + axisCoords[i + 1]) * 0.5, cell, color, 1);
+        }
       }
     }
   }
@@ -723,10 +731,10 @@
     const topPx = plan.topXs.map(function (x) { return ox + x * scale; });
     const botPx = plan.botXs.map(function (x) { return ox + x * scale; });
     const vertPx = [oy, oy + plan.yCorTop * scale, oy + plan.yCorBot * scale, oy + plan.H * scale];
-    drawDimensionChain(rgba, w, h, topPx, oy - 1.1 * scale, true, dimW, [45, 45, 45], scale);
-    drawDimensionChain(rgba, w, h, [ox, ox + plan.W * scale], oy - 2.2 * scale, true, dimW, [45, 45, 45], scale);
-    drawDimensionChain(rgba, w, h, botPx, oy + (plan.H + 1.1) * scale, true, dimW, [45, 45, 45], scale);
-    drawDimensionChain(rgba, w, h, vertPx, ox - 1.1 * scale, false, dimW, [45, 45, 45], scale);
+    drawDimensionChain(rgba, w, h, topPx, oy - 1.1 * scale, true, dimW, [45, 45, 45], scale, oy);
+    drawDimensionChain(rgba, w, h, [ox, ox + plan.W * scale], oy - 2.2 * scale, true, dimW, [45, 45, 45], scale, oy);
+    drawDimensionChain(rgba, w, h, botPx, oy + (plan.H + 1.1) * scale, true, dimW, [45, 45, 45], scale, oy + plan.H * scale);
+    drawDimensionChain(rgba, w, h, vertPx, ox - 1.1 * scale, false, dimW, [45, 45, 45], scale, ox);
 
     return {
       rgba: rgba, w: w, h: h, scale: round3(scale),
@@ -944,14 +952,12 @@
     const blockEnd = round3(tx - tIn);
     // Задняя стена блока туалетов и правая стена блока
     walls.push({ x0: tOut, y0: toiletY1, x1: blockEnd + tPart, y1: toiletY1 + tPart });
-    walls.push({ x0: blockEnd, y0: toiletY0, x1: blockEnd + tPart, y1: H - tOut });
 
     // Подсобка позади блока туалетов (вход из правого кабинета не делаем, делаем дверь с коридора через остаток снизу)
     // Помещение за туалетами: если оставить глухим без двери, vision.js все равно найдет; добавим дверь из соседнего кабинета
     const backY0 = round3(toiletY1 + tPart);
     const backDoorY = round3((backY0 + H - tOut) * 0.5);
-    // Уберем лишний проем в стене blockEnd, пересоберем правую стену блока с дверью 0.85 м в подсобку
-    walls.pop();
+    // Правая стена блока с дверью 0.85 м в подсобку
     splitBar(toiletY0, H - tOut, [[backDoorY - 0.42, backDoorY + 0.42]]).forEach(function (s) {
       walls.push({ x0: blockEnd, y0: s[0], x1: blockEnd + tPart, y1: s[1] });
     });
