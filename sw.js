@@ -13,7 +13,7 @@
  * VERSION ставит tools/build.js (npm run build) по содержимому файлов: любое изменение
  * файла из ASSETS даёт новую версию. Новый файл приложения добавьте в ASSETS.
  */
-const VERSION = '1.0.1-c37391e85f';
+const VERSION = '1.0.1-009014ff79';
 const CACHE = 'firecalc-' + VERSION;
 const INBOX = 'firecalc-inbox';
 const ASSETS = [

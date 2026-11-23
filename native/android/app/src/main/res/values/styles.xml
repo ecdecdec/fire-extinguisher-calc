@@ -19,11 +19,11 @@
         <item name="android:windowLightStatusBar">true</item>
     </style>
 
-    <!-- Заставка при запуске: значок приложения на белом фоне. -->
+    <!-- Заставка при запуске: знак F04 на белом фоне (Android 12+ и библиотека заставки на старых версиях;
+         отдельный фон-картинка не нужен, иначе знак при запуске меняет размер). -->
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
-        <item name="android:background">@drawable/splash</item>
         <item name="windowSplashScreenBackground">@android:color/white</item>
-        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_foreground</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_icon</item>
         <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
     </style>
 </resources>

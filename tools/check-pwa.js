@@ -52,7 +52,7 @@ let dump = null;
     await t.until("document.querySelector('.total')", 15000);
     ok('без сети приложение открывается и считает', await t.eval("document.querySelectorAll('.total').length > 0"));
     ok('без сети видна пометка «без сети»', await t.eval("!!document.querySelector('[data-test=offline]')"));
-    const self = await t.until("(document.getElementById('selfcheck') || {}).textContent && !/формирую/.test(document.getElementById('selfcheck').textContent) && document.getElementById('selfcheck').textContent", 30000);
+    const self = await t.until("(document.getElementById('selfcheck') || {}).textContent && !/формирование/.test(document.getElementById('selfcheck').textContent) && document.getElementById('selfcheck').textContent", 30000);
     ok('без сети формируется PDF', /PDF сформирован/.test(self), self);
     await t.goto(base + 'index.html?ns=pwacheck2&demo=business');
     await t.until("document.querySelector('[data-test=plan-svg]')", 15000);

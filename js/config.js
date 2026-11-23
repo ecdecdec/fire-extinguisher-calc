@@ -8,6 +8,6 @@
  */
 window.FIRECALC_CONFIG = {
   version: '1.0.1',
-  build: 'c37391e85f',
+  build: '009014ff79',
   publicUrl: ''
 };

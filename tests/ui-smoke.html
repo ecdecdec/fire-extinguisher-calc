@@ -89,7 +89,7 @@
       // --- запуск ---
       ok('ввод и результат видны одновременно', shown(inp()) && shown(res()));
       eq('запуск: один объект, один этаж, одна строка', [objectsCount(), floors().length, rooms(floors()[0]).length], [1, 1, 1]);
-      eq('запуск: итог пуст', bar(), 'пока нет данных');
+      eq('запуск: итог пуст', bar(), 'нет данных');
       ok('без данных PDF недоступен, есть ссылки на примеры', q('[data-test=pdf]').disabled && qa('[data-test=example-empty]').length === 2);
 
       // --- объект и здание ---
@@ -125,7 +125,7 @@
       // --- количество одинаковых помещений ---
       await setValue(room(0, 2).querySelector('.f-count input'), '3');
       eq('три одинаковых цеха по 100 м²', need(floors()[0]), '5 × ОП-5');
-      eq('счётчик помещений и площади этажа', text(floors()[0].querySelector('.floor__meta')), '5 пом. · 850 м²');
+      eq('счётчик помещений и площади этажа', text(floors()[0].querySelector('.floor__meta')), '5 пом., 850 м²');
 
       // --- категория и классы пожара ---
       ok('категория и классы свёрнуты в подпись', !room(0, 2).querySelector('.room__more') && text(room(0, 2).querySelector('.norm__btn')) === 'A, E');
@@ -152,7 +152,7 @@
       // --- этажи ---
       await click(floors()[0].querySelector('[data-test=dup-floor]'));
       eq('этаж продублирован под следующим номером', [floors().length, floors()[1].querySelector('.floor__name').value, rooms(floors()[1]).length], [2, '2 этаж', 3]);
-      eq('итог удвоился', [bar(), totals()], ['6 × ОП-5 · 2 × ОУ-3', ['ОП-5:6', 'ОУ-3:2']]);
+      eq('итог удвоился', [bar(), totals()], ['6 × ОП-5, 2 × ОУ-3', ['ОП-5:6', 'ОУ-3:2']]);
 
       // --- расчёт по помещениям ---
       eq('имя по назначению, одинаковые свёрнуты', text(units()[0].querySelector('.unit__title')), 'Кабинет × 2');
@@ -189,7 +189,7 @@
 
       // --- сохранение ---
       await open();
-      eq('после перезагрузки объект на месте', [title(), floors().length, bar()], ['Тестовый объект', 2, '6 × ОП-5 · 2 × ОУ-3']);
+      eq('после перезагрузки объект на месте', [title(), floors().length, bar()], ['Тестовый объект', 2, '6 × ОП-5, 2 × ОУ-3']);
       ok('данные записаны в хранилище браузера', (window.localStorage.getItem(KEYS[0]) || '').includes('Тестовый объект'));
 
       // --- удаление с отменой ---
@@ -206,11 +206,11 @@
       await click(q('[data-test=new]'));
       eq('новый расчёт: пустое название, одна строка, объектов два', [title(), floors().length, rooms(floors()[0]).length, objectsCount()], ['', 1, 1, 2]);
       await click(q('[data-test=new]'));
-      ok('пустой расчёт не дублируется', objectsCount() === 2 && toast().includes('ещё пуст'));
+      ok('пустой расчёт не дублируется', objectsCount() === 2 && toast().includes('Объект пуст'));
 
       await setValue(room(0, 0).querySelector('.f-area input'), '30');
       eq('кабинет 30 м² в общественном здании — не менее двух на этаж', need(floors()[0]), '2 × ОП-5');
-      ok('в общественном здании категория спрятана в подпись', !room(0, 0).querySelector('.norm__cat') && text(room(0, 0).querySelector('.norm__btn')) === 'Общественное · A, E');
+      ok('в общественном здании категория спрятана в подпись', !room(0, 0).querySelector('.norm__cat') && text(room(0, 0).querySelector('.norm__btn')) === 'Общественное; A, E');
 
       // --- объекты по таблице 5 ---
       await setValue(room(0, 0).querySelector('.f-purpose select'), 't5_sto', 'change');
@@ -238,7 +238,7 @@
       if (!q('.menu__panel')) await click(q('[data-test=objects]'));
       await click(q('[data-test=example]'));
       eq('пример открыт отдельным объектом', [title(), floors().length, rooms(floors()[0]).length, objectsCount()], ['Бизнес-центр (пример)', 2, 4, 3]);
-      eq('пример: итог', bar(), '6 × ОП-5 · 1 × ОУ-3');
+      eq('пример: итог', bar(), '6 × ОП-5, 1 × ОУ-3');
       ok('пример: показано уведомление', toast().includes('Открыт пример'));
       ok('пример: четыре кладовые одной строкой', units().some(u => text(u.querySelector('.unit__title')) === 'Кладовая × 4'));
       eq('пример: сверка с фактом', text(q('.verdict__title')), 'Не соответствует');
@@ -276,7 +276,7 @@
       eq('три нарушения из примера', finds().length, 3);
       ok('порошковый в серверной назван нарушением', finds().join(' ').includes('«Серверная»: установлен порошковый огнетушитель'));
       eq('числа «есть» взяты со схемы', checkRows()[0], ['1 этаж', '4', '3', '1', '1', '0', '1']);
-      ok('под схемой — сводка отмеченного', text(q('[data-test=plan-stat]')) === 'Отмечено: ОП 3 · ОУ 0 · ПК 1 · Выход 1 · расстояние в норме', text(q('[data-test=plan-stat]')));
+      ok('под схемой — сводка отмеченного', text(q('[data-test=plan-stat]')) === 'Отмечено: ОП 3, ОУ 0, ПК 1, Выход 1. Расстояние в норме', text(q('[data-test=plan-stat]')));
       eq('знаки по ГОСТ 12.4.026: огнетушители, пожарный кран и выход', ['op', 'pk', 'exit'].map(t => svg().querySelectorAll('.plan__ext--' + t + ' use[href="#sg-' + t + '"]').length), [3, 1, 1]);
       ok('символы знаков есть на странице', !!doc().getElementById('sg-op') && !!doc().getElementById('sg-exit'));
       eq('условные обозначения под схемой', qa('[data-test=plan-legend] .legend__item').length, 3);
@@ -380,7 +380,7 @@
       await setValue(nameIn(), 'Серверная'); await setValue(nameIn(), 'Серверная', 'change');
       eq('имя «Серверная» меняет назначение на серверную', purposeOf(), 'server');
       eq('в серверной только углекислотные', need(floors()[0]), '2 × ОУ-3');
-      ok('об этом сказано, и это можно отменить', toast().includes('назначение по имени') && !!q('[data-test=undo]'), toast());
+      ok('об этом сказано, и это можно отменить', toast().includes('Назначение помещения') && !!q('[data-test=undo]'), toast());
       await click(q('[data-test=undo]'));
       eq('отмена возвращает прежнее назначение', [purposeOf(), need(floors()[0])], ['office', '2 × ОП-5']);
       await setValue(nameIn(), 'Серверная 2'); await setValue(nameIn(), 'Серверная 2', 'change');
@@ -439,7 +439,7 @@
       await setValue(q('[data-test=bp-area]'), '900');
       await click(q('[data-test=bp-run]'));
       for (let i = 0; i < 300 && !q('[data-test=bp-found]'); i++) await sleep(50);
-      const foundArea = () => text(q('[data-test=bp-found]')).split('·')[1].trim();
+      const foundArea = () => text(q('[data-test=bp-found]')).split(', ')[1].trim();
       eq('по площади этажа: сумма найденного равна введённой', foundArea(), '900 м²');
       await click(bpRow(16).querySelector('input[type=checkbox]'));
       eq('лишнее снято: сумма остальных по-прежнему 900 м²', [text(q('[data-test=bp-found]')).startsWith('Найдено помещений: 15'), foundArea()], [true, '900 м²']);
@@ -501,7 +501,7 @@
       ok('вкладка «Результат» показывает расчёт', shown(res()) && !shown(inp()) && totals().length === 2);
       // нижняя полоса закреплена (position: fixed), поэтому видимость проверяется по стилю
       const barShown = doc().defaultView.getComputedStyle(q('.bar')).display !== 'none';
-      ok('итог и кнопка PDF в нижней полосе', barShown && bar() === '6 × ОП-5 · 1 × ОУ-3' && text(q('.bar .btn')) === 'Скачать PDF');
+      ok('итог и кнопка PDF в нижней полосе', barShown && bar() === '6 × ОП-5, 1 × ОУ-3' && text(q('.bar .btn')) === 'Сохранить PDF');
     } catch (e) {
       log(false, 'проверка прервана ошибкой', e && e.stack ? e.stack : String(e));
     }

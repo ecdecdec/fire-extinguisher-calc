@@ -223,7 +223,7 @@
           resolve({ img: canvas.toDataURL(png ? 'image/png' : 'image/jpeg', 0.85), w: w, h: h, rgba: rgba });
         } catch (e) { reject(new Error('не удалось прочитать картинку')); }
       };
-      img.onerror = function () { if (isFile) URL.revokeObjectURL(url); reject(new Error('не удалось открыть картинку — нужен снимок или картинка (JPG, PNG)')); };
+      img.onerror = function () { if (isFile) URL.revokeObjectURL(url); reject(new Error('Не удалось открыть файл. Нужна картинка JPG или PNG')); };
       img.src = url;
     });
   }
@@ -290,7 +290,7 @@
 <header class="top">
   <div class="top__in">
     <div class="brand__name"><span class="full">Расчёт огнетушителей</span><span class="short">Огнетушители</span></div>
-    <span class="net" v-if="offline" data-test="offline">без сети</span>
+    <span class="net" v-if="offline && webApp" data-test="offline">без сети</span>
     <span class="spacer"></span>
     <div class="menu">
       <button type="button" class="btn btn--sm btn--quiet" data-test="objects" :aria-expanded="menuOpen" @click.stop="menuOpen = !menuOpen">Объекты <span class="mono muted">{{ objects.length }}</span></button>
@@ -350,7 +350,7 @@
     <div class="floor" v-for="(floor, fi) in floors" :key="floor.id">
       <div class="floor__head">
         <input type="text" class="floor__name" v-model.trim="floor.name" aria-label="Название этажа">
-        <span class="floor__meta">{{ floorRooms(floor) }} пом. · {{ fmt(floorArea(floor)) }} м²</span>
+        <span class="floor__meta">{{ floorRooms(floor) }} пом., {{ fmt(floorArea(floor)) }} м²</span>
         <span class="spacer"></span>
         <span class="floor__need"><b>{{ floorNeed(floor.id) }}</b></span>
         <button type="button" class="btn btn--sm btn--quiet" data-test="dup-floor" @click="duplicateFloor(fi)">Дублировать</button>
@@ -392,7 +392,7 @@
                 <select class="norm__cat" v-if="!room.t5 && building.kind !== 'public'" v-model="room.category" aria-label="Категория" @change="room.forceType = ''">
                   <option v-for="c in categories" :key="c.id" :value="c.id" :title="c.title">{{ c.short }}</option>
                 </select>
-                <button type="button" class="norm__btn" :aria-expanded="room.more" :title="normSummary(room) + ' — изменить'" @click="room.more = !room.more">{{ normSummary(room) }}</button>
+                <button type="button" class="norm__btn" :aria-expanded="room.more" :title="'Изменить: ' + normSummary(room)" @click="room.more = !room.more">{{ normSummary(room) }}</button>
               </div>
             </div>
 
@@ -412,14 +412,14 @@
                 <div class="chips">
                   <button type="button" v-for="k in fireClasses" :key="k.id"
                     :class="['chip', { 'chip--on': room.classes.indexOf(k.id) >= 0 }]"
-                    :title="k.id + ' — ' + k.name" :aria-pressed="room.classes.indexOf(k.id) >= 0"
+                    :title="k.id + ': ' + k.name" :aria-pressed="room.classes.indexOf(k.id) >= 0"
                     @click="toggleClass(room, k.id)">{{ k.id }}</button>
                 </div>
               </div>
               <label class="field m-dim"><span>Длина, м</span><input type="number" min="0" step="any" inputmode="decimal" v-model="room.length" @change="onDims(room)"></label>
               <label class="field m-dim"><span>Ширина, м</span><input type="number" min="0" step="any" inputmode="decimal" v-model="room.width" @change="onDims(room)"></label>
               <div class="steps">
-                <button type="button" class="link" data-test="steps-toggle" :aria-expanded="ui.steps" @click="ui.steps = !ui.steps">{{ ui.steps ? 'Скрыть замер шагами' : 'Нет рулетки? Измерить шагами' }}</button>
+                <button type="button" class="link" data-test="steps-toggle" :aria-expanded="ui.steps" @click="ui.steps = !ui.steps">{{ ui.steps ? 'Скрыть замер шагами' : 'Замер шагами' }}</button>
                 <template v-if="ui.steps">
                   <label class="steps__f"><span>Длина, шагов</span><input type="number" min="0" step="1" inputmode="numeric" data-test="steps-l" v-model="room.stepsL" @input="onSteps(room)"></label>
                   <label class="steps__f"><span>Ширина, шагов</span><input type="number" min="0" step="1" inputmode="numeric" data-test="steps-w" v-model="room.stepsW" @input="onSteps(room)"></label>
@@ -458,7 +458,7 @@
           <span class="plan__stat" data-test="plan-stat">{{ planStat(floor) }}</span>
         </div>
         <template v-if="floor.plan.open">
-          <p class="hint" v-if="!sceneOf(floor).rects.length">Введите площадь помещений — схема построится сама</p>
+          <p class="hint" v-if="!sceneOf(floor).rects.length">Схема строится по площадям помещений</p>
           <template v-else>
             <div class="plan__tools">
               <div class="seg seg--sm" role="radiogroup" aria-label="Что показывает схема">
@@ -519,11 +519,11 @@
   <section class="pane pane--result" aria-label="Результат">
     <div class="res-head">
       <h2>Требуется по нормам</h2>
-      <button type="button" class="btn btn--primary" data-test="pdf" :disabled="!result.totals.length" @click="openPdf">Скачать PDF</button>
+      <button type="button" class="btn btn--primary" data-test="pdf" :disabled="!result.totals.length" @click="openPdf">Сохранить PDF</button>
     </div>
 
     <div class="empty" v-if="!result.totals.length">
-      <p>Введите площадь хотя бы одного помещения, и здесь появится расчёт</p>
+      <p>Введите площадь хотя бы одного помещения</p>
       <p class="quick">
         <span class="muted">Или откройте пример</span>
         <button type="button" class="link" data-test="example-empty" v-for="(ex, key) in examples" :key="key" @click="loadExample(key)">{{ ex.title }}</button>
@@ -578,10 +578,10 @@
           <div class="verdict__title">{{ verdictBad ? 'Не соответствует' : 'Соответствует' }}</div>
           <p>{{ verdictText }}</p>
         </div>
-        <p class="hint" v-else>Впишите, сколько огнетушителей установлено на этаже, или отметьте их на схеме этажа — здесь появится вывод</p>
+        <p class="hint" v-else>Впишите, сколько огнетушителей установлено на этаже, или отметьте их на схеме</p>
         <ol class="finds" data-test="finds" v-if="audit.findings.length">
           <li v-for="(x, i) in audit.findings" :key="i" :class="'find find--' + x.level">
-            <span class="ref">{{ x.floor }} · {{ x.ref }}{{ x.level === 'warn' ? ' · проверить на месте' : '' }}</span>
+            <span class="ref">{{ x.floor }}, {{ x.ref }}{{ x.level === 'warn' ? '; проверить на месте' : '' }}</span>
             <span>{{ x.text }}</span>
             <span v-if="x.action">{{ x.action }}.</span>
           </li>
@@ -627,13 +627,13 @@
                     <tbody>
                       <tr v-for="r in u.matrix.rows" :key="r.cls">
                         <th class="rowh">{{ r.cls }}</th>
-                        <td v-for="(c, ci) in r.cells" :key="ci" :class="cellClass(c)">{{ c.mark === '-' ? '—' : c.n + ' ' + c.mark }}</td>
+                        <td v-for="(c, ci) in r.cells" :key="ci" :class="cellClass(c)">{{ c.mark === '-' ? '–' : c.n + ' ' + c.mark }}</td>
                         <td class="where" v-if="matrixMixed(u)">на {{ r.area }} м²{{ r.fallback ? ', строка «' + r.rowTitle + '»' : '' }}</td>
                       </tr>
                     </tbody>
                   </table>
                 </div>
-                <div class="matrix__legend">++ рекомендуется · + допускается при обосновании · — не допускается</div>
+                <div class="matrix__legend">++ рекомендуется, + допускается при обосновании, – не допускается</div>
               </div>
 
               <div class="whys">
@@ -672,11 +672,11 @@
             <label class="check"><input type="checkbox" v-model="options.onlyPowderAndCO2"><span>Предлагать только порошковые (ОП) и углекислотные (ОУ)</span></label>
             <label class="check"><input type="checkbox" v-model="options.wheeled"><span>Добавлять передвижные огнетушители большим помещениям (табл. 2)</span></label>
             <label class="check"><input type="checkbox" data-test="opt-min-all" v-model="options.floorMinAll">
-              <span>Не менее двух огнетушителей на этаже — в любом здании<small>Без отметки — только в общественных, как в п. 5 Приложения 3</small></span></label>
+              <span>Не менее двух огнетушителей на этаже в любом здании<small>Без отметки только в общественных зданиях, как в п. 5 Приложения 3</small></span></label>
           </div>
         </details>
         <details class="fold">
-          <summary>Как считаем: правила и допущения</summary>
+          <summary>Методика расчёта и допущения</summary>
           <div class="fold__body">
             <p>Правила не определяют некоторые детали расчёта. Здесь перечислено, как они решены. В PDF попадают только те пункты, которые повлияли на расчёт.</p>
             <ul><li v-for="(a, i) in methodology" :key="i">{{ a }}</li></ul>
@@ -706,7 +706,7 @@
     </div>
     <div class="modal__foot">
       <button type="button" class="btn" data-test="pdf-cancel" @click="pdfDialog = false">Отмена</button>
-      <button type="button" class="btn btn--primary" data-test="pdf-go" :disabled="pdfBusy" @click="downloadPdf">{{ pdfBusy ? 'Формирую…' : 'Скачать PDF' }}</button>
+      <button type="button" class="btn btn--primary" data-test="pdf-go" :disabled="pdfBusy" @click="downloadPdf">{{ pdfBusy ? 'Формирование…' : 'Сохранить PDF' }}</button>
     </div>
   </div>
 </div>
@@ -715,7 +715,7 @@
 <div class="modal" v-if="linkDialog" @click.self="linkDialog = ''">
   <div class="modal__box" role="dialog" aria-modal="true" aria-labelledby="linkTitle" data-test="link-dialog">
     <h2 id="linkTitle">Ссылка на этот расчёт</h2>
-    <p class="hint">Весь расчёт лежит в самой ссылке. Отправьте её — по ней откроется этот же объект</p>
+    <p class="hint">Ссылка содержит весь расчёт: по ней откроется этот же объект</p>
     <input type="text" class="linkbox" readonly :value="linkDialog" aria-label="Ссылка на расчёт" @focus="$event.target.select()">
     <div class="modal__foot">
       <button type="button" class="btn" data-test="link-close" @click="linkDialog = ''">Закрыть</button>
@@ -728,7 +728,7 @@
 <div class="modal modal--full" v-if="bp">
   <div class="modal__box bp" role="dialog" aria-modal="true" aria-labelledby="bpTitle" data-test="bp-dialog">
     <div class="bp__head">
-      <h2 id="bpTitle">План этажа{{ bpFloorName ? ' · ' + bpFloorName : '' }}</h2>
+      <h2 id="bpTitle">План этажа{{ bpFloorName ? ': ' + bpFloorName : '' }}</h2>
       <span class="spacer"></span>
       <button type="button" class="btn btn--sm btn--quiet" data-test="bp-close" @click="closeBp">Закрыть</button>
     </div>
@@ -739,14 +739,14 @@
           <template v-if="bp.rooms">
             <polygon v-for="r in bp.rooms" :key="r.id" :data-bp="r.id" :points="polyPts(r.poly)"
                      :class="['bp__room', { 'bp__room--off': !r.on, 'bp__room--sel': bp.sel === r.id, 'bp__room--sens': isSensitive(r.purpose) }]"></polygon>
-            <text v-for="r in bp.rooms" :key="'t' + r.id" class="bp__label" :x="r.lx" :y="r.ly + bpFont * 0.35" :font-size="bpFont" text-anchor="middle">{{ r.id }} · {{ fmt(r.area) }} м²</text>
+            <text v-for="r in bp.rooms" :key="'t' + r.id" class="bp__label" :x="r.lx" :y="r.ly + bpFont * 0.35" :font-size="bpFont" text-anchor="middle">{{ r.id }}: {{ fmt(r.area) }} м²</text>
           </template>
           <line v-if="bp.pts.length === 2" class="bp__ruler" :x1="bp.pts[0][0]" :y1="bp.pts[0][1]" :x2="bp.pts[1][0]" :y2="bp.pts[1][1]" :stroke-width="bpFont / 4"></line>
           <circle v-for="(p, i) in bp.pts" :key="'p' + i" class="bp__pt" :cx="p[0]" :cy="p[1]" :r="bpFont / 2"></circle>
         </svg>
       </div>
       <div class="bp__start" v-else>
-        <p>Сфотографируйте план эвакуации этажа или загрузите план из техпаспорта. Помещения и их площади найдутся сами — на этом устройстве, без интернета.</p>
+        <p>Сфотографируйте план эвакуации этажа или выберите файл плана из техпаспорта.</p>
         <p class="hint">Снимайте прямо, чтобы план был целиком в кадре.</p>
         <div class="bp__actions">
           <label class="btn btn--primary" v-if="touch">Сфотографировать план<input type="file" accept="image/*" capture="environment" class="sr" data-test="bp-camera" @change="pickBpFile"></label>
@@ -768,14 +768,14 @@
             {{ bpUnits.text }} <button type="button" class="link" @click="bpUnits.fix()">{{ bpUnits.label }}</button>
           </p>
           <div class="bp__actions">
-            <button type="button" class="btn btn--primary" data-test="bp-run" :disabled="!bpReady || bp.busy" @click="runBp">{{ bp.busy ? 'Ищу помещения…' : 'Найти помещения' }}</button>
+            <button type="button" class="btn btn--primary" data-test="bp-run" :disabled="!bpReady || bp.busy" @click="runBp">{{ bp.busy ? 'Поиск помещений…' : 'Найти помещения' }}</button>
             <button type="button" class="btn btn--quiet" v-if="bp.pts.length" @click="bp.pts = []">Сбросить точки</button>
             <label class="btn btn--quiet" v-if="!bp.busy">Другое фото<input type="file" accept="image/*" class="sr" data-test="bp-file" @change="pickBpFile"></label>
           </div>
         </template>
         <template v-else>
-          <h3 data-test="bp-found">Найдено помещений: {{ bpOn.length }} · {{ fmt(bpArea) }} м²</h3>
-          <p class="hint">Проверьте назначение: серверной, щитовой, складу укажите своё — или впишите имя, назначение подставится. Лишнее снимите галочкой. Нажмите на помещение на плане — оно выделится в списке.</p>
+          <h3 data-test="bp-found">Найдено помещений: {{ bpOn.length }}, {{ fmt(bpArea) }} м²</h3>
+          <p class="hint">Проверьте назначение: серверной, щитовой, складу выберите своё или впишите имя. Лишнее снимите галочкой.</p>
           <div class="bp__list">
             <div v-for="r in bp.rooms" :key="r.id" :data-bp-item="r.id" :class="['bp__item', { 'bp__item--sel': bp.sel === r.id, 'bp__item--off': !r.on }]">
               <input type="checkbox" v-model="r.on" :aria-label="'Учитывать помещение ' + r.id" @change="bpToggle">
@@ -795,7 +795,6 @@
             <button type="button" class="btn" data-test="bp-apply-next" :disabled="!bpOn.length" @click="applyBpNext">Применить и добавить этаж</button>
           </div>
           <p class="bp__error" data-test="bp-warn" v-if="bp.scale > 0 && bp.scale < 3">На 1 м плана меньше 3 точек: стены и двери сливаются, помещения могут не найтись. Проверьте масштаб (длина в метрах, площадь в м²) или снимите план крупнее, по частям.</p>
-          <p class="hint">Распознано за {{ bp.ms }} мс на этом устройстве.</p>
         </template>
         <p class="bp__error" v-if="bp.error">{{ bp.error }}</p>
       </div>
@@ -858,7 +857,7 @@
   <div class="bar__in">
     <div class="bar__sum"><span class="bar__label">Требуется по нормам</span><b>{{ totalsLine }}</b></div>
     <button type="button" class="btn btn--primary" v-if="tab === 'input'" @click="go('result')">К результату</button>
-    <button type="button" class="btn btn--primary" v-else :disabled="!result.totals.length" @click="openPdf">Скачать PDF</button>
+    <button type="button" class="btn btn--primary" v-else :disabled="!result.totals.length" @click="openPdf">Сохранить PDF</button>
   </div>
 </footer>
 `;
@@ -900,6 +899,7 @@
         persisted: false,    // браузер обещал не удалять сохранённые данные
         library: null,       // открытый справочник норм: { q — поиск, open — раскрытый документ }
         touch: PF.touch,
+        webApp: PF.kind === 'web', // сайт в браузере: пометка «без сети» нужна только ему
         tab: 'input',
         open: {},
         openRoom: '',
@@ -933,7 +933,7 @@
             id: id,
             label: id === 'PUB' ? 'Общественное' : c.label,
             short: id === 'PUB' ? 'Общ.' : c.label, // для узкого поля в строке
-            long: id === 'PUB' ? 'Общественное (без категории)' : c.label + ' — ' + c.name,
+            long: id === 'PUB' ? 'Общественное (без категории)' : c.label + ': ' + c.name,
             title: c.name
           };
         });
@@ -959,7 +959,7 @@
         const withPlan = floors.filter(function (f) { return f.blueprint; }).map(function (f) { return f.name; });
         let text;
         if (withPlan.length) text = 'По плану: ' + withPlan.join(', ') + '. Следующий этаж тоже можно загрузить по фото плана.';
-        else if (floors.every(function (f) { return self.floorBlank(f); })) text = 'Есть план эвакуации или техпаспорт? Сфотографируйте план этажа — помещения и площади найдутся сами, прямо на телефоне, без интернета.';
+        else if (floors.every(function (f) { return self.floorBlank(f); })) text = 'Помещения этажа можно найти по фото плана эвакуации или техпаспорта.';
         else text = 'Помещения этажа можно найти по фото плана эвакуации или техпаспорта.';
         const label = last && this.floorBlank(last) ? 'Загрузить план' + (floors.length > 1 ? ': ' + last.name : '') : 'Добавить этаж по плану';
         return { text: text, label: label };
@@ -1011,8 +1011,7 @@
       },
       appNote: function () {
         const v = PF.version ? 'Версия ' + PF.version + '. ' : '';
-        if (PF.kind === 'android') return v + 'Приложение для Android: всё хранится на телефоне, сеть не нужна.';
-        if (PF.kind === 'desktop') return v + 'Приложение для компьютера: всё хранится на этом компьютере, сеть не нужна.';
+        if (PF.kind !== 'web') return v.trim();
         const parts = [];
         if (this.swReady) parts.push(PF.standalone() ? 'Установлено на устройство и работает без сети.' : 'Сохранено в браузере и работает без сети.');
         if (this.persisted) parts.push('Данные защищены от автоматической очистки.');
@@ -1057,8 +1056,8 @@
             (this.options.floorMinAll ? '; на каждом этаже считается не менее двух огнетушителей' : '');
       },
       totalsLine: function () {
-        if (!this.result.totals.length) return 'пока нет данных';
-        return this.result.totals.map(function (t) { return t.count + ' × ' + t.code + (t.charge === 'D' ? ' (D)' : ''); }).join(' · ');
+        if (!this.result.totals.length) return 'нет данных';
+        return this.result.totals.map(function (t) { return t.count + ' × ' + t.code + (t.charge === 'D' ? ' (D)' : ''); }).join(', ');
       },
       summaryLine: function () {
         const s = this.result.summary;
@@ -1068,7 +1067,7 @@
         parts.push(s.rooms + ' ' + E.plural(s.rooms, 'помещение', 'помещения', 'помещений'));
         parts.push(E.fmt(s.area) + ' м²');
         parts.push(s.floors + ' ' + E.plural(s.floors, 'этаж', 'этажа', 'этажей'));
-        return parts.join(' · ');
+        return parts.join(', ');
       }
     },
     watch: {
@@ -1122,10 +1121,14 @@
         }
       },
       // Картинки планов, на которые не ссылается ни один этаж (объект или этаж удалён, план заменён).
+      // Список нужных картинок собирается в момент удаления, а картинки этого сеанса (применённые
+      // и открытые планы, bpImages) не трогаются: план, применённый во время очистки, не теряется.
       cleanImages: function () {
-        const used = {};
-        this.objects.forEach(function (o) { o.floors.forEach(function (f) { if (f.blueprint && f.blueprint.img) used[f.blueprint.img] = true; }); });
+        const self = this;
         IMG.keys().then(function (keys) {
+          const used = {};
+          self.objects.forEach(function (o) { o.floors.forEach(function (f) { if (f.blueprint && f.blueprint.img) used[f.blueprint.img] = true; }); });
+          Object.keys(self.bpImages).forEach(function (k) { used[k] = true; });
           keys.forEach(function (k) { if (!used[k]) IMG.del(k).catch(function () { /* удалится в следующий раз */ }); });
         }).catch(function () { /* хранилище картинок недоступно */ });
       },
@@ -1150,13 +1153,13 @@
       objectMeta: function (o) {
         let rooms = 0;
         o.floors.forEach(function (f) { f.rooms.forEach(function (r) { if (toNum(r.area) || r.t5) rooms += Math.max(1, Math.round(toNum(r.count)) || 1); }); });
-        return rooms + ' пом. · ' + R.formatDate(o.building.date);
+        return rooms + ' пом., ' + R.formatDate(o.building.date);
       },
       newObject: function () {
         this.menuOpen = false;
         if (this.isBlank(this.current)) {
           this.go('input');
-          this.say('Этот расчёт ещё пуст — можно начинать');
+          this.say('Объект пуст: добавьте помещения или снимите план этажа');
         } else {
           const o = blankObject(this.building.inspector);
           this.objects.unshift(o);
@@ -1280,7 +1283,7 @@
         const before = { purpose: room.purpose, t5: room.t5, t5Alt: room.t5Alt, category: room.category,
           classes: room.classes.slice(), sensitive: room.sensitive, forceType: room.forceType };
         P.applyPurpose(room, guess);
-        this.say('«' + room.name + '»: назначение по имени — ' + P.BY_ID[guess].label, function () {
+        this.say('Назначение помещения «' + room.name + '»: ' + P.BY_ID[guess].label, function () {
           Object.assign(room, before);
           room.purposeSet = true;
         });
@@ -1310,7 +1313,7 @@
           if (toNum(room.length) && toNum(room.width)) parts.push(E.fmt(room.length) + ' × ' + E.fmt(room.width) + ' м');
         }
         if (room.autoSuppression && !this.building.autoSuppressionAll) parts.push('АУПТ');
-        return parts.join(' · ');
+        return parts.join('; ');
       },
       roomMeta: function (room) {
         const parts = [];
@@ -1355,7 +1358,7 @@
       },
       floorNeed: function (id) {
         const f = this.resultFloor(id);
-        if (!f || !f.units.length) return '—';
+        if (!f || !f.units.length) return '–';
         const sum = {}, order = [];
         f.units.forEach(function (u) {
           u.lines.forEach(function (l) {
@@ -1371,11 +1374,11 @@
         const p = f.portable, n = p.powder + p.co2 + p.other;
         const parts = [n + ' ' + E.plural(n, 'переносной', 'переносных', 'переносных')];
         if (f.wheeled) parts.push(f.wheeled + ' ' + E.plural(f.wheeled, 'передвижной', 'передвижных', 'передвижных'));
-        return parts.join(' · ');
+        return parts.join(', ');
       },
       unitMeta: function (u) {
         if (u.kind === 'floorMin') {
-          return u.byRules ? 'п. 5: не менее двух огнетушителей на этаже общественного здания' : 'не менее двух огнетушителей на этаже — параметр расчёта';
+          return u.byRules ? 'п. 5: не менее двух огнетушителей на этаже общественного здания' : 'не менее двух огнетушителей на этаже (параметр расчёта)';
         }
         const parts = [];
         if (u.pooled) parts.push(u.roomCount + ' ' + E.plural(u.roomCount, 'помещение', 'помещения', 'помещений'));
@@ -1386,7 +1389,7 @@
           parts.push(u.category === 'PUB' ? 'общественное' : 'категория ' + u.categoryLabel);
           parts.push((u.classes.length > 1 ? 'классы ' : 'класс ') + u.classes.join(', '));
         }
-        return parts.join(' · ');
+        return parts.join('; ');
       },
       // Строка нормативной таблицы: подпись и оформление ячеек.
       matrixMixed: function (u) {
@@ -1394,8 +1397,8 @@
         return rows.some(function (r) { return r.fallback || r.area !== rows[0].area; });
       },
       matrixCaption: function (u) {
-        if (this.matrixMixed(u)) return 'Табл. 1 · число огнетушителей на предельную площадь';
-        return 'Табл. 1 · ' + u.matrix.rows[0].rowTitle + ' · на ' + u.matrix.rows[0].area + ' м²';
+        if (this.matrixMixed(u)) return 'Табл. 1: число огнетушителей на предельную площадь';
+        return 'Табл. 1: ' + u.matrix.rows[0].rowTitle + ', на ' + u.matrix.rows[0].area + ' м²';
       },
       cellClass: function (c) {
         if (c.chosen) return 'on';
@@ -1495,8 +1498,8 @@
         if (!fa.hasMarks) return '';
         const n = PL.tally(fa);
         const items = S.ORDER.filter(function (t) { return n.items[t]; }).map(function (t) { return S.ITEMS[t].short + ' ' + n.items[t]; });
-        return 'Отмечено: ОП ' + n.op + ' · ОУ ' + n.ou + (n.other ? ' · других ' + n.other : '') + (items.length ? ' · ' + items.join(' · ') : '') +
-          (fa.marked ? ' · ' + (fa.cover.bad > 0 ? 'дальше нормы ' + Math.max(1, Math.round(fa.cover.share * 100)) + ' % площади' : 'расстояние в норме') : '');
+        return 'Отмечено: ОП ' + n.op + ', ОУ ' + n.ou + (n.other ? ', других ' + n.other : '') + (items.length ? ', ' + items.join(', ') : '') +
+          (fa.marked ? '. ' + (fa.cover.bad > 0 ? 'Дальше нормы ' + Math.max(1, Math.round(fa.cover.share * 100)) + ' % площади' : 'Расстояние в норме') : '');
       },
       // Отметки для рисования: огнетушители поверх остальных знаков.
       sceneMarks: function (floor) {
@@ -1517,19 +1520,19 @@
       },
       planHint: function (floor) {
         const sc = this.sceneOf(floor);
-        const approx = (sc.rects.some(function (r) { return r.approx; }) ? ' Пунктир — размеры помещения не заданы, форма условная.' : '') +
+        const approx = (sc.rects.some(function (r) { return r.approx; }) ? ' Пунктир: размеры помещения не заданы, форма условная.' : '') +
           (this.factOf(floor).skipped ? ' На схеме показаны первые ' + PL.MAX_RECTS + ' помещений этажа.' : '');
-        const reach = sc.limits ? ' Круг — ' + sc.limits + ' по прямой, красным — дальше нормы.' : '';
+        const reach = sc.limits ? ' Круг: ' + sc.limits + ' по прямой, красным отмечено дальше нормы.' : '';
         if (floor.plan.view === 'want') {
           // выходы, краны и прочие отмеченные предметы видны и здесь, но огнетушителями не считаются
           const exts = sc.ext.filter(function (e) { return e.isExt; });
           const extra = exts.filter(function (e) { return e.extra; }).length;
           const fr = this.resultFloor(floor.id);
           return 'Расстановка по расчёту: ' + exts.length + ' ' + E.plural(exts.length, 'огнетушитель', 'огнетушителя', 'огнетушителей') +
-            (extra ? ', из них ' + extra + ' — по расстоянию (п. 4)' : '') + '.' +
+            (extra ? ', из них ' + extra + ' по расстоянию (п. 4)' : '') + '.' +
             (fr && fr.wheeled ? ' Передвижные (' + fr.wheeled + ') на схеме не показаны.' : '') +
             ' В PDF попадает как предлагаемая схема.' +
-            (floor.blueprint ? ' Помещения — по загруженному плану.' : ' Помещения можно перетаскивать.') + approx;
+            (floor.blueprint ? ' Помещения по загруженному плану.' : ' Помещения можно перетаскивать.') + approx;
         }
         if (this.planMode === 'move') {
           return (floor.blueprint ? 'Помещения стоят по загруженному плану. Отметки можно перетаскивать.' : 'Перетащите помещения так, как они стоят на этаже. Отметки тоже двигаются.') + approx;
@@ -1539,7 +1542,7 @@
           'Пожарные краны, кнопки, телефоны, щиты и выходы показываются на схеме и в PDF, но в число огнетушителей не входят.' + reach + approx;
       },
       extTitle: function (e) {
-        return (e.code || S.item(e.t).name) + ' · ' + e.rect.name;
+        return (e.code || S.item(e.t).name) + ', ' + e.rect.name;
       },
       // Точка нажатия в метрах схемы.
       planPoint: function (svg, ev) {
@@ -1553,7 +1556,7 @@
       },
       planClick: function (floor, ev) {
         if (this._dragged) return;
-        if (floor.plan.view !== 'fact') { this.say('Это расстановка по расчёту. Отмечать огнетушители — в режиме «Как есть»'); return; }
+        if (floor.plan.view !== 'fact') { this.say('Это расстановка по расчёту. Огнетушители отмечаются в режиме «Как есть»'); return; }
         if (this.planMode === 'move') return;
         const mark = ev.target.closest ? ev.target.closest('[data-ext]') : null;
         if (mark) { this.removeExt(floor, mark.getAttribute('data-ext')); return; }
@@ -1561,7 +1564,7 @@
         const rect = p && PL.at(this.sceneOf(floor).rects, p.x, p.y);
         if (!rect) { this.say('Нажмите внутри помещения'); return; }
         floor.plan.ext.push({ id: uid('e'), k: rect.key, u: unit((p.x - rect.x) / rect.w), v: unit((p.y - rect.y) / rect.h), t: S.typeOf(this.planMode), code: '' });
-        if (this.planMode === 'op' && rect.sensitive) this.say('«' + rect.name + '»: порошковый в помещении с электроникой — нарушение');
+        if (this.planMode === 'op' && rect.sensitive) this.say('«' + rect.name + '»: порошковый огнетушитель в помещении с электроникой, это нарушение');
       },
       removeExt: function (floor, id) {
         const list = floor.plan.ext;
@@ -1751,7 +1754,7 @@
           ? Promise.resolve(byLength)
           : runVision(px, bp.w, bp.h, { areaM2: toNum(bp.areaM2) }).then(function (out) { return V.scaleFromArea(out.rooms, toNum(bp.areaM2)); });
         scaled.then(function (scale) {
-          if (!(scale > 0)) throw new Error('Помещения не найдены — проверьте, что план целиком в кадре и стены видны');
+          if (!(scale > 0)) throw new Error('Помещения не найдены. Проверьте, что план целиком в кадре и стены видны');
           return runVision(px, bp.w, bp.h, { scale: scale }).then(function (out) {
             // по площади: второй проход с масштабом находит помещения чуть иначе, чем первый,
             // поэтому масштаб уточняется, чтобы сумма площадей совпала с введённой
@@ -1767,7 +1770,7 @@
           if (!res.out.rooms.length) {
             bp.error = res.scale < 3
               ? 'Помещения не найдены: при таком масштабе на 1 м плана меньше 3 точек. Проверьте длину (в метрах) или площадь (в м²)'
-              : 'Помещения не найдены — проверьте масштаб и что стены на плане видны';
+              : 'Помещения не найдены. Проверьте масштаб и что стены на плане видны';
             return;
           }
           const fallback = self.kind.purpose;
@@ -1808,7 +1811,7 @@
         const prev = { rooms: floor.rooms, blueprint: floor.blueprint || null, plan: clone(floor.plan) };
         const key = bp.imgKey || uid('img'), s = bp.scale;
         this.bpImages[key] = bp.img;
-        IMG.put(key, bp.img).catch(function () { self.say('Картинку плана сохранить не удалось — после перезагрузки схема будет без неё'); });
+        IMG.put(key, bp.img).catch(function () { self.say('Картинку плана сохранить не удалось: после перезапуска схема будет без неё'); });
         function r1(x) { return Math.round(x * 10) / 10; }
         floor.blueprint = {
           img: key, w: bp.w, h: bp.h, scale: Math.round(s * 10000) / 10000,
@@ -1927,7 +1930,7 @@
           return PF.savePdf(x.pdf, x.name).then(function (r) {
             self.pdfBusy = false;
             self.pdfDialog = false;
-            if (r && r.how === 'share') self.say(r.cancelled ? 'PDF готов: ' + x.name + '. Чтобы отправить, нажмите «Скачать PDF» ещё раз' : 'PDF готов: ' + x.name);
+            if (r && r.how === 'share') self.say(r.cancelled ? 'PDF готов: ' + x.name + '. Чтобы отправить, нажмите «Сохранить PDF» ещё раз' : 'PDF готов: ' + x.name);
             else if (r && r.how === 'dialog') { // Windows: окно «Сохранить как» закрыто
               if (r.cancelled) self.say('PDF не сохранён');
               else self.say('PDF сохранён: ' + r.path, r.open, 'Открыть');
@@ -2062,12 +2065,12 @@
       }
       // ?selfcheck=1 — проверка, что PDF формируется в этом браузере
       if (q.get('selfcheck')) {
-        this.selfcheck = 'Самопроверка: формирую PDF…';
+        this.selfcheck = 'Самопроверка: формирование PDF…';
         this.makePdf().then(function (x) {
           x.pdf.getBuffer(function (buffer) {
             self.selfcheck = 'Самопроверка: PDF сформирован, ' + Math.round(buffer.length / 1024) + ' КБ, файл «' + x.name + '».';
           });
-        }).catch(function (e) { self.selfcheck = 'Самопроверка: ошибка PDF — ' + (e && e.message ? e.message : e); });
+        }).catch(function (e) { self.selfcheck = 'Самопроверка: ошибка PDF: ' + (e && e.message ? e.message : e); });
       }
     }
   });
