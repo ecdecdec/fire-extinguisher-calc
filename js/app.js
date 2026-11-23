@@ -77,10 +77,15 @@
     });
     return { img: typeof bp.img === 'string' ? bp.img : '', w: Number(bp.w) || 0, h: Number(bp.h) || 0, scale: Number(bp.scale), rooms: rooms };
   }
+  // Версия приложения и сборка для нижнего колонтитула PDF.
+  function appVersionText() {
+    const c = window.FIRECALC_CONFIG || {};
+    return c.version ? c.version + (c.build ? ' (сборка ' + c.build + ')' : '') : '';
+  }
   function blankObject(inspector) {
     return {
       id: uid('o'), example: '',
-      building: { name: '', address: '', owner: '', inspector: inspector || '', date: today(), kind: 'public', autoSuppressionAll: false },
+      building: { name: '', address: '', owner: '', inspector: inspector || '', date: today(), kind: 'public', autoSuppressionAll: false, authority: '', actNo: '', actDate: '', bin: '' },
       floors: [newFloor(1, 'office')]
     };
   }
@@ -696,11 +701,15 @@
 <div class="modal" v-if="pdfDialog" @click.self="pdfDialog = false">
   <div class="modal__box" role="dialog" aria-modal="true" aria-labelledby="pdfTitle">
     <h2 id="pdfTitle">Данные для отчёта</h2>
-    <p class="hint">Попадут в шапку PDF. Пустые поля останутся прочерками</p>
+    <p class="hint">Попадут в шапку PDF. Пустые поля останутся пустыми строками для записи от руки</p>
     <div class="modal__grid">
+      <label class="field modal__wide"><span>Государственный орган, назначивший проверку</span><input type="text" data-test="pdf-authority" v-model.trim="building.authority"></label>
+      <label class="field"><span>Акт о назначении проверки, номер</span><input type="text" data-test="pdf-actno" v-model.trim="building.actNo"></label>
+      <label class="field"><span>Акт о назначении проверки, дата</span><input type="date" data-test="pdf-actdate" v-model="building.actDate"></label>
       <label class="field modal__wide"><span>Название объекта</span><input type="text" data-test="pdf-name" v-model.trim="building.name" placeholder="Школа № 12"></label>
       <label class="field modal__wide"><span>Адрес</span><input type="text" v-model.trim="building.address" placeholder="Город, улица, дом"></label>
       <label class="field modal__wide"><span>Собственник или организация</span><input type="text" v-model.trim="building.owner"></label>
+      <label class="field"><span>ИИН или БИН</span><input type="text" inputmode="numeric" maxlength="12" data-test="pdf-bin" v-model.trim="building.bin" placeholder="12 цифр"></label>
       <label class="field"><span>Расчёт выполнил</span><input type="text" v-model.trim="building.inspector" placeholder="Фамилия И. О., должность"></label>
       <label class="field"><span>Дата расчёта</span><input type="date" v-model="building.date"></label>
     </div>
@@ -1919,7 +1928,7 @@
           ? this.shareCode().then(function (code) { const l = self.linkFor(code); return l.length <= MAX_QR_LINK ? l : ''; }).catch(function () { return ''; })
           : Promise.resolve('');
         return Promise.all([ensurePdf(), link]).then(function (x) {
-          const doc = R.buildDoc(result, { generatedAt: now, audit: audit, schemes: schemes, link: x[1] });
+          const doc = R.buildDoc(result, { generatedAt: now, audit: audit, schemes: schemes, link: x[1], appVersion: appVersionText() });
           return { pdf: window.pdfMake.createPdf(doc, null, R.FONTS), name: R.fileName(result, now) };
         });
       },
