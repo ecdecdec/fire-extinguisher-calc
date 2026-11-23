@@ -1,0 +1,533 @@
+{
+ "evac-ru-kdc-1": {
+  "kind": "evac-photo",
+  "w": 1600,
+  "h": 1200,
+  "title": "File:Коряжемский культурно-досуговый центр . План эвакуации. 1 этаж.JPG",
+  "page": "https://commons.wikimedia.org/wiki/File:%D0%9A%D0%BE%D1%80%D1%8F%D0%B6%D0%B5%D0%BC%D1%81%D0%BA%D0%B8%D0%B9_%D0%BA%D1%83%D0%BB%D1%8C%D1%82%D1%83%D1%80%D0%BD%D0%BE-%D0%B4%D0%BE%D1%81%D1%83%D0%B3%D0%BE%D0%B2%D1%8B%D0%B9_%D1%86%D0%B5%D0%BD%D1%82%D1%80_._%D0%9F%D0%BB%D0%B0%D0%BD_%D1%8D%D0%B2%D0%B0%D0%BA%D1%83%D0%B0%D1%86%D0%B8%D0%B8._1_%D1%8D%D1%82%D0%B0%D0%B6.JPG",
+  "license": "CC0",
+  "author": "Georg Pik"
+ },
+ "evac-ru-kdc-2": {
+  "kind": "evac-photo",
+  "w": 1600,
+  "h": 890,
+  "title": "File:Коряжемский культурно-досуговый центр . План эвакуации. 2 этаж.JPG",
+  "page": "https://commons.wikimedia.org/wiki/File:%D0%9A%D0%BE%D1%80%D1%8F%D0%B6%D0%B5%D0%BC%D1%81%D0%BA%D0%B8%D0%B9_%D0%BA%D1%83%D0%BB%D1%8C%D1%82%D1%83%D1%80%D0%BD%D0%BE-%D0%B4%D0%BE%D1%81%D1%83%D0%B3%D0%BE%D0%B2%D1%8B%D0%B9_%D1%86%D0%B5%D0%BD%D1%82%D1%80_._%D0%9F%D0%BB%D0%B0%D0%BD_%D1%8D%D0%B2%D0%B0%D0%BA%D1%83%D0%B0%D1%86%D0%B8%D0%B8._2_%D1%8D%D1%82%D0%B0%D0%B6.JPG",
+  "license": "CC0",
+  "author": "Georg Pik"
+ },
+ "evac-angle-green": {
+  "kind": "evac-photo",
+  "w": 1200,
+  "h": 1600,
+  "title": "File:План эвакуации.jpg",
+  "page": "https://commons.wikimedia.org/wiki/File:%D0%9F%D0%BB%D0%B0%D0%BD_%D1%8D%D0%B2%D0%B0%D0%BA%D1%83%D0%B0%D1%86%D0%B8%D0%B8.jpg",
+  "license": "CC BY-SA 4.0",
+  "author": "Якщо"
+ },
+ "evac-wall-panel": {
+  "kind": "evac-photo",
+  "w": 1600,
+  "h": 1200,
+  "title": "File:Escape and evacuation plan on door in guest room in a hotel in Glasgow.jpg",
+  "page": "https://commons.wikimedia.org/wiki/File:Escape_and_evacuation_plan_on_door_in_guest_room_in_a_hotel_in_Glasgow.jpg",
+  "license": "CC BY-SA 4.0",
+  "author": "Tbatb"
+ },
+ "evac-it-1": {
+  "kind": "evac-photo",
+  "w": 1600,
+  "h": 1200,
+  "title": "File:Evacuation plan in San Camillo Hospital.01.jpg",
+  "page": "https://commons.wikimedia.org/wiki/File:Evacuation_plan_in_San_Camillo_Hospital.01.jpg",
+  "license": "CC BY-SA 4.0",
+  "author": "CAPTAIN RAJU"
+ },
+ "evac-metal-plate": {
+  "kind": "evac-photo",
+  "w": 1200,
+  "h": 1600,
+  "title": "File:HK CWB Jardine's Crescent Fortune Centre fire escape route floorplan Aug-2012.JPG",
+  "page": "https://commons.wikimedia.org/wiki/File:HK_CWB_Jardine%27s_Crescent_Fortune_Centre_fire_escape_route_floorplan_Aug-2012.JPG",
+  "license": "CC BY-SA 3.0",
+  "author": "Cheuogaiomedia"
+ },
+ "evac-mosque": {
+  "kind": "evac-photo",
+  "w": 1600,
+  "h": 1200,
+  "title": "File:Masjid Omar Salmah fire evacuation plan.png",
+  "page": "https://commons.wikimedia.org/wiki/File:Masjid_Omar_Salmah_fire_evacuation_plan.png",
+  "license": "CC BY-SA 4.0",
+  "author": "Johnsung123"
+ },
+ "evac-bw-legend": {
+  "kind": "evac-photo",
+  "w": 1600,
+  "h": 1200,
+  "title": "File:Syntrend emergency exit 3F-01 and evacuation plan 20251012.jpg",
+  "page": "https://commons.wikimedia.org/wiki/File:Syntrend_emergency_exit_3F-01_and_evacuation_plan_20251012.jpg",
+  "license": "CC BY-SA 4.0",
+  "author": "Solomon203"
+ },
+ "evac-my-concourse": {
+  "kind": "evac-photo",
+  "w": 1600,
+  "h": 1200,
+  "title": "File:UiTM Shah Alam LRT Station evacuation plan (260704).jpg",
+  "page": "https://commons.wikimedia.org/wiki/File:UiTM_Shah_Alam_LRT_Station_evacuation_plan_(260704).jpg",
+  "license": "CC BY-SA 4.0",
+  "author": "*angys*"
+ },
+ "evac-my-platform": {
+  "kind": "evac-photo",
+  "w": 1600,
+  "h": 1200,
+  "title": "File:Subang LRT Station evacuation plan (260719).jpg",
+  "page": "https://commons.wikimedia.org/wiki/File:Subang_LRT_Station_evacuation_plan_(260719).jpg",
+  "license": "CC BY-SA 4.0",
+  "author": "*angys*"
+ },
+ "evac-de-1": {
+  "kind": "evac-photo",
+  "w": 1067,
+  "h": 1600,
+  "title": "File:Dresden,Hauptbahnhof Königspavillon 2016 -038.jpg",
+  "page": "https://commons.wikimedia.org/wiki/File:Dresden,Hauptbahnhof_K%C3%B6nigspavillon_2016_-038.jpg",
+  "license": "CC BY-SA 4.0",
+  "author": "Bybbisch94, Christian Gebhardt"
+ },
+ "evac-de-angle": {
+  "kind": "evac-photo",
+  "w": 1200,
+  "h": 1600,
+  "title": "File:Fluchtplan Rettungsplan Kaufmännische Schule Tauberbischofsheim Erdgeschoss Hintereingang.jpg",
+  "page": "https://commons.wikimedia.org/wiki/File:Fluchtplan_Rettungsplan_Kaufm%C3%A4nnische_Schule_Tauberbischofsheim_Erdgeschoss_Hintereingang.jpg",
+  "license": "CC BY-SA 4.0",
+  "author": "Triplec85"
+ },
+ "evac-hotel-angle": {
+  "kind": "evac-photo",
+  "w": 1600,
+  "h": 1200,
+  "title": "File:Fire Escape Plan (5441749788).jpg",
+  "page": "https://commons.wikimedia.org/wiki/File:Fire_Escape_Plan_(5441749788).jpg",
+  "license": "CC BY 2.0",
+  "author": "Sean MacEntee from Monaghan, Ireland"
+ },
+ "evac-cn-bw": {
+  "kind": "evac-photo",
+  "w": 1200,
+  "h": 1600,
+  "title": "File:Fire Escape Plan sign in Kyoto.jpg",
+  "page": "https://commons.wikimedia.org/wiki/File:Fire_Escape_Plan_sign_in_Kyoto.jpg",
+  "license": "CC BY-SA 2.0",
+  "author": "kalupa"
+ },
+ "evac-cn-color": {
+  "kind": "evac-photo",
+  "w": 1600,
+  "h": 1195,
+  "title": "File:HK 123 Gloucester Road 舊灣仔警署 Old Wan Chai Police Station floorplan Fire escape Dec-2012.JPG",
+  "page": "https://commons.wikimedia.org/wiki/File:HK_123_Gloucester_Road_%E8%88%8A%E7%81%A3%E4%BB%94%E8%AD%A6%E7%BD%B2_Old_Wan_Chai_Police_Station_floorplan_Fire_escape_Dec-2012.JPG",
+  "license": "CC BY-SA 3.0",
+  "author": "Cawpwoa"
+ },
+ "evac-flora-court": {
+  "kind": "evac-photo",
+  "w": 1600,
+  "h": 1195,
+  "title": "File:HK Central 95 Caine Road 富來閣 Flora Court 逃生路線 Map Fire Escape Jan-2011.jpg",
+  "page": "https://commons.wikimedia.org/wiki/File:HK_Central_95_Caine_Road_%E5%AF%8C%E4%BE%86%E9%96%A3_Flora_Court_%E9%80%83%E7%94%9F%E8%B7%AF%E7%B7%9A_Map_Fire_Escape_Jan-2011.jpg",
+  "license": "CC BY-SA 3.0",
+  "author": "Mingotack"
+ },
+ "evac-hk-hall": {
+  "kind": "evac-photo",
+  "w": 1600,
+  "h": 1200,
+  "title": "File:HK Shatin Shek Mun 新界鄉議局大樓 Heung Yee Kuk Building fire evacuation escape direction map Sept-2012.JPG",
+  "page": "https://commons.wikimedia.org/wiki/File:HK_Shatin_Shek_Mun_%E6%96%B0%E7%95%8C%E9%84%89%E8%AD%B0%E5%B1%80%E5%A4%A7%E6%A8%93_Heung_Yee_Kuk_Building_fire_evacuation_escape_direction_map_Sept-2012.JPG",
+  "license": "CC BY-SA 3.0",
+  "author": "Langsmu260"
+ },
+ "plan-framed-glare": {
+  "kind": "evac-photo",
+  "w": 1600,
+  "h": 1200,
+  "title": "File:Ground & First floor plans, No.9 Lowther Terrace, Glasgow.jpg",
+  "page": "https://commons.wikimedia.org/wiki/File:Ground_%26_First_floor_plans,_No.9_Lowther_Terrace,_Glasgow.jpg",
+  "license": "CC BY-SA 4.0",
+  "author": "KirkleeMansion"
+ },
+ "evac-cz-clean": {
+  "kind": "evac-clean",
+  "w": 1600,
+  "h": 1199,
+  "title": "File:Zimnyaya Vishnya floor 4 plan-cs.svg",
+  "page": "https://commons.wikimedia.org/wiki/File:Zimnyaya_Vishnya_floor_4_plan-cs.svg",
+  "license": "CC BY-SA 4.0",
+  "author": "User:Hellerick Translation by User:Palu"
+ },
+ "arch-apt-black-walls": {
+  "kind": "drawing",
+  "w": 1600,
+  "h": 1278,
+  "title": "File:Typical Floor Plan—Apartment House at 1785 Massachusetts Avenue.jpg",
+  "page": "https://commons.wikimedia.org/wiki/File:Typical_Floor_Plan%E2%80%94Apartment_House_at_1785_Massachusetts_Avenue.jpg",
+  "license": "Public domain",
+  "author": "Jules Henri de Sibour"
+ },
+ "arch-house-lowres": {
+  "kind": "drawing",
+  "w": 1600,
+  "h": 1431,
+  "title": "File:Schmidt-Lademann house floor plan.svg",
+  "page": "https://commons.wikimedia.org/wiki/File:Schmidt-Lademann_house_floor_plan.svg",
+  "license": "CC BY-SA 4.0",
+  "author": "Frank-Peter Schmidt-Lademann"
+ },
+ "arch-house-color": {
+  "kind": "drawing-color",
+  "w": 1600,
+  "h": 1333,
+  "title": "File:Hills-DeCaro House First Floor Plan Post-Fire.jpg",
+  "page": "https://commons.wikimedia.org/wiki/File:Hills-DeCaro_House_First_Floor_Plan_Post-Fire.jpg",
+  "license": "CC BY-SA 3.0",
+  "author": "Fox69"
+ },
+ "arch-house-color-2": {
+  "kind": "drawing-color",
+  "w": 1600,
+  "h": 1333,
+  "title": "File:Hills-Decaro House First Floor Plan 1906.jpg",
+  "page": "https://commons.wikimedia.org/wiki/File:Hills-Decaro_House_First_Floor_Plan_1906.jpg",
+  "license": "CC BY-SA 3.0",
+  "author": "Fox69"
+ },
+ "arch-dims-lines": {
+  "kind": "drawing",
+  "w": 1600,
+  "h": 1340,
+  "title": "File:Bolduc House Floor Plan--Ste Genevieve MO.png",
+  "page": "https://commons.wikimedia.org/wiki/File:Bolduc_House_Floor_Plan--Ste_Genevieve_MO.png",
+  "license": "Public domain",
+  "author": "Drawn by Frank R. Leslie"
+ },
+ "arch-habs-sheet": {
+  "kind": "drawing-sheet",
+  "w": 1600,
+  "h": 1289,
+  "title": "File:Putnam House - floor plans.jpg",
+  "page": "https://commons.wikimedia.org/wiki/File:Putnam_House_-_floor_plans.jpg",
+  "license": "Public domain",
+  "author": "United States Department of the Interior."
+ },
+ "arch-office-4plans": {
+  "kind": "drawing",
+  "w": 1600,
+  "h": 1102,
+  "title": "File:Benedum Trees Building floor plans a.png",
+  "page": "https://commons.wikimedia.org/wiki/File:Benedum_Trees_Building_floor_plans_a.png",
+  "license": "Public domain",
+  "author": "Architect: Thomas H. Scott"
+ },
+ "arch-heathcote": {
+  "kind": "drawing",
+  "w": 1600,
+  "h": 1107,
+  "title": "File:Heathcote Ground-floor Plan Lutyens Houses and Gardens 1913 Page239.jpg",
+  "page": "https://commons.wikimedia.org/wiki/File:Heathcote_Ground-floor_Plan_Lutyens_Houses_and_Gardens_1913_Page239.jpg",
+  "license": "Public domain",
+  "author": "Book author: Weaver, Lawrence, 1876-1930"
+ },
+ "arch-dinsley-long": {
+  "kind": "drawing",
+  "w": 1600,
+  "h": 690,
+  "title": "File:Temple Dinsley Ground Floor Plan Lutyens Houses and Gardens 1913 Page271.jpg",
+  "page": "https://commons.wikimedia.org/wiki/File:Temple_Dinsley_Ground_Floor_Plan_Lutyens_Houses_and_Gardens_1913_Page271.jpg",
+  "license": "Public domain",
+  "author": "Book author: Weaver, Lawrence, 1876-1930"
+ },
+ "arch-modern-grid": {
+  "kind": "drawing",
+  "w": 1600,
+  "h": 1232,
+  "title": "File:Dariush Borbor (Architect and Urban Planner), Cinema, Ground Floor Plan, Sarakhs, 1975.jpg",
+  "page": "https://commons.wikimedia.org/wiki/File:Dariush_Borbor_(Architect_and_Urban_Planner),_Cinema,_Ground_Floor_Plan,_Sarakhs,_1975.jpg",
+  "license": "CC BY 4.0",
+  "author": "Dariushborbor"
+ },
+ "arch-library-hatch": {
+  "kind": "drawing",
+  "w": 1600,
+  "h": 628,
+  "title": "File:Bibliothek Sainte-Geneviève ground floor plan.jpg",
+  "page": "https://commons.wikimedia.org/wiki/File:Bibliothek_Sainte-Genevi%C3%A8ve_ground_floor_plan.jpg",
+  "license": "Public domain",
+  "author": ""
+ },
+ "arch-castle-hatch-legend": {
+  "kind": "drawing",
+  "w": 1600,
+  "h": 1384,
+  "title": "File:Talhenbont Hall floor plan.png",
+  "page": "https://commons.wikimedia.org/wiki/File:Talhenbont_Hall_floor_plan.png",
+  "license": "Public domain",
+  "author": "RCAHMW"
+ },
+ "school-latrobe": {
+  "kind": "drawing",
+  "w": 960,
+  "h": 1242,
+  "title": "File:Greater Latrobe Sr High School 1966 first floor plan.jpg",
+  "page": "https://commons.wikimedia.org/wiki/File:Greater_Latrobe_Sr_High_School_1966_first_floor_plan.jpg",
+  "license": "Public domain",
+  "author": "Architects: Bartholomew, Roach, Moyer, & Walfish"
+ },
+ "school-union-2floors": {
+  "kind": "drawing-sheet",
+  "w": 1205,
+  "h": 1600,
+  "title": "File:Union high floor plan.jpg",
+  "page": "https://commons.wikimedia.org/wiki/File:Union_high_floor_plan.jpg",
+  "license": "Public domain",
+  "author": "Alex at kms"
+ },
+ "hospital-complex": {
+  "kind": "drawing",
+  "w": 1600,
+  "h": 1232,
+  "title": "File:Cleveland Union Terminal floor plan.jpg",
+  "page": "https://commons.wikimedia.org/wiki/File:Cleveland_Union_Terminal_floor_plan.jpg",
+  "license": "Public domain",
+  "author": "Railway Age 1928-12-29: Vol 85 Iss 26"
+ },
+ "cad-sheet-titleblock": {
+  "kind": "drawing-sheet",
+  "w": 1600,
+  "h": 1067,
+  "title": "File:Renovation of Capehart Apartment Building 844 First Floor Plan - Special Systems, June 2, 1993 - DPLA - 9b13718e88ab565767885993299333b0.tiff",
+  "page": "https://commons.wikimedia.org/wiki/File:Renovation_of_Capehart_Apartment_Building_844_First_Floor_Plan_-_Special_Systems,_June_2,_1993_-_DPLA_-_9b13718e88ab565767885993299333b0.tiff",
+  "license": "Public domain",
+  "author": "Department of Homeland Security. U.S. Coast Guard. 3/1/2003"
+ },
+ "habs-complex": {
+  "kind": "drawing-sheet",
+  "w": 1600,
+  "h": 1297,
+  "title": "File:Union Oyster House - Floor Plan.jpg",
+  "page": "https://commons.wikimedia.org/wiki/File:Union_Oyster_House_-_Floor_Plan.jpg",
+  "license": "Public domain",
+  "author": ""
+ },
+ "inverted-small": {
+  "kind": "edge",
+  "w": 1600,
+  "h": 1132,
+  "title": "File:Floor plan of an orthodox temple.svg",
+  "page": "https://commons.wikimedia.org/wiki/File:Floor_plan_of_an_orthodox_temple.svg",
+  "license": "CC BY-SA 4.0",
+  "author": "Robert Jahoda"
+ },
+ "round-tower-black": {
+  "kind": "edge",
+  "w": 1600,
+  "h": 1286,
+  "title": "File:Château de Montaigne - tower - sketch of 2nd floor with library.svg",
+  "page": "https://commons.wikimedia.org/wiki/File:Ch%C3%A2teau_de_Montaigne_-_tower_-_sketch_of_2nd_floor_with_library.svg",
+  "license": "CC BY-SA 4.0",
+  "author": "Roman Eisele"
+ },
+ "temple-columns": {
+  "kind": "edge",
+  "w": 1600,
+  "h": 1035,
+  "title": "File:A floor plan of the Kailasanatha temple, Kanchipuram Tamil Nadu.jpg",
+  "page": "https://commons.wikimedia.org/wiki/File:A_floor_plan_of_the_Kailasanatha_temple,_Kanchipuram_Tamil_Nadu.jpg",
+  "license": "CC0",
+  "author": "Ms Sarah Welch"
+ },
+ "blueprint-blue": {
+  "kind": "drawing-color",
+  "w": 1252,
+  "h": 1600,
+  "title": "File:Home plan suggestions (1921) (14576782407).jpg",
+  "page": "https://commons.wikimedia.org/wiki/File:Home_plan_suggestions_(1921)_(14576782407).jpg",
+  "license": "No restrictions",
+  "author": "Wm. A. Radford"
+ },
+ "catalog-plan": {
+  "kind": "drawing",
+  "w": 1250,
+  "h": 1600,
+  "title": "File:Home plan suggestions (1921) (14576584759).jpg",
+  "page": "https://commons.wikimedia.org/wiki/File:Home_plan_suggestions_(1921)_(14576584759).jpg",
+  "license": "No restrictions",
+  "author": "Wm. A. Radford"
+ },
+ "numbered-rooms-dashed": {
+  "kind": "drawing",
+  "w": 964,
+  "h": 983,
+  "title": "File:Plan du petit appartement du roi 1693.jpg",
+  "page": "https://commons.wikimedia.org/wiki/File:Plan_du_petit_appartement_du_roi_1693.jpg",
+  "license": "CC BY-SA 3.0",
+  "author": "EFL GmbH"
+ },
+ "red-walls-scalebar": {
+  "kind": "drawing-color",
+  "w": 1600,
+  "h": 1200,
+  "title": "File:Ur 1 old street.svg",
+  "page": "https://commons.wikimedia.org/wiki/File:Ur_1_old_street.svg",
+  "license": "CC BY-SA 3.0",
+  "author": "Original by L. Woolley and M. Mallowan, The Old Babylonian Period, Ur Excavations VII, 1976. Bitmap version produced by Zunkir, 2011-04-17. Vectorised, and chec"
+ },
+ "black-walls-scalebar": {
+  "kind": "drawing",
+  "w": 705,
+  "h": 1600,
+  "title": "File:Volubilis - Plan de l'insula 11.svg",
+  "page": "https://commons.wikimedia.org/wiki/File:Volubilis_-_Plan_de_l%27insula_11.svg",
+  "license": "CC BY-SA 4.0",
+  "author": "Augusta 89"
+ },
+ "round-house-areas": {
+  "kind": "drawing-color",
+  "w": 1600,
+  "h": 1452,
+  "title": "File:Grundriss Ostermann-Rundhaus Typ 1050.svg",
+  "page": "https://commons.wikimedia.org/wiki/File:Grundriss_Ostermann-Rundhaus_Typ_1050.svg",
+  "license": "CC BY-SA 4.0",
+  "author": "Sky ffm"
+ },
+ "ru-apartment-zoning": {
+  "kind": "drawing-color",
+  "w": 1600,
+  "h": 903,
+  "title": "File:Зонирование квартиры.svg",
+  "page": "https://commons.wikimedia.org/wiki/File:%D0%97%D0%BE%D0%BD%D0%B8%D1%80%D0%BE%D0%B2%D0%B0%D0%BD%D0%B8%D0%B5_%D0%BA%D0%B2%D0%B0%D1%80%D1%82%D0%B8%D1%80%D1%8B.svg",
+  "license": "CC0",
+  "author": "Андрей Перцев 1967"
+ },
+ "apartment-color-furniture": {
+  "kind": "drawing-color",
+  "w": 1593,
+  "h": 1600,
+  "title": "File:Little White House floor plan.svg",
+  "page": "https://commons.wikimedia.org/wiki/File:Little_White_House_floor_plan.svg",
+  "license": "Public domain",
+  "author": "Original: Bedford Vector: Connormah"
+ },
+ "numbered-gray": {
+  "kind": "drawing-color",
+  "w": 960,
+  "h": 1600,
+  "title": "File:Saqqara, Mastaba of Mereruka, floor plan, main floor only.svg",
+  "page": "https://commons.wikimedia.org/wiki/File:Saqqara,_Mastaba_of_Mereruka,_floor_plan,_main_floor_only.svg",
+  "license": "CC BY-SA 4.0",
+  "author": "Aristeas (Roman Eisele)"
+ },
+ "scan-engraving": {
+  "kind": "scan",
+  "w": 1600,
+  "h": 1125,
+  "title": "File:Ascot Heath House Plan - The Builder - Dec 19, 1868.jpg",
+  "page": "https://commons.wikimedia.org/wiki/File:Ascot_Heath_House_Plan_-_The_Builder_-_Dec_19,_1868.jpg",
+  "license": "Public domain",
+  "author": "The Builder (periodical)"
+ },
+ "scan-degraded-school": {
+  "kind": "scan",
+  "w": 1200,
+  "h": 1600,
+  "title": "File:Floor plan of the basement of Deseronto High School, showing the bathrooms and girls' and boys' playrooms. (3292302365).jpg",
+  "page": "https://commons.wikimedia.org/wiki/File:Floor_plan_of_the_basement_of_Deseronto_High_School,_showing_the_bathrooms_and_girls%27_and_boys%27_playrooms._(3292302365).jpg",
+  "license": "No restrictions",
+  "author": "Deseronto Archives"
+ },
+ "scan-handwritten": {
+  "kind": "scan",
+  "w": 1430,
+  "h": 1600,
+  "title": "File:Photograph, Photograph of a Floor Plan of an Apartment Building Designed by Hector Guimard (No. 8), 1911 (CH 18387433).jpg",
+  "page": "https://commons.wikimedia.org/wiki/File:Photograph,_Photograph_of_a_Floor_Plan_of_an_Apartment_Building_Designed_by_Hector_Guimard_(No._8),_1911_(CH_18387433).jpg",
+  "license": "Public domain",
+  "author": "Unknown artistUnknown artist"
+ },
+ "scan-book-page-color": {
+  "kind": "scan",
+  "w": 1201,
+  "h": 1600,
+  "title": "File:Six-story elevator apartment house, northwest corner Broadway and 180th Street. Plan of first floor; Plan of upper floors (NYPL b12647274-465516).jpg",
+  "page": "https://commons.wikimedia.org/wiki/File:Six-story_elevator_apartment_house,_northwest_corner_Broadway_and_180th_Street._Plan_of_first_floor;_Plan_of_upper_floors_(NYPL_b12647274-465516).jpg",
+  "license": "Public domain",
+  "author": "Scan by NYPL"
+ },
+ "scan-fever-hospital": {
+  "kind": "scan",
+  "w": 1600,
+  "h": 1129,
+  "title": "File:Fever Hospital, Margate, Kent, England; floor plan. Line eng Wellcome V0013925.jpg",
+  "page": "https://commons.wikimedia.org/wiki/File:Fever_Hospital,_Margate,_Kent,_England;_floor_plan._Line_eng_Wellcome_V0013925.jpg",
+  "license": "CC BY 4.0",
+  "author": ""
+ },
+ "scan-old-dims-2plans": {
+  "kind": "scan",
+  "w": 1600,
+  "h": 1310,
+  "title": "File:Radford's practical barn plans - being a complete collection of practical, economical and common-sense plans of barns, out buildings and stock sheds (1907) (14596164447).jpg",
+  "page": "https://commons.wikimedia.org/wiki/File:Radford%27s_practical_barn_plans_-_being_a_complete_collection_of_practical,_economical_and_common-sense_plans_of_barns,_out_buildings_and_stock_sheds_(1907)_(14596164447).jpg",
+  "license": "No restrictions",
+  "author": "Internet Archive Book Images"
+ },
+ "photo-plan-1940": {
+  "kind": "photo-of-drawing",
+  "w": 1600,
+  "h": 1252,
+  "title": "File:Photocopy of floor plan, from a sketch in the 1940 HABS index card - Eutaw, Eutaw Springs, Orangeburg County, SC HABS SC,38-EUTA.V,6-4.tif",
+  "page": "https://commons.wikimedia.org/wiki/File:Photocopy_of_floor_plan,_from_a_sketch_in_the_1940_HABS_index_card_-_Eutaw,_Eutaw_Springs,_Orangeburg_County,_SC_HABS_SC,38-EUTA.V,6-4.tif",
+  "license": "Public domain",
+  "author": ""
+ },
+ "photo-plan-gray": {
+  "kind": "photo-of-drawing",
+  "w": 1600,
+  "h": 1042,
+  "title": "File:A floor plan of Oulu's Seurahuone 1938 (JOKAKAL3B-4037).tif",
+  "page": "https://commons.wikimedia.org/wiki/File:A_floor_plan_of_Oulu%27s_Seurahuone_1938_(JOKAKAL3B-4037).tif",
+  "license": "CC BY 4.0",
+  "author": ""
+ },
+ "photo-drawing-table": {
+  "kind": "photo-of-drawing",
+  "w": 1600,
+  "h": 1200,
+  "title": "File:GX-298 - Architectural blueprint detailing Epstein Residences floor plan with labeled rooms dimensions and annotations on aged paper.jpg",
+  "page": "https://commons.wikimedia.org/wiki/File:GX-298_-_Architectural_blueprint_detailing_Epstein_Residences_floor_plan_with_labeled_rooms_dimensions_and_annotations_on_aged_paper.jpg",
+  "license": "Public domain",
+  "author": "Palm Beach Police Department"
+ },
+ "sketch-red": {
+  "kind": "sketch",
+  "w": 1272,
+  "h": 1600,
+  "title": "File:John N. A. Griswold house (now Newport Art Museum), Newport, Rhode Island. First floor plan. Sketch) - R. M. Hunt, Archt LCCN2013648688.jpg",
+  "page": "https://commons.wikimedia.org/wiki/File:John_N._A._Griswold_house_(now_Newport_Art_Museum),_Newport,_Rhode_Island._First_floor_plan._Sketch)_-_R._M._Hunt,_Archt_LCCN2013648688.jpg",
+  "license": "Public domain",
+  "author": "Hunt, Richard Morris, 1828-1895, architect; Griswold, John N. A., client; Newport Art Museum (R.I.)"
+ },
+ "sketch-color": {
+  "kind": "sketch",
+  "w": 1600,
+  "h": 1200,
+  "title": "File:Floor Plan Sketch of the Monumental Cemetery of Mortara.jpg",
+  "page": "https://commons.wikimedia.org/wiki/File:Floor_Plan_Sketch_of_the_Monumental_Cemetery_of_Mortara.jpg",
+  "license": "CC BY-SA 4.0",
+  "author": "LIUC06sms"
+ }
+}

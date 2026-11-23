@@ -1,0 +1,1784 @@
+{
+ "evac-ru-kdc-1": {
+  "plan": true,
+  "kind": "evacuation-plan-photo",
+  "plans": 1,
+  "rooms": 37,
+  "roomsRange": [
+   32,
+   42
+  ],
+  "longM": 50,
+  "box": [
+   0.01,
+   0.31,
+   0.79,
+   0.83
+  ],
+  "scale": 25,
+  "scaleBasis": "door widths about 0.9 m and typical auditorium/cultural center dimensions",
+  "areas": [],
+  "difficulties": [
+   "perspective",
+   "uneven-light",
+   "sheet-frame",
+   "title-block",
+   "legend-table",
+   "columns",
+   "curved-walls",
+   "handwriting",
+   "background-clutter"
+  ],
+  "note": "Framed wall-mounted Russian evacuation plan photo for the first floor of a cultural center with green evacuation arrows, room legend, and wooden frame.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "evac-ru-kdc-2": {
+  "plan": true,
+  "kind": "evacuation-plan-photo",
+  "plans": 1,
+  "rooms": 25,
+  "roomsRange": [
+   21,
+   29
+  ],
+  "longM": 50,
+  "box": [
+   0.27,
+   0.27,
+   0.825,
+   0.86
+  ],
+  "scale": 17.8,
+  "scaleBasis": "door widths about 0.9 m and typical auditorium/cultural center dimensions",
+  "areas": [],
+  "difficulties": [
+   "uneven-light",
+   "glare",
+   "sheet-frame",
+   "title-block",
+   "legend-table",
+   "heavy-text",
+   "columns",
+   "handwriting",
+   "background-clutter"
+  ],
+  "note": "Framed photo of the second-floor Russian evacuation plan of the same cultural center, with an instruction table on the left and legend on the right.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "evac-angle-green": {
+  "plan": true,
+  "kind": "evacuation-plan-photo",
+  "plans": 1,
+  "rooms": 35,
+  "roomsRange": [
+   28,
+   42
+  ],
+  "longM": 65,
+  "box": [
+   0.095,
+   0.205,
+   0.785,
+   0.405
+  ],
+  "scale": 12.7,
+  "scaleBasis": "typical school classroom sizes (~6 m width) and stair widths",
+  "areas": [],
+  "difficulties": [
+   "perspective",
+   "uneven-light",
+   "glare",
+   "sheet-frame",
+   "legend-table",
+   "heavy-text",
+   "low-resolution",
+   "handwriting",
+   "background-clutter"
+  ],
+  "note": "Angled photograph of a blue-framed Russian school second-floor evacuation plan mounted on a green wall, with perspective distortion and blurry text.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "evac-wall-panel": {
+  "plan": true,
+  "kind": "evacuation-plan-photo",
+  "plans": 1,
+  "rooms": 74,
+  "roomsRange": [
+   60,
+   85
+  ],
+  "longM": 42,
+  "box": [
+   0.145,
+   0.315,
+   0.442,
+   0.828
+  ],
+  "scale": 14.7,
+  "scaleBasis": "typical hotel guestroom widths (~3.6-4.0 m) and stair widths",
+  "areas": [],
+  "difficulties": [
+   "glare",
+   "uneven-light",
+   "colored-fills",
+   "sheet-frame",
+   "legend-table",
+   "heavy-text",
+   "furniture",
+   "door-arcs",
+   "background-clutter"
+  ],
+  "note": "Hotel door fire-evacuation plaque showing a C-shaped guestroom floor plan on the left with strong rectangular window glare over the upper-right wing.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "evac-it-1": {
+  "plan": true,
+  "kind": "evacuation-plan-photo",
+  "plans": 2,
+  "rooms": 36,
+  "roomsRange": [
+   28,
+   46
+  ],
+  "longM": 35,
+  "box": [
+   0.273,
+   0.335,
+   0.487,
+   0.652
+  ],
+  "scale": 10.9,
+  "scaleBasis": "stair widths and WC room sizes",
+  "areas": [],
+  "difficulties": [
+   "perspective",
+   "uneven-light",
+   "colored-fills",
+   "multiple-plans",
+   "sheet-frame",
+   "title-block",
+   "legend-table",
+   "heavy-text",
+   "low-resolution",
+   "door-arcs",
+   "background-clutter"
+  ],
+  "note": "Framed wall-mounted Italian hospital evacuation plan featuring a detailed basement wing plan, a smaller overview floor plan, and extensive bilingual tables.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "evac-metal-plate": {
+  "plan": true,
+  "kind": "evacuation-plan-photo",
+  "plans": 1,
+  "rooms": 28,
+  "roomsRange": [
+   25,
+   32
+  ],
+  "longM": 23,
+  "box": [
+   0.155,
+   0.232,
+   0.88,
+   0.748
+  ],
+  "scale": 37.8,
+  "scaleBasis": "door widths about 0.9 m, lift shaft, and stair widths",
+  "areas": [],
+  "difficulties": [
+   "perspective",
+   "glare",
+   "uneven-light",
+   "sheet-frame",
+   "legend-table",
+   "door-arcs",
+   "curved-walls",
+   "background-clutter"
+  ],
+  "note": "Engraved brushed-metal fire escape plaque for a Hong Kong lower-ground shopping arcade, showing uneven metallic sheen and slight perspective.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "evac-mosque": {
+  "plan": true,
+  "kind": "evacuation-plan-photo",
+  "plans": 1,
+  "rooms": 11,
+  "roomsRange": [
+   8,
+   25
+  ],
+  "longM": 48,
+  "box": [
+   0.125,
+   0.165,
+   0.85,
+   0.815
+  ],
+  "scale": 24.2,
+  "scaleBasis": "double door widths (~1.7 m) and toilet cubicle widths (~1.0 m)",
+  "areas": [],
+  "difficulties": [
+   "uneven-light",
+   "hollow-walls",
+   "legend-table",
+   "door-arcs",
+   "background-clutter"
+  ],
+  "note": "Photographed printed paper fire evacuation plan for Masjid Omar Salmah showing the main prayer hall linked by a covered walkway to an angled toilet block.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "evac-bw-legend": {
+  "plan": true,
+  "kind": "evacuation-plan-photo",
+  "plans": 1,
+  "rooms": 12,
+  "roomsRange": [
+   8,
+   22
+  ],
+  "longM": 75,
+  "box": [
+   0.728,
+   0.322,
+   0.875,
+   0.523
+  ],
+  "scale": 3.2,
+  "scaleBasis": "typical shopping mall structural column grid (~8-9 m bays) and escalator length",
+  "areas": [],
+  "difficulties": [
+   "low-resolution",
+   "colored-fills",
+   "sheet-frame",
+   "legend-table",
+   "columns",
+   "uneven-light",
+   "background-clutter"
+  ],
+  "note": "Wide photo of a mall stairwell exit door with a small wall-mounted 3F evacuation plan plaque on the right wall, leaving the floor plan tiny and low-resolution.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "evac-my-concourse": {
+  "plan": true,
+  "kind": "evacuation-plan-photo",
+  "plans": 3,
+  "rooms": 23,
+  "roomsRange": [
+   18,
+   30
+  ],
+  "longM": 80,
+  "box": [
+   0.265,
+   0.375,
+   0.822,
+   0.57
+  ],
+  "scale": 11.1,
+  "scaleBasis": "escalator lengths (~16 m), lift shaft (~3 m), and toilet stall widths",
+  "areas": [],
+  "difficulties": [
+   "perspective",
+   "colored-fills",
+   "hatching",
+   "multiple-plans",
+   "sheet-frame",
+   "legend-table",
+   "door-arcs",
+   "columns",
+   "background-clutter"
+  ],
+  "note": "Malaysian transit station concourse evacuation plan board showing the main rectangular concourse and two detached entrance structures with yellow escape paths.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "evac-my-platform": {
+  "plan": true,
+  "kind": "evacuation-plan-photo",
+  "plans": 1,
+  "rooms": 14,
+  "roomsRange": [
+   10,
+   18
+  ],
+  "longM": 80,
+  "box": [
+   0.092,
+   0.305,
+   0.9,
+   0.618
+  ],
+  "scale": 16.2,
+  "scaleBasis": "escalator lengths (~16 m), lift shafts (~3 m), and stair widths",
+  "areas": [],
+  "difficulties": [
+   "colored-fills",
+   "sheet-frame",
+   "legend-table",
+   "door-arcs",
+   "columns",
+   "background-clutter"
+  ],
+  "note": "Straight-on photo of a Malaysian transit station side-platform evacuation plan with yellow escape routes and green emergency staircases.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "evac-de-1": {
+  "plan": true,
+  "kind": "evacuation-plan-photo",
+  "plans": 1,
+  "rooms": 25,
+  "roomsRange": [
+   20,
+   32
+  ],
+  "longM": 35,
+  "box": [
+   0.068,
+   0.202,
+   0.925,
+   0.692
+  ],
+  "scale": 26.1,
+  "scaleBasis": "door widths (~1.0 m) and stair tread widths",
+  "areas": [],
+  "difficulties": [
+   "uneven-light",
+   "colored-fills",
+   "hollow-walls",
+   "legend-table",
+   "title-block",
+   "heavy-text",
+   "door-arcs",
+   "curved-walls",
+   "columns"
+  ],
+  "note": "Straight-on photo of a German evacuation plan for Dresden Hauptbahnhof (Königspavillon and Durchgang 6) with green escape fills and a small location map.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "evac-de-angle": {
+  "plan": true,
+  "kind": "evacuation-plan-photo",
+  "plans": 1,
+  "rooms": 41,
+  "roomsRange": [
+   35,
+   48
+  ],
+  "longM": 85,
+  "box": [
+   0.308,
+   0.23,
+   0.453,
+   0.698
+  ],
+  "scale": 8.8,
+  "scaleBasis": "typical German school classroom sizes (~6-7 m) along the 12-classroom bar",
+  "areas": [],
+  "difficulties": [
+   "perspective",
+   "uneven-light",
+   "colored-fills",
+   "sheet-frame",
+   "title-block",
+   "legend-table",
+   "heavy-text",
+   "low-resolution",
+   "door-arcs",
+   "background-clutter"
+  ],
+  "note": "Strongly angled wall photo of a framed German vocational school evacuation plan showing a long narrow ground-floor classroom wing and a site map.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "evac-hotel-angle": {
+  "plan": true,
+  "kind": "evacuation-plan-photo",
+  "plans": 1,
+  "rooms": 106,
+  "roomsRange": [
+   95,
+   115
+  ],
+  "longM": 62,
+  "box": [
+   0.242,
+   0.165,
+   0.865,
+   0.748
+  ],
+  "scale": 16.1,
+  "scaleBasis": "typical hotel guestroom widths (~3.6 m; 12 rooms along lower wing, ~62 m total span)",
+  "areas": [],
+  "difficulties": [
+   "perspective",
+   "uneven-light",
+   "glare",
+   "sheet-frame",
+   "furniture",
+   "door-arcs",
+   "background-clutter"
+  ],
+  "note": "Slightly angled photo of a framed Dublin hotel first-floor fire plan showing a Z-shaped wing of 48 numbered guestrooms with detailed en-suite bathrooms.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "evac-cn-bw": {
+  "plan": true,
+  "kind": "evacuation-plan-photo",
+  "plans": 1,
+  "rooms": 14,
+  "roomsRange": [
+   12,
+   16
+  ],
+  "longM": 14,
+  "box": [
+   0,
+   0.418,
+   1,
+   0.87
+  ],
+  "scale": 85.7,
+  "scaleBasis": "door widths (~0.85 m), elevator shaft (~2.1 m), and Japanese unit baths (B.U/W.C)",
+  "areas": [],
+  "difficulties": [
+   "glare",
+   "uneven-light",
+   "hollow-walls",
+   "legend-table",
+   "door-arcs",
+   "perspective"
+  ],
+  "note": "Close-up flash photo of a Japanese apartment or hotel floor evacuation sign, slightly tilted and cropped at both left and right edges.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "evac-cn-color": {
+  "plan": true,
+  "kind": "evacuation-plan-photo",
+  "plans": 1,
+  "rooms": 48,
+  "roomsRange": [
+   40,
+   58
+  ],
+  "longM": 62,
+  "box": [
+   0.145,
+   0.328,
+   0.862,
+   0.985
+  ],
+  "scale": 18.5,
+  "scaleBasis": "numbered car parking bays (~2.5 m x 5.0 m) in the central compound and staircase widths",
+  "areas": [],
+  "difficulties": [
+   "perspective",
+   "uneven-light",
+   "colored-fills",
+   "legend-table",
+   "door-arcs",
+   "low-resolution",
+   "background-clutter"
+  ],
+  "note": "Angled photograph of a Hong Kong ground-floor fire escape map behind acrylic showing rooms surrounding a yellow parking compound along Jaffe Road.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "evac-flora-court": {
+  "plan": true,
+  "kind": "evacuation-plan-photo",
+  "plans": 1,
+  "rooms": 8,
+  "roomsRange": [
+   6,
+   11
+  ],
+  "longM": 20,
+  "box": [
+   0.052,
+   0.37,
+   0.935,
+   0.905
+  ],
+  "scale": 70.6,
+  "scaleBasis": "door widths (~0.9 m), lift shaft (~2.1 m), and stair widths (~1.05 m)",
+  "areas": [],
+  "difficulties": [
+   "uneven-light",
+   "colored-fills",
+   "door-arcs",
+   "columns"
+  ],
+  "note": "Straight-on photo of a Hong Kong residential podium fire escape plan (Flora Court) with pastel playground and garden fills, black columns, and red arrows.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "evac-hk-hall": {
+  "plan": true,
+  "kind": "evacuation-plan-photo",
+  "plans": 1,
+  "rooms": 57,
+  "roomsRange": [
+   48,
+   68
+  ],
+  "longM": 85,
+  "box": [
+   0.075,
+   0.375,
+   0.875,
+   0.96
+  ],
+  "scale": 15.1,
+  "scaleBasis": "theater seating rows (~0.9 m pitch), WC cubicles (~0.9 m), and staircase widths",
+  "areas": [],
+  "difficulties": [
+   "glare",
+   "uneven-light",
+   "legend-table",
+   "heavy-text",
+   "furniture",
+   "door-arcs",
+   "columns",
+   "curved-walls",
+   "low-resolution"
+  ],
+  "note": "Detailed architectural CAD-based fire evacuation map of the Heung Yee Kuk Building 1/F showing a grand theater, auditorium, courtyard, offices, and service rooms.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "plan-framed-glare": {
+  "plan": true,
+  "kind": "photo-of-drawing",
+  "plans": 3,
+  "rooms": 19,
+  "roomsRange": [
+   16,
+   23
+  ],
+  "longM": 37.5,
+  "box": [
+   0.307,
+   0.246,
+   0.427,
+   0.742
+  ],
+  "scale": 15.9,
+  "scaleBasis": "scale bar 60 feet (10-0-60 ft at bottom)",
+  "areas": [],
+  "difficulties": [
+   "colored-walls",
+   "colored-fills",
+   "multiple-plans",
+   "sheet-frame",
+   "title-block",
+   "dimension-lines",
+   "handwriting",
+   "faded",
+   "low-resolution",
+   "uneven-light",
+   "background-clutter"
+  ],
+  "note": "Museum-framed photograph of a 1902 architectural drawing for a Glasgow house showing ground, cellar, and first floor plans with red-tinted walls and a 60-foot scale bar.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "evac-cz-clean": {
+  "plan": true,
+  "kind": "evacuation-plan-flat",
+  "plans": 1,
+  "rooms": 16,
+  "roomsRange": [
+   14,
+   17
+  ],
+  "longM": 80,
+  "box": [
+   0.004,
+   0.018,
+   0.993,
+   0.99
+  ],
+  "scale": 19.8,
+  "scaleBasis": "typical cinema hall (~10-12 m wide) and indoor ice rink sizes",
+  "areas": [],
+  "difficulties": [
+   "colored-fills",
+   "heavy-text"
+  ],
+  "note": "Clean flat digital floor plan diagram in Czech of a multi-use mall entertainment floor with pastel room fills, black walls, and stair/fire icons.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "arch-apt-black-walls": {
+  "plan": true,
+  "kind": "architectural-drawing",
+  "plans": 1,
+  "rooms": 44,
+  "roomsRange": [
+   38,
+   56
+  ],
+  "longM": 47,
+  "box": [
+   0.044,
+   0.06,
+   0.978,
+   0.885
+  ],
+  "scale": 31.8,
+  "scaleBasis": "printed dimensions in feet (e.g. Living Room 24' x 45', Dining Room 24' x 35', Chamber 24' x 24')",
+  "areas": [],
+  "difficulties": [
+   "heavy-text",
+   "furniture",
+   "curved-walls",
+   "columns"
+  ],
+  "note": "High-contrast black-and-white architectural floor plan of a grand Washington, D.C. apartment building with solid black walls, diagonal wings, and printed room dimensions in feet.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "arch-house-lowres": {
+  "plan": true,
+  "kind": "architectural-drawing",
+  "plans": 2,
+  "rooms": 8,
+  "roomsRange": [
+   6,
+   8
+  ],
+  "longM": 15.5,
+  "box": [
+   0.16,
+   0.53,
+   0.89,
+   0.94
+  ],
+  "scale": 75.4,
+  "scaleBasis": "door widths about 0.9 m and typical room sizes",
+  "areas": [],
+  "difficulties": [
+   "multiple-plans",
+   "door-arcs",
+   "furniture",
+   "sheet-frame"
+  ],
+  "note": "Clean two-story house plan on a pale yellow background showing first and ground floors with door arcs, dashed overhangs, and fixtures.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "arch-house-color": {
+  "plan": true,
+  "kind": "colored-plan",
+  "plans": 1,
+  "rooms": 10,
+  "roomsRange": [
+   9,
+   12
+  ],
+  "longM": 20.1,
+  "box": [
+   0.17,
+   0.09,
+   0.86,
+   0.76
+  ],
+  "scale": 54.9,
+  "scaleBasis": "scale bar 8 m (verified against door widths; feet bar is mislabeled by 2x)",
+  "areas": [],
+  "difficulties": [
+   "colored-walls",
+   "colored-fills",
+   "door-arcs",
+   "legend-table"
+  ],
+  "note": "Color-coded architectural floor plan showing historical phases (1884-1965 and 1977) with brown and black walls, tinted room fills, and a scale bar.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "arch-house-color-2": {
+  "plan": true,
+  "kind": "colored-plan",
+  "plans": 1,
+  "rooms": 10,
+  "roomsRange": [
+   9,
+   12
+  ],
+  "longM": 18.7,
+  "box": [
+   0.22,
+   0.09,
+   0.86,
+   0.76
+  ],
+  "scale": 54.8,
+  "scaleBasis": "scale bar 8 m (verified against door widths; feet bar is mislabeled by 2x)",
+  "areas": [],
+  "difficulties": [
+   "colored-walls",
+   "colored-fills",
+   "door-arcs",
+   "legend-table"
+  ],
+  "note": "Earlier 1884 and 1906 phase plan of the same house with brown/black phase-coded walls, colored room fills, door arcs, and a scale bar.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "arch-dims-lines": {
+  "plan": true,
+  "kind": "architectural-drawing",
+  "plans": 1,
+  "rooms": 12,
+  "roomsRange": [
+   11,
+   14
+  ],
+  "longM": 23.8,
+  "box": [
+   0.15,
+   0.16,
+   0.84,
+   0.68
+  ],
+  "scale": 46.4,
+  "scaleBasis": "printed dimensions (78'-1.5\" overall width) and 6 m / 20 ft scale bars",
+  "areas": [],
+  "difficulties": [
+   "dimension-lines",
+   "heavy-text",
+   "hollow-walls",
+   "hatching",
+   "door-arcs",
+   "sheet-frame",
+   "title-block",
+   "handwriting"
+  ],
+  "note": "HABS measured drawing of The Bolduc House with dense dimension lines, hand-lettered annotations, hollow walls, hatched chimneys, and a title block.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "arch-habs-sheet": {
+  "plan": true,
+  "kind": "architectural-drawing",
+  "plans": 2,
+  "rooms": 11,
+  "roomsRange": [
+   9,
+   14
+  ],
+  "longM": 18,
+  "box": [
+   0.07,
+   0.11,
+   0.46,
+   0.8
+  ],
+  "scale": 49.4,
+  "scaleBasis": "printed dimensions (37'-11\" wide, 43'-4\" main body plus kitchen ell) and 16 ft scale bar",
+  "areas": [],
+  "difficulties": [
+   "multiple-plans",
+   "dimension-lines",
+   "heavy-text",
+   "hollow-walls",
+   "hatching",
+   "door-arcs",
+   "legend-table",
+   "sheet-frame",
+   "title-block",
+   "handwriting"
+  ],
+  "note": "HABS sheet displaying first and second floor plans of the Gen. Israel Putnam House alongside a door schedule, dense dimensions, and title block.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "arch-office-4plans": {
+  "plan": true,
+  "kind": "scan",
+  "plans": 2,
+  "rooms": 12,
+  "roomsRange": [
+   8,
+   15
+  ],
+  "longM": 25.5,
+  "box": [
+   0.02,
+   0.04,
+   0.49,
+   0.93
+  ],
+  "scale": 38.5,
+  "scaleBasis": "printed room dimensions (e.g. 14'-2\" x 14'-0\" offices and 36' deep main office)",
+  "areas": [],
+  "difficulties": [
+   "multiple-plans",
+   "low-resolution",
+   "columns",
+   "furniture"
+  ],
+  "note": "High-contrast monochrome scan showing two office building floor plans (Second Floor and Typical Office Floor) with degraded small dimension text.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "arch-heathcote": {
+  "plan": true,
+  "kind": "scan",
+  "plans": 1,
+  "rooms": 22,
+  "roomsRange": [
+   20,
+   25
+  ],
+  "longM": 38.6,
+  "box": [
+   0.11,
+   0.08,
+   0.9,
+   0.84
+  ],
+  "scale": 32.7,
+  "scaleBasis": "scale bar (10 ft subdivisions, verified against billiard room and door widths)",
+  "areas": [],
+  "difficulties": [
+   "door-arcs",
+   "columns",
+   "curved-walls"
+  ],
+  "note": "Book-plate scan of the ground floor plan of Heathcote featuring thick black walls, curved vestibules, interior columns, door arcs, and a top scale bar.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "arch-dinsley-long": {
+  "plan": true,
+  "kind": "scan",
+  "plans": 1,
+  "rooms": 42,
+  "roomsRange": [
+   38,
+   46
+  ],
+  "longM": 93,
+  "box": [
+   0.03,
+   0.06,
+   0.96,
+   0.89
+  ],
+  "scale": 16,
+  "scaleBasis": "stair treads (~0.28 m), door widths (~0.9 m), garage and squash/racquet court sizes",
+  "areas": [],
+  "difficulties": [
+   "heavy-text",
+   "low-resolution",
+   "faded"
+  ],
+  "note": "Wide book-plate scan of Temple Dinsley spanning the main country house, large service wing, and attached garage and racquet-court block.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "arch-modern-grid": {
+  "plan": true,
+  "kind": "architectural-drawing",
+  "plans": 1,
+  "rooms": 9,
+  "roomsRange": [
+   7,
+   17
+  ],
+  "longM": 28.4,
+  "box": [
+   0.08,
+   0.03,
+   0.76,
+   0.88
+  ],
+  "scale": 38.3,
+  "scaleBasis": "scale bar 5 m (verified against 0.6 m floor tiles and 1 m toilet stalls)",
+  "areas": [],
+  "difficulties": [
+   "hatching",
+   "furniture",
+   "door-arcs",
+   "curved-walls"
+  ],
+  "note": "Modern black-and-white architectural plan dominated by dense floor and terrace tile grids, thick black walls, three restroom blocks, and a 5 m scale bar.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "arch-library-hatch": {
+  "plan": true,
+  "kind": "scan",
+  "plans": 1,
+  "rooms": 12,
+  "roomsRange": [
+   8,
+   18
+  ],
+  "longM": 84.6,
+  "box": [
+   0.09,
+   0.04,
+   0.92,
+   0.75
+  ],
+  "scale": 15.7,
+  "scaleBasis": "scale bar 20 m (1:500)",
+  "areas": [],
+  "difficulties": [
+   "hatching",
+   "columns",
+   "curved-walls",
+   "furniture"
+  ],
+  "note": "Book-plate scan of Bibliothèque Sainte-Geneviève ground floor at 1:500 with dense ceiling coffering in the central hall, colonnaded book stacks, and a metric scale bar.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "arch-castle-hatch-legend": {
+  "plan": true,
+  "kind": "architectural-drawing",
+  "plans": 1,
+  "rooms": 5,
+  "roomsRange": [
+   4,
+   6
+  ],
+  "longM": 20.3,
+  "box": [
+   0.05,
+   0.06,
+   0.98,
+   0.9
+  ],
+  "scale": 73.3,
+  "scaleBasis": "scale bar 9 metres / 30 feet",
+  "areas": [],
+  "difficulties": [
+   "hatching",
+   "legend-table",
+   "handwriting"
+  ],
+  "note": "Historic Welsh ground floor plan with phase-coded solid, hatched, and stippled walls, dashed ceiling beams, a legend, and metric/imperial scale bars.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "school-latrobe": {
+  "plan": true,
+  "kind": "scan",
+  "plans": 1,
+  "rooms": 160,
+  "roomsRange": [
+   130,
+   190
+  ],
+  "longM": 212,
+  "box": [
+   0.08,
+   0.23,
+   0.95,
+   0.93
+  ],
+  "scale": 4.1,
+  "scaleBasis": "scale bar 100 ft (verified against classroom and gymnasium sizes)",
+  "areas": [],
+  "difficulties": [
+   "hatching",
+   "low-resolution",
+   "curved-walls",
+   "background-clutter"
+  ],
+  "note": "Scanned brochure plan of Greater Latrobe Senior High where halftone dot shading fills the building footprint and obscures fine interior walls.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "school-union-2floors": {
+  "plan": true,
+  "kind": "scan",
+  "plans": 2,
+  "rooms": 170,
+  "roomsRange": [
+   150,
+   190
+  ],
+  "longM": 195,
+  "box": [
+   0.05,
+   0.03,
+   0.94,
+   0.58
+  ],
+  "scale": 5.5,
+  "scaleBasis": "typical high school classroom, corridor, gymnasium, and auditorium sizes",
+  "areas": [],
+  "difficulties": [
+   "multiple-plans",
+   "heavy-text",
+   "faded"
+  ],
+  "note": "Scanned brochure showing first and second floor plans of Union High School with densely labeled rooms, numbered exterior exit markers, and faint page bleed-through.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "hospital-complex": {
+  "plan": true,
+  "kind": "scan",
+  "plans": 1,
+  "rooms": 90,
+  "roomsRange": [
+   70,
+   115
+  ],
+  "longM": 290,
+  "box": [
+   0.08,
+   0.05,
+   0.98,
+   0.98
+  ],
+  "scale": 5,
+  "scaleBasis": "column bay spacing (~7.5 m), elevator banks, stair widths, and roadway/trucking passage widths",
+  "areas": [],
+  "difficulties": [
+   "columns",
+   "heavy-text",
+   "faded",
+   "background-clutter"
+  ],
+  "note": "Scanned historic concourse plan of Cleveland Union Terminal (not a hospital) showing vast column-filled halls, shops, ramps, and surrounding site features.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "cad-sheet-titleblock": {
+  "plan": true,
+  "kind": "architectural-drawing",
+  "plans": 1,
+  "rooms": 58,
+  "roomsRange": [
+   50,
+   75
+  ],
+  "longM": 62.7,
+  "box": [
+   0.07,
+   0.08,
+   0.79,
+   0.72
+  ],
+  "scale": 18.4,
+  "scaleBasis": "scale bar 20 ft (1/8\" = 1'-0\", verified against bedroom and door widths)",
+  "areas": [],
+  "difficulties": [
+   "hollow-walls",
+   "door-arcs",
+   "heavy-text",
+   "furniture",
+   "sheet-frame",
+   "title-block"
+  ],
+  "note": "CAD as-built special-systems drawing of an angled multi-unit apartment building with hollow walls, door arcs, fire-alarm notes, sheet border, and title block.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "habs-complex": {
+  "plan": true,
+  "kind": "architectural-drawing",
+  "plans": 1,
+  "rooms": 4,
+  "roomsRange": [
+   3,
+   6
+  ],
+  "longM": 16,
+  "box": [
+   0.23,
+   0.1,
+   0.77,
+   0.9
+  ],
+  "scale": 64.9,
+  "scaleBasis": "scale bar 16 ft and printed plan dimensions (e.g. 22'-10\", 18'-10\", 14'-2\")",
+  "areas": [],
+  "difficulties": [
+   "dimension-lines",
+   "heavy-text",
+   "furniture",
+   "sheet-frame",
+   "title-block",
+   "background-clutter",
+   "handwriting",
+   "curved-walls"
+  ],
+  "note": "HABS measured sheet of Union Oyster House combining a cluttered central restaurant floor plan with surrounding elevation and ornamental detail drawings.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "inverted-small": {
+  "plan": true,
+  "kind": "architectural-drawing",
+  "plans": 1,
+  "rooms": 6,
+  "roomsRange": [
+   6,
+   11
+  ],
+  "longM": 21,
+  "box": [
+   0.13,
+   0.13,
+   0.81,
+   0.88
+  ],
+  "scale": 51.8,
+  "scaleBasis": "typical Byzantine cross-in-square church proportions, wall thicknesses (~0.9 m), and archway widths",
+  "areas": [],
+  "difficulties": [
+   "curved-walls",
+   "columns"
+  ],
+  "note": "Clean vector plan of a domed cross-in-square church with thick black masonry walls on white background, light gray vault projection lines, and a German compass rose.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "round-tower-black": {
+  "plan": true,
+  "kind": "architectural-drawing",
+  "plans": 1,
+  "rooms": 5,
+  "roomsRange": [
+   3,
+   7
+  ],
+  "longM": 17.6,
+  "box": [
+   0.04,
+   0.03,
+   0.98,
+   0.97
+  ],
+  "scale": 85.5,
+  "scaleBasis": "spiral staircase width and treads (~0.29 m) and doorway widths (~0.9 m)",
+  "areas": [],
+  "difficulties": [
+   "curved-walls",
+   "colored-walls",
+   "hatching",
+   "heavy-text"
+  ],
+  "note": "Clean vector plan of a circular stone tower with an attached rectangular wing, spiral staircase, gray-filled walls, and numbered parallel lines across the round room.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "temple-columns": {
+  "plan": true,
+  "kind": "architectural-drawing",
+  "plans": 1,
+  "rooms": 13,
+  "roomsRange": [
+   11,
+   14
+  ],
+  "longM": 29,
+  "box": [
+   0.04,
+   0.15,
+   0.97,
+   0.85
+  ],
+  "scale": 51.3,
+  "scaleBasis": "stair treads (~0.32 m), doorway widths (~1.1 m), and stone pillar dimensions",
+  "areas": [],
+  "difficulties": [
+   "columns"
+  ],
+  "note": "Clean monochrome architectural plan of a multi-shrine stone temple with thick stepped masonry walls, an ambulatory corridor, and pillared halls.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "blueprint-blue": {
+  "plan": true,
+  "kind": "scan",
+  "plans": 1,
+  "rooms": 11,
+  "roomsRange": [
+   10,
+   14
+  ],
+  "longM": 19.1,
+  "box": [
+   0.17,
+   0.07,
+   0.84,
+   0.32
+  ],
+  "scale": 43.9,
+  "scaleBasis": "printed dimensions (9'-6\" + 47'-0\" main body, 30'-0\" width, plus rear porch)",
+  "areas": [],
+  "difficulties": [
+   "inverted-colors",
+   "colored-fills",
+   "dimension-lines",
+   "background-clutter",
+   "sheet-frame",
+   "handwriting",
+   "faded"
+  ],
+  "note": "Scanned vintage catalog page combining a white-on-blue blueprint floor plan with printed dimensions at the top and a brick exterior facade photograph below.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "catalog-plan": {
+  "plan": true,
+  "kind": "scan",
+  "plans": 1,
+  "rooms": 13,
+  "roomsRange": [
+   11,
+   15
+  ],
+  "longM": 15.2,
+  "box": [
+   0.285,
+   0.118,
+   0.764,
+   0.32
+  ],
+  "scale": 39.4,
+  "scaleBasis": "printed dimensions (50'-0\" x 26'-0\")",
+  "areas": [],
+  "difficulties": [
+   "sheet-frame",
+   "background-clutter",
+   "heavy-text",
+   "dimension-lines",
+   "door-arcs",
+   "furniture",
+   "faded"
+  ],
+  "note": "Vintage catalog page scan showing a 50' x 26' bungalow first-floor plan inside a decorative border above an exterior photograph of the house.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "numbered-rooms-dashed": {
+  "plan": true,
+  "kind": "architectural-drawing",
+  "plans": 1,
+  "rooms": 23,
+  "roomsRange": [
+   21,
+   26
+  ],
+  "longM": 33,
+  "box": [
+   0.292,
+   0.062,
+   0.698,
+   0.888
+  ],
+  "scale": 24.6,
+  "scaleBasis": "stair treads and palace room proportions",
+  "areas": [],
+  "difficulties": [
+   "curved-walls"
+  ],
+  "note": "Clean black-and-white historical plan of the Petit Appartement du Roi at Versailles (1693) with numbered and lettered rooms, two staircases, and dashed doorway openings.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "red-walls-scalebar": {
+  "plan": true,
+  "kind": "colored-plan",
+  "plans": 1,
+  "rooms": 6,
+  "roomsRange": [
+   6,
+   8
+  ],
+  "longM": 22.5,
+  "box": [
+   0.155,
+   0.062,
+   0.948,
+   0.916
+  ],
+  "scale": 56.4,
+  "scaleBasis": "scale bar 10 m",
+  "areas": [],
+  "difficulties": [
+   "colored-walls"
+  ],
+  "note": "Clean archaeological floor plan with thick dark-red walls, numbered rooms 1 to 6, north arrow, and a 10 m scale bar.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "black-walls-scalebar": {
+  "plan": true,
+  "kind": "architectural-drawing",
+  "plans": 1,
+  "rooms": 25,
+  "roomsRange": [
+   22,
+   28
+  ],
+  "longM": 46.2,
+  "box": [
+   0.249,
+   0.039,
+   0.909,
+   0.899
+  ],
+  "scale": 29.8,
+  "scaleBasis": "scale bar 10 m",
+  "areas": [],
+  "difficulties": [
+   "colored-fills"
+  ],
+  "note": "Clean elongated black-walled archaeological building plan divided into four ensembles, with a 10 m scale bar and north arrow.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "round-house-areas": {
+  "plan": true,
+  "kind": "colored-plan",
+  "plans": 1,
+  "rooms": 7,
+  "roomsRange": [
+   7,
+   8
+  ],
+  "longM": 10.8,
+  "box": [
+   0.125,
+   0.175,
+   0.855,
+   0.98
+  ],
+  "scale": 108.2,
+  "scaleBasis": "printed room areas (sum 67.9 m2 plus central hall and stairs) and bathtub size",
+  "areas": [
+   {
+    "label": "22 qm",
+    "value": 22,
+    "unit": "m2"
+   },
+   {
+    "label": "16 qm",
+    "value": 16,
+    "unit": "m2"
+   },
+   {
+    "label": "10 qm",
+    "value": 10,
+    "unit": "m2"
+   },
+   {
+    "label": "3,3 qm",
+    "value": 3.3,
+    "unit": "m2"
+   },
+   {
+    "label": "2,4 qm",
+    "value": 2.4,
+    "unit": "m2"
+   },
+   {
+    "label": "14,2 qm",
+    "value": 14.2,
+    "unit": "m2"
+   }
+  ],
+  "difficulties": [
+   "colored-walls",
+   "colored-fills",
+   "curved-walls",
+   "furniture",
+   "background-clutter"
+  ],
+  "note": "Colored floor plan of a circular house on a green lawn with a tiled terrace and six rooms labeled with areas in square meters.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "ru-apartment-zoning": {
+  "plan": true,
+  "kind": "colored-plan",
+  "plans": 1,
+  "rooms": 8,
+  "roomsRange": [
+   8,
+   9
+  ],
+  "longM": 14,
+  "box": [
+   0.032,
+   0.155,
+   0.686,
+   0.931
+  ],
+  "scale": 74.7,
+  "scaleBasis": "door widths about 0.8-0.9 m and typical apartment room sizes",
+  "areas": [],
+  "difficulties": [
+   "colored-walls",
+   "colored-fills",
+   "door-arcs",
+   "legend-table"
+  ],
+  "note": "Clean color-coded functional zoning diagram of a Russian apartment with gray walls, door arcs, and a Russian legend on the right.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "apartment-color-furniture": {
+  "plan": true,
+  "kind": "colored-plan",
+  "plans": 1,
+  "rooms": 15,
+  "roomsRange": [
+   12,
+   17
+  ],
+  "longM": 17.5,
+  "box": [
+   0.011,
+   0.004,
+   0.995,
+   0.996
+  ],
+  "scale": 90.7,
+  "scaleBasis": "bathtub length about 1.55 m and door widths about 0.85 m",
+  "areas": [],
+  "difficulties": [
+   "colored-walls",
+   "colored-fills",
+   "curved-walls",
+   "furniture"
+  ],
+  "note": "Clean color-coded cottage floor plan (FDR's Little White House) with a semicircular sun deck, brown walls, room labels, and bathroom fixtures.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "numbered-gray": {
+  "plan": true,
+  "kind": "colored-plan",
+  "plans": 1,
+  "rooms": 32,
+  "roomsRange": [
+   29,
+   34
+  ],
+  "longM": 42.2,
+  "box": [
+   0.07,
+   0.042,
+   0.93,
+   0.924
+  ],
+  "scale": 33.4,
+  "scaleBasis": "scale bar 10 m",
+  "areas": [],
+  "difficulties": [
+   "colored-walls",
+   "colored-fills",
+   "columns"
+  ],
+  "note": "Clean vector plan of an ancient Egyptian mastaba tomb (Mereruka) with thick gray masonry walls, labeled chambers A1-C6, columns, and a 10 m scale bar.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "scan-engraving": {
+  "plan": true,
+  "kind": "scan",
+  "plans": 1,
+  "rooms": 25,
+  "roomsRange": [
+   22,
+   27
+  ],
+  "longM": 41,
+  "box": [
+   0.095,
+   0.068,
+   0.923,
+   0.808
+  ],
+  "scale": 32.3,
+  "scaleBasis": "scale bar 50 feet",
+  "areas": [],
+  "difficulties": [
+   "background-clutter",
+   "hatching",
+   "faded"
+  ],
+  "note": "Scanned 19th-century engraved ground-floor plan of Ascot-Heath House with lettered rooms, surrounding grounds, reverse-page bleed-through, and a 50-foot scale bar.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "scan-degraded-school": {
+  "plan": true,
+  "kind": "photo-of-drawing",
+  "plans": 1,
+  "rooms": 15,
+  "roomsRange": [
+   13,
+   18
+  ],
+  "longM": 18.9,
+  "box": [
+   0.165,
+   0.223,
+   0.889,
+   0.804
+  ],
+  "scale": 49.2,
+  "scaleBasis": "printed dimensions (62'-1\" x 60'-0\")",
+  "areas": [],
+  "difficulties": [
+   "uneven-light",
+   "faded",
+   "heavy-text",
+   "dimension-lines",
+   "handwriting",
+   "hatching",
+   "curved-walls",
+   "background-clutter"
+  ],
+  "note": "Overhead photograph of a creased, aged basement plan for Deseronto High School with printed imperial dimensions and hand-lettered labels.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "scan-handwritten": {
+  "plan": true,
+  "kind": "scan",
+  "plans": 1,
+  "rooms": 23,
+  "roomsRange": [
+   20,
+   26
+  ],
+  "longM": 18,
+  "box": [
+   0.004,
+   0.174,
+   0.816,
+   0.831
+  ],
+  "scale": 64.5,
+  "scaleBasis": "printed dimensions (frontage 16.40 m and room dimensions in meters)",
+  "areas": [],
+  "difficulties": [
+   "handwriting",
+   "heavy-text",
+   "hatching",
+   "curved-walls",
+   "hollow-walls",
+   "faded"
+  ],
+  "note": "Scanned archival French architectural plan of an L-shaped corner apartment building with handwritten room labels, tile hatching, and metric dimensions.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "scan-book-page-color": {
+  "plan": true,
+  "kind": "scan",
+  "plans": 2,
+  "rooms": 78,
+  "roomsRange": [
+   65,
+   95
+  ],
+  "longM": 45,
+  "box": [
+   0.273,
+   0.214,
+   0.851,
+   0.52
+  ],
+  "scale": 15.4,
+  "scaleBasis": "printed dimensions (127 ft on West 180th St x 96 ft 3 in on Broadway; north wall about 148 ft)",
+  "areas": [],
+  "difficulties": [
+   "multiple-plans",
+   "colored-fills",
+   "heavy-text",
+   "sheet-frame",
+   "background-clutter",
+   "furniture",
+   "hatching"
+  ],
+  "note": "High-resolution library book scan with a Kodak color chart showing two color-tinted multi-unit apartment floor plans with printed imperial room dimensions.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "scan-fever-hospital": {
+  "plan": true,
+  "kind": "scan",
+  "plans": 2,
+  "rooms": 13,
+  "roomsRange": [
+   11,
+   14
+  ],
+  "longM": 42,
+  "box": [
+   0.069,
+   0.597,
+   0.927,
+   0.938
+  ],
+  "scale": 32.7,
+  "scaleBasis": "stair width about 2 m, door and window widths, and typical hospital ward width",
+  "areas": [],
+  "difficulties": [
+   "multiple-plans",
+   "hatching",
+   "faded",
+   "sheet-frame"
+  ],
+  "note": "Scanned antique copperplate engraving showing upper-story and ground-floor plans of a rectangular fever hospital with hatched walls and lettered rooms.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "scan-old-dims-2plans": {
+  "plan": true,
+  "kind": "scan",
+  "plans": 2,
+  "rooms": 6,
+  "roomsRange": [
+   5,
+   7
+  ],
+  "longM": 15.6,
+  "box": [
+   0.029,
+   0.071,
+   0.425,
+   0.958
+  ],
+  "scale": 74.5,
+  "scaleBasis": "printed dimensions (51'-2\" x 26'-0\")",
+  "areas": [],
+  "difficulties": [
+   "multiple-plans",
+   "dimension-lines",
+   "heavy-text",
+   "hollow-walls",
+   "faded"
+  ],
+  "note": "Scanned vintage technical book page showing two side-by-side floor plans of a 51'-2\" x 26'-0\" boiler and engine house with dense imperial dimension lines.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "photo-plan-1940": {
+  "plan": true,
+  "kind": "photo-of-drawing",
+  "plans": 1,
+  "rooms": 7,
+  "roomsRange": [
+   6,
+   8
+  ],
+  "longM": 22,
+  "box": [
+   0.207,
+   0.181,
+   0.837,
+   0.668
+  ],
+  "scale": 45.8,
+  "scaleBasis": "door widths about 0.9-1.0 m, stair width, and plantation house room proportions",
+  "areas": [],
+  "difficulties": [
+   "handwriting",
+   "sheet-frame",
+   "background-clutter",
+   "columns",
+   "uneven-light"
+  ],
+  "note": "Archival HABS photograph of a 1940 hand-drawn ink floor plan on an index card depicting a symmetric Carolina plantation house with a wrap-around porch.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "photo-plan-gray": {
+  "plan": true,
+  "kind": "photo-of-drawing",
+  "plans": 1,
+  "rooms": 34,
+  "roomsRange": [
+   28,
+   40
+  ],
+  "longM": 48,
+  "box": [
+   0.171,
+   0.155,
+   0.854,
+   0.896
+  ],
+  "scale": 22.8,
+  "scaleBasis": "faint scale bar (100 fot / ~30 m) and door widths",
+  "areas": [],
+  "difficulties": [
+   "faded",
+   "uneven-light",
+   "sheet-frame",
+   "columns",
+   "curved-walls",
+   "low-resolution"
+  ],
+  "note": "Archival grayscale photograph of a faded 19th-century basement floor plan for the Societetshus in Uleåborg (Oulu) with heavy walls and two inner light courts.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "photo-drawing-table": {
+  "plan": true,
+  "kind": "photo-of-drawing",
+  "plans": 1,
+  "rooms": 18,
+  "roomsRange": [
+   15,
+   22
+  ],
+  "longM": 26.5,
+  "box": [
+   0.105,
+   0.198,
+   0.72,
+   0.775
+  ],
+  "scale": 37.1,
+  "scaleBasis": "printed dimensions (e.g. Lake Room ~32 ft, Garden Room ~30 ft) and door/garage sizes",
+  "areas": [],
+  "difficulties": [
+   "perspective",
+   "uneven-light",
+   "sheet-frame",
+   "title-block",
+   "heavy-text",
+   "handwriting",
+   "dimension-lines",
+   "door-arcs",
+   "furniture",
+   "hollow-walls",
+   "curved-walls",
+   "background-clutter"
+  ],
+  "note": "Photograph of a curled architectural blueprint sheet on a table showing the first-floor renovation plan and partial site plan of a Palm Beach residence.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "sketch-red": {
+  "plan": true,
+  "kind": "sketch",
+  "plans": 1,
+  "rooms": 13,
+  "roomsRange": [
+   12,
+   15
+  ],
+  "longM": 28,
+  "box": [
+   0.207,
+   0.105,
+   0.799,
+   0.747
+  ],
+  "scale": 36.7,
+  "scaleBasis": "stair widths, door widths, and 19th-century mansion room proportions",
+  "areas": [],
+  "difficulties": [
+   "colored-walls",
+   "handwriting",
+   "faded",
+   "columns",
+   "background-clutter"
+  ],
+  "note": "Architectural pencil-and-red-wash floor plan sketch signed by Richard Morris Hunt showing a villa with an octagonal vestibule and cursive room labels.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ },
+ "sketch-color": {
+  "plan": false,
+  "kind": "sketch",
+  "plans": 1,
+  "rooms": 0,
+  "roomsRange": [
+   0,
+   4
+  ],
+  "longM": 220,
+  "box": [
+   0.296,
+   0.273,
+   0.58,
+   0.935
+  ],
+  "scale": 3.6,
+  "scaleBasis": "typical size of an Italian monumental cemetery complex",
+  "areas": [],
+  "difficulties": [
+   "colored-walls",
+   "colored-fills",
+   "curved-walls",
+   "handwriting",
+   "legend-table",
+   "uneven-light",
+   "not-a-plan"
+  ],
+  "note": "Hand-drawn colored outdoor site map of the Monumental Cemetery of Mortara showing cloister porches, pathways, and burial areas rather than interior building rooms.",
+  "labeledBy": "Gemini 4 Neon (High), 2026-11-23"
+ }
+}
