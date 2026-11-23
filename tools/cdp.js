@@ -17,16 +17,31 @@ const BROWSERS = [
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-// Статический сервер на Python (как в README): останавливается вместе с проверкой.
+// Статический сервер для проверок: файлы проекта по http://127.0.0.1:порт/. Свой, на Node:
+// python -m http.server обрывает соединения, когда служебный сценарий (sw.js) скачивает все
+// файлы приложения разом, и установка для работы без сети не завершается.
+const TYPES = {
+  '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.svg': 'image/svg+xml',
+  '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.woff2': 'font/woff2', '.ttf': 'font/ttf'
+};
 async function serve(port) {
-  const py = process.platform === 'win32' ? 'python' : 'python3';
-  const child = spawn(py, ['-m', 'http.server', String(port), '--bind', '127.0.0.1'], { cwd: ROOT, stdio: 'ignore' });
-  for (let i = 0; i < 50; i++) {
-    try { const r = await fetch('http://127.0.0.1:' + port + '/index.html'); if (r.ok) return child; } catch (e) { /* ещё не запустился */ }
-    await sleep(100);
-  }
-  child.kill();
-  throw new Error('сервер не запустился на порту ' + port);
+  const http = require('node:http');
+  const server = http.createServer(function (req, res) {
+    let rel;
+    try { rel = decodeURIComponent(new URL(req.url, 'http://127.0.0.1').pathname); } catch (e) { res.writeHead(400); res.end(); return; }
+    if (rel.endsWith('/')) rel += 'index.html';
+    const file = path.normalize(path.join(ROOT, rel));
+    if (!file.startsWith(ROOT + path.sep)) { res.writeHead(403); res.end(); return; }
+    fs.stat(file, function (err, st) {
+      if (err || !st.isFile()) { res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }); res.end('Не найдено'); return; }
+      res.writeHead(200, { 'Content-Type': TYPES[path.extname(file).toLowerCase()] || 'application/octet-stream', 'Content-Length': st.size, 'Cache-Control': 'no-cache' });
+      if (req.method === 'HEAD') { res.end(); return; }
+      fs.createReadStream(file).pipe(res);
+    });
+  });
+  await new Promise(function (resolve, reject) { server.once('error', reject); server.listen(port, '127.0.0.1', 511, resolve); });
+  return { kill: function () { server.closeAllConnections(); server.close(); } };
 }
 
 async function launch(opts) {

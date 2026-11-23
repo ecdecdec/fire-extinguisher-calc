@@ -430,6 +430,32 @@
       await click(q('[data-test=undo]'));
       eq('отмена возвращает прежние помещения', [rooms(floors()[0]).length, qa('.plan__room--bp').length], [1, 0]);
 
+      // масштаб по площади этажа: снятая галочка не уменьшает площади остальных помещений
+      await click(q('[data-test=bp-tip-open]'));
+      await click(q('[data-test=bp-example]'));
+      for (let i = 0; i < 100 && qa('.bp__pt').length < 2; i++) await sleep(50);
+      await click(qa('.bp__actions .btn--quiet').find(b => text(b) === 'Сбросить точки'));
+      await setValue(q('[data-test=bp-len]'), '');
+      await setValue(q('[data-test=bp-area]'), '900');
+      await click(q('[data-test=bp-run]'));
+      for (let i = 0; i < 300 && !q('[data-test=bp-found]'); i++) await sleep(50);
+      const foundArea = () => text(q('[data-test=bp-found]')).split('·')[1].trim();
+      eq('по площади этажа: сумма найденного равна введённой', foundArea(), '900 м²');
+      await click(bpRow(16).querySelector('input[type=checkbox]'));
+      eq('лишнее снято: сумма остальных по-прежнему 900 м²', [text(q('[data-test=bp-found]')).startsWith('Найдено помещений: 15'), foundArea()], [true, '900 м²']);
+      // «Назад» и «Закрыть» не теряют найденное: шаг назад и закрытие отменяются
+      await click(q('[data-test=bp-close]'));
+      ok('окно закрыто, сообщение с отменой', !q('[data-test=bp-dialog]') && !!q('[data-test=undo]'));
+      await click(q('[data-test=undo]'));
+      ok('отмена возвращает окно с найденным', !!q('[data-test=bp-found]') && text(q('[data-test=bp-found]')).startsWith('Найдено помещений: 15'));
+      doc().dispatchEvent(new frame.contentWindow.KeyboardEvent('keydown', { key: 'Escape' }));
+      await sleep(50);
+      ok('Esc: шаг назад к масштабу, окно открыто', !!q('[data-test=bp-dialog]') && !q('[data-test=bp-found]') && !!q('[data-test=bp-run]'));
+      await click(q('[data-test=undo]'));
+      ok('отмена возвращает найденное', !!q('[data-test=bp-found]'));
+      await click(q('[data-test=bp-close]'));
+      await sleep(50);
+
       // --- несколько этажей по планам ---
       const runExample = async () => {
         await click(q('[data-test=bp-example]'));

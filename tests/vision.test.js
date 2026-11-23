@@ -161,6 +161,28 @@ test('снимок телефоном: неровный свет, шум и ра
   checkRooms(V.findRooms(img.rgba, img.w, img.h, { scale: s }).rooms, s, 'фото', 0.07);
 });
 
+// Часть картинки: прямоугольник в метрах плана (как обрезанный снимок или скриншот).
+function crop(img, s, x0, y0, x1, y1) {
+  const X = m => Math.round((m + MARGIN) * s), Y = m => Math.round((m + MARGIN) * s);
+  const ax = Math.max(0, X(x0)), ay = Math.max(0, Y(y0)), bx = Math.min(img.w, X(x1)), by = Math.min(img.h, Y(y1));
+  const w = bx - ax, h = by - ay, rgba = new Uint8ClampedArray(w * h * 4);
+  for (let y = 0; y < h; y++) rgba.set(img.rgba.subarray(((y + ay) * img.w + ax) * 4, ((y + ay) * img.w + bx) * 4), y * w * 4);
+  return { rgba, w, h };
+}
+
+test('план, обрезанный впритык к стенам, не принимается за рамку листа', () => {
+  // поля 0,3 м: наружные стены почти у краёв картинки, выходы в торцах ведут прямо за край
+  const s = 10, img = crop(planImage(s, false), s, -0.3, -0.3, 60.3, 21.3);
+  const out = V.findRooms(img.rgba, img.w, img.h, { scale: s });
+  checkRooms(out.rooms, s, 'впритык', 0.03);
+  assert.ok(out.rooms.every(r => r.bbox[0] >= 0 && r.bbox[1] >= 0 && r.bbox[2] <= img.w && r.bbox[3] <= img.h), 'контуры в границах картинки');
+  // и с рамкой листа у самых краёв картинки: рамка по-прежнему не стена и не помещение
+  const framed = planImage(s, false), o = (x, y) => (y * framed.w + x) * 4;
+  for (let x = 2; x < framed.w - 2; x++) for (const y of [2, 3, framed.h - 3, framed.h - 4]) framed.rgba.fill(0, o(x, y), o(x, y) + 3);
+  for (let y = 2; y < framed.h - 2; y++) for (const x of [2, 3, framed.w - 3, framed.w - 4]) framed.rgba.fill(0, o(x, y), o(x, y) + 3);
+  checkRooms(V.findRooms(framed.rgba, framed.w, framed.h, { scale: s }).rooms, s, 'рамка у краёв', 0.03);
+});
+
 test('масштаб по общей площади этажа и по длине стены', () => {
   const s = 10, img = planImage(s, false);
   const total = expectedRooms().reduce((t, r) => t + r.area, 0);

@@ -13,7 +13,7 @@
  * VERSION ставит tools/build.js (npm run build) по содержимому файлов: любое изменение
  * файла из ASSETS даёт новую версию. Новый файл приложения добавьте в ASSETS.
  */
-const VERSION = '1.0.0-f8c279d73e';
+const VERSION = '1.0.1-c37391e85f';
 const CACHE = 'firecalc-' + VERSION;
 const INBOX = 'firecalc-inbox';
 const ASSETS = [
@@ -64,9 +64,11 @@ function fromCache(key) {
 }
 
 // Сеть с запасным вариантом из памяти (для файлов вне ASSETS, например страницы проверки).
+// Запасной вариант берётся только из кэша приложения: файл, присланный через «Поделиться»
+// (кэш входящих), никогда не отдаётся как страница или скрипт приложения.
 function networkFirst(request) {
   return fetch(request).catch(function () {
-    return caches.match(keyOf(new URL(request.url))).then(function (hit) { return hit || Response.error(); });
+    return fromCache(keyOf(new URL(request.url))).then(function (hit) { return hit || Response.error(); });
   });
 }
 

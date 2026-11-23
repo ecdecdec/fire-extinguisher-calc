@@ -466,9 +466,11 @@
       merged += 1;
     });
     if (!merged) return 0;
+    // Линия контура мебели отходит помещению, только если за ней то самое помещение, к которому
+    // присоединилась мебель; линия к другому соседу — это стена, она остаётся стеной.
     for (let q = 0; q < crossed.length; q += 3) {
       const L = crossed[q + 1];
-      if (root(L) !== L && !label[crossed[q]]) label[crossed[q]] = L;
+      if (root(L) !== L && root(crossed[q + 2]) === root(L) && !label[crossed[q]]) label[crossed[q]] = L;
     }
     for (let i = 0; i < n; i++) if (label[i]) label[i] = root(label[i]);
     return merged;
@@ -480,28 +482,48 @@
   // options.areaM2 — общая площадь этажа, если масштаб неизвестен: тогда масштаб для
   // первого прохода оценивается по габариту здания на картинке (около 85 % габарита —
   // помещения), а точный подбирается по найденным помещениям (scaleFromArea).
-  function findRooms(rgba, w, h, options) {
+  function findRooms(rgba, w0, h0, options) {
     const t0 = now();
     const o = Object.assign({}, DEFAULTS, options || {});
-    const n = w * h, big = Math.max(w, h);
+    const n0 = w0 * h0, big = Math.max(w0, h0);
     let scale = o.scale > 0 ? o.scale : 0;
-    const ink = inkMask(rgba, w, h);
-    removeSmall(ink, w, h, Math.max(6, Math.round(big * 0.015)));
+    const ink0 = inkMask(rgba, w0, h0);
+    removeSmall(ink0, w0, h0, Math.max(6, Math.round(big * 0.015)));
+
+    // Белые поля вокруг картинки: план, обрезанный впритык к стенам (скриншот, скан без полей),
+    // обрабатывается как план с полями. Без них улица не обходит здание, а помещение с выходом
+    // наружу сливается с полоской у края и выбрасывается. Пороги ниже считаются от исходной картинки.
+    const pad = Math.ceil(Math.max(2 * o.outM * scale, big * 0.06)) + 2;
+    const w = w0 + 2 * pad, h = h0 + 2 * pad, n = w * h;
+    const ink = new Uint8Array(n);
+    for (let y = 0; y < h0; y++) ink.set(ink0.subarray(y * w0, (y + 1) * w0), (y + pad) * w + pad);
 
     // Стены здания — крупные тёмные линии. Надписи, линейка, условные обозначения и
-    // рамка листа улицу не загораживают: рамка — линия у всех четырёх краёв картинки.
+    // рамка листа улицу не загораживают. Рамка — линия у всех четырёх краёв картинки, середина
+    // внутри неё пустая (штамп и легенда жмутся к краям). Стены плана, обрезанного впритык, тоже
+    // доходят до краёв, но перегородки проходят и через середину: это здание, а не рамка.
     const parts = components(ink, w, h, true), keep = new Uint8Array(parts.count + 1);
-    const nearAll = function (f) {
-      const mx = w * 0.03, my = h * 0.03;
-      return f.x0 <= mx && f.y0 <= my && f.x1 >= w - 1 - mx && f.y1 >= h - 1 - my;
-    };
+    const frame = new Uint8Array(parts.count + 1), middle = new Float64Array(parts.count + 1);
+    const mx = w0 * 0.03, my = h0 * 0.03;
+    for (let k = 1; k <= parts.count; k++) {
+      const f = parts.info[k];
+      if (f.x0 <= pad + mx && f.y0 <= pad + my && f.x1 >= pad + w0 - 1 - mx && f.y1 >= pad + h0 - 1 - my) frame[k] = 2;
+    }
+    for (let i = 0; i < n; i++) {
+      const k = parts.labels[i];
+      if (!k || frame[k] !== 2) continue;
+      const f = parts.info[k], x = i % w, y = (i - x) / w, ix = (f.x1 - f.x0) * 0.2, iy = (f.y1 - f.y0) * 0.2;
+      if (x > f.x0 + ix && x < f.x1 - ix && y > f.y0 + iy && y < f.y1 - iy) middle[k] += 1;
+    }
+    for (let k = 1; k <= parts.count; k++) if (frame[k] === 2) frame[k] = middle[k] < 0.1 * parts.info[k].n ? 1 : 0;
+    const nearAll = function (k) { return frame[k] === 1; };
     let largest = 0;
-    for (let k = 1; k <= parts.count; k++) if (!nearAll(parts.info[k]) && parts.info[k].n > largest) largest = parts.info[k].n;
+    for (let k = 1; k <= parts.count; k++) if (!nearAll(k) && parts.info[k].n > largest) largest = parts.info[k].n;
     const shell = new Uint8Array(n);
     let sx0 = w, sy0 = h, sx1 = -1, sy1 = -1;
     for (let k = 1; k <= parts.count; k++) {
       const f = parts.info[k];
-      if (nearAll(f) || f.n < largest * 0.2) continue;
+      if (nearAll(k) || f.n < largest * 0.2) continue;
       keep[k] = 1;
       sx0 = Math.min(sx0, f.x0); sy0 = Math.min(sy0, f.y0); sx1 = Math.max(sx1, f.x1); sy1 = Math.max(sy1, f.y1);
     }
@@ -542,7 +564,7 @@
     const wallish = new Uint8Array(parts.count + 1);
     for (let k = 1; k <= parts.count; k++) {
       const f = parts.info[k], a = f.x1 - f.x0 + 1, b = f.y1 - f.y0 + 1;
-      wallish[k] = keep[k] || Math.max(a, b) >= floatMax || nearShell[k] <= 2.25 || Math.max(a, b) >= 6 * Math.min(a, b) ? 1 : 0;
+      wallish[k] = !nearAll(k) && (keep[k] || Math.max(a, b) >= floatMax || nearShell[k] <= 2.25 || Math.max(a, b) >= 6 * Math.min(a, b)) ? 1 : 0;
     }
     const obst = new Uint8Array(n);
     for (let i = 0; i < n; i++) if (ink[i] && wallish[parts.labels[i]]) obst[i] = 1;
@@ -556,7 +578,7 @@
     const seg = segment(free, dist, w, h, tau, o.openRatio);
     const label = seg.labels;
     const reach = scale ? Math.max(2, Math.round(o.thinM * scale)) : 2;
-    absorbFurniture(label, seg.count, obst, street, w, h, reach, scale ? o.furnitureM2 * scale * scale : n * 0.01);
+    absorbFurniture(label, seg.count, obst, street, w, h, reach, scale ? o.furnitureM2 * scale * scale : n0 * 0.01);
 
     // сведения о помещениях
     const K = seg.count;
@@ -577,7 +599,7 @@
         if (dist[i] > best[L]) { best[L] = dist[i]; bestI[L] = i; }
       }
     }
-    const minPx = scale ? o.minRoomM2 * scale * scale : n * 0.0008;
+    const minPx = scale ? o.minRoomM2 * scale * scale : n0 * 0.0008;
     const eps = Math.max(1, scale ? 0.15 * scale : big * 0.002);
     // кандидаты: не у края картинки, не меньше ниши, внутри рамки стен здания
     const cand = [];
@@ -600,18 +622,19 @@
     const rooms = [];
     cand.forEach(function (L) {
       if (surrounds(L)) return;
-      const poly = simplify(trace(label, w, h, L, first[L]), eps).map(function (p) { return [p[0] + 0.5, p[1] + 0.5]; });
+      // координаты — в точках исходной картинки, без полей
+      const poly = simplify(trace(label, w, h, L, first[L]), eps).map(function (p) { return [p[0] + 0.5 - pad, p[1] + 0.5 - pad]; });
       const lx = bestI[L] % w, ly = (bestI[L] - lx) / w;
       rooms.push({
         px: cnt[L], area: scale ? round1(cnt[L] / (scale * scale)) : 0,
-        bbox: [x0[L], y0[L], x1[L] + 1, y1[L] + 1], lx: lx + 0.5, ly: ly + 0.5, poly: poly
+        bbox: [x0[L] - pad, y0[L] - pad, x1[L] + 1 - pad, y1[L] + 1 - pad], lx: lx + 0.5 - pad, ly: ly + 0.5 - pad, poly: poly
       });
     });
     // порядок чтения: ряд за рядом, слева направо
-    const row = Math.max(1, h * 0.05);
+    const row = Math.max(1, h0 * 0.05);
     rooms.sort(function (a, b) { return (Math.round(a.bbox[1] / row) - Math.round(b.bbox[1] / row)) || (a.bbox[0] - b.bbox[0]); });
     rooms.forEach(function (r, i) { r.id = i + 1; });
-    return { w: w, h: h, scale: scale, rooms: rooms, doorPx: rDoor * 2, ms: Math.round(now() - t0) };
+    return { w: w0, h: h0, scale: scale, rooms: rooms, doorPx: rDoor * 2, ms: Math.round(now() - t0) };
   }
 
   // Масштаб по общей площади этажа: сумма площадей найденных помещений = areaM2.

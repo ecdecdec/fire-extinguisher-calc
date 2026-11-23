@@ -7,7 +7,7 @@
  *               Пусто — в приложениях ссылки и QR-кода нет (расчёт всё равно работает).
  */
 window.FIRECALC_CONFIG = {
-  version: '1.0.0',
-  build: 'f8c279d73e',
+  version: '1.0.1',
+  build: 'c37391e85f',
   publicUrl: ''
 };

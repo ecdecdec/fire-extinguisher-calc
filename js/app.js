@@ -129,7 +129,14 @@
         const d = JSON.parse(old);
         return { objects: [adoptObject(d)], currentId: '', options: d.options };
       }
-    } catch (e) { /* повреждённые данные — начинаем с чистого листа */ }
+    } catch (e) {
+      // повреждённые данные: начинаем с чистого листа, но прежнюю запись сохраняем копией,
+      // иначе первое же сохранение затёрло бы её навсегда
+      try {
+        const raw = window.localStorage.getItem(STORE_KEY);
+        if (raw) window.localStorage.setItem(STORE_KEY + '.bad', raw);
+      } catch (e2) { /* копию сделать не удалось */ }
+    }
     return null;
   }
 
@@ -186,7 +193,9 @@
     }
     return {
       put: function (key, value) { return run('readwrite', function (s) { return s.put(value, key); }); },
-      get: function (key) { return run('readonly', function (s) { return s.get(key); }); }
+      get: function (key) { return run('readonly', function (s) { return s.get(key); }); },
+      del: function (key) { return run('readwrite', function (s) { return s.delete(key); }); },
+      keys: function () { return run('readonly', function (s) { return s.getAllKeys(); }); }
     };
   }());
 
@@ -203,6 +212,9 @@
         const ctx = canvas.getContext('2d');
         ctx.fillStyle = '#fff';
         ctx.fillRect(0, 0, w, h);
+        // сглаживание при уменьшении: тонкие линии чертежа не пропадают между точками
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(img, 0, 0, w, h);
         if (isFile) URL.revokeObjectURL(url);
         try {
@@ -530,7 +542,7 @@
         </div>
       </div>
       <p class="summary">{{ summaryLine }}</p>
-      <p class="share"><button type="button" class="link" data-test="share" @click="share">Ссылка на этот расчёт</button></p>
+      <p class="share" v-if="canShare"><button type="button" class="link" data-test="share" @click="share">Ссылка на этот расчёт</button></p>
 
       <div class="block">
         <h3>Сверка с фактом</h3>
@@ -570,7 +582,8 @@
         <ol class="finds" data-test="finds" v-if="audit.findings.length">
           <li v-for="(x, i) in audit.findings" :key="i" :class="'find find--' + x.level">
             <span class="ref">{{ x.floor }} · {{ x.ref }}{{ x.level === 'warn' ? ' · проверить на месте' : '' }}</span>
-            <span>{{ x.text }}<template v-if="x.action"> {{ x.action }}.</template></span>
+            <span>{{ x.text }}</span>
+            <span v-if="x.action">{{ x.action }}.</span>
           </li>
         </ol>
         <p class="hint" v-if="result.check && planFloors">У этажей со схемой числа «есть» взяты с неё</p>
@@ -712,7 +725,7 @@
 </div>
 
 <!-- ПЛАН ЭТАЖА ПО КАРТИНКЕ -->
-<div class="modal modal--full" v-if="bp" @click.self="closeBp">
+<div class="modal modal--full" v-if="bp">
   <div class="modal__box bp" role="dialog" aria-modal="true" aria-labelledby="bpTitle" data-test="bp-dialog">
     <div class="bp__head">
       <h2 id="bpTitle">План этажа{{ bpFloorName ? ' · ' + bpFloorName : '' }}</h2>
@@ -765,7 +778,7 @@
           <p class="hint">Проверьте назначение: серверной, щитовой, складу укажите своё — или впишите имя, назначение подставится. Лишнее снимите галочкой. Нажмите на помещение на плане — оно выделится в списке.</p>
           <div class="bp__list">
             <div v-for="r in bp.rooms" :key="r.id" :data-bp-item="r.id" :class="['bp__item', { 'bp__item--sel': bp.sel === r.id, 'bp__item--off': !r.on }]">
-              <input type="checkbox" v-model="r.on" :aria-label="'Учитывать помещение ' + r.id">
+              <input type="checkbox" v-model="r.on" :aria-label="'Учитывать помещение ' + r.id" @change="bpToggle">
               <span class="bp__no">{{ r.id }}</span>
               <input type="text" class="bp__name" v-model.trim="r.name" :placeholder="shortName(r.purpose)" :aria-label="'Имя помещения ' + r.id" @change="bpName(r)" @focus="bp.sel = r.id">
               <select v-model="r.purpose" :aria-label="'Назначение помещения ' + r.id" @change="r.purposeSet = true" @focus="bp.sel = r.id">
@@ -834,7 +847,11 @@
 
 <div class="toast" v-if="notice" role="status">
   <span>{{ notice }}</span>
-  <button type="button" class="toast__undo" data-test="undo" v-if="undoFn" @click="undo">Отменить</button>
+  <button type="button" class="toast__undo" data-test="undo" v-if="undoFn" @click="undo">{{ undoLabel }}</button>
+</div>
+
+<div class="toast toast--update" v-if="storeError" role="alert" data-test="store-error">
+  <span>{{ storeError }}</span>
 </div>
 
 <footer class="bar">
@@ -890,6 +907,8 @@
         pdfDialog: false,
         notice: '',
         undoFn: null,
+        undoLabel: 'Отменить',
+        storeError: '',  // сохранение не удалось: память заполнена или недоступна
         pdfBusy: false,
         selfcheck: '',
         iconCopy: ICON_COPY,
@@ -928,6 +947,8 @@
       },
       quick: function () { return this.kind.quick; },
       planViews: function () { return PLAN_VIEWS; },
+      // Ссылка на расчёт есть, только если известен адрес сайта (в приложениях — из js/config.js).
+      canShare: function () { return !!PF.publicBase(); },
       // окно «План этажа»
       areaPurposeGroups: function () { return P.PURPOSE_GROUPS.filter(function (g) { return !g.items.some(function (p) { return p.t5; }); }); },
       bpFloorName: function () { return this.bp ? (this.floorById(this.bp.floorId).name || '') : ''; },
@@ -1068,10 +1089,12 @@
       go: function (tab) { this.tab = tab === 'result' ? 'result' : 'input'; },
 
       // ----- уведомления и отмена -----
-      say: function (text, undoFn) {
+      // undoFn — действие кнопки в сообщении, label — её надпись (по умолчанию «Отменить»).
+      say: function (text, undoFn, label) {
         const self = this;
         this.notice = text;
         this.undoFn = undoFn || null;
+        this.undoLabel = label || 'Отменить';
         clearTimeout(this._noticeTimer);
         this._noticeTimer = setTimeout(function () { self.notice = ''; self.undoFn = null; }, undoFn ? 8000 : 3500);
       },
@@ -1085,11 +1108,26 @@
       save: function () {
         const self = this;
         clearTimeout(this._saveTimer);
-        this._saveTimer = setTimeout(function () {
-          try {
-            window.localStorage.setItem(STORE_KEY, JSON.stringify({ version: 2, currentId: self.current.id, objects: self.objects, options: self.options, ui: self.ui }));
-          } catch (e) { /* хранилище недоступно — работаем без сохранения */ }
-        }, 250);
+        this._saveTimer = setTimeout(function () { self.saveNow(); }, 250);
+      },
+      // Запись сразу: при сворачивании и закрытии приложения отложенная запись может не успеть.
+      saveNow: function () {
+        clearTimeout(this._saveTimer);
+        this._saveTimer = null;
+        try {
+          window.localStorage.setItem(STORE_KEY, JSON.stringify({ version: 2, currentId: this.current.id, objects: this.objects, options: this.options, ui: this.ui }));
+          this.storeError = '';
+        } catch (e) {
+          this.storeError = 'Изменения не сохраняются: память приложения заполнена или недоступна. Удалите ненужные объекты.';
+        }
+      },
+      // Картинки планов, на которые не ссылается ни один этаж (объект или этаж удалён, план заменён).
+      cleanImages: function () {
+        const used = {};
+        this.objects.forEach(function (o) { o.floors.forEach(function (f) { if (f.blueprint && f.blueprint.img) used[f.blueprint.img] = true; }); });
+        IMG.keys().then(function (keys) {
+          keys.forEach(function (k) { if (!used[k]) IMG.del(k).catch(function () { /* удалится в следующий раз */ }); });
+        }).catch(function () { /* хранилище картинок недоступно */ });
       },
 
       // ----- объекты -----
@@ -1606,7 +1644,7 @@
       // ----- план этажа по картинке -----
       openBp: function (floor) {
         const self = this;
-        this.bp = { floorId: floor.id, img: '', imgKey: '', w: 0, h: 0, pts: [], lenM: '', areaM2: '', busy: false, rooms: null, sel: null, error: '', scale: 0, ms: 0 };
+        this.bp = { floorId: floor.id, img: '', imgKey: '', w: 0, h: 0, pts: [], lenM: '', areaM2: '', busy: false, rooms: null, sel: null, error: '', scale: 0, areaFit: 0, ms: 0 };
         this._bpPixels = null;
         // план уже загружен — открывается с ним, масштаб прежний
         const old = PL.blueprintOf(floor);
@@ -1621,7 +1659,15 @@
         }
       },
       // Этаж, добавленный ради плана, остаётся и без плана: следующее «Добавить этаж по плану» возьмёт его же.
-      closeBp: function () { this.bp = null; this._bpPixels = null; },
+      // Если помещения найдены, но не применены, закрытие можно отменить. silent === true — после применения.
+      closeBp: function (silent) {
+        const bp = this.bp, px = this._bpPixels, self = this;
+        this.bp = null;
+        this._bpPixels = null;
+        if (silent !== true && bp && bp.rooms && bp.rooms.length) {
+          this.say('План закрыт, найденные помещения не применены', function () { self.bp = bp; self._bpPixels = px; });
+        }
+      },
       // Пустой этаж: ни плана, ни помещений с именем или площадью.
       floorBlank: function (f) {
         return !f.blueprint && !f.rooms.some(function (r) { return r.name || toNum(r.area); });
@@ -1715,6 +1761,8 @@
           if (!self.bp || self.bp !== bp) return;
           bp.busy = false;
           bp.scale = res.scale;
+          // масштаб по площади этажа: при снятии галочки площади пересчитываются (bpToggle)
+          bp.areaFit = byLength ? 0 : toNum(bp.areaM2);
           bp.ms = res.out.ms;
           if (!res.out.rooms.length) {
             bp.error = res.scale < 3
@@ -1732,6 +1780,20 @@
           bp.busy = false;
           bp.error = e && e.message ? e.message : String(e);
         });
+      },
+      // Галочка у найденного помещения. Если масштаб подобран по площади этажа, он считался по сумме
+      // всех найденных областей, в том числе лишних: без пересчёта площади оставшихся помещений
+      // остались бы меньше настоящих, а с ними и число огнетушителей.
+      bpToggle: function () {
+        const bp = this.bp;
+        if (!bp || !bp.rooms || !(bp.areaFit > 0)) return;
+        const on = bp.rooms.filter(function (r) { return r.on; });
+        if (!on.length) return;
+        const s = V.scaleFromArea(on, bp.areaFit);
+        if (!(s > 0)) return;
+        const areas = V.roundAreas(on, s);
+        on.forEach(function (r, i) { r.area = areas[i]; });
+        bp.scale = s;
       },
       // Имя в списке подсказывает назначение, как и в строке помещения.
       bpName: function (r) {
@@ -1766,7 +1828,7 @@
         floor.plan.ext = [];
         // та же сумма, что в списке найденного и в итоге этажа
         const total = r1(floor.rooms.reduce(function (t, r) { return t + r.area; }, 0));
-        this.closeBp();
+        this.closeBp(true);
         this.keepData();
         this.say('По плану: ' + keep.length + ' ' + E.plural(keep.length, 'помещение', 'помещения', 'помещений') + ', ' + E.fmt(total) + ' м²', function () {
           floor.rooms = prev.rooms;
@@ -1866,7 +1928,10 @@
             self.pdfBusy = false;
             self.pdfDialog = false;
             if (r && r.how === 'share') self.say(r.cancelled ? 'PDF готов: ' + x.name + '. Чтобы отправить, нажмите «Скачать PDF» ещё раз' : 'PDF готов: ' + x.name);
-            else self.say('PDF сохранён: ' + x.name);
+            else if (r && r.how === 'dialog') { // Windows: окно «Сохранить как» закрыто
+              if (r.cancelled) self.say('PDF не сохранён');
+              else self.say('PDF сохранён: ' + r.path, r.open, 'Открыть');
+            } else self.say('PDF сохранён: ' + x.name);
             self.keepData();
           });
         }).catch(function (e) {
@@ -1891,6 +1956,7 @@
       applyUpdate: function () {
         const fn = this.updateReady;
         this.updateReady = null;
+        if (this._saveTimer) this.saveNow(); // перезапуск с новой версией не теряет последнее изменение
         if (fn) fn();
       },
       // Просит браузер не удалять объекты и картинки планов (один раз, когда в них уже есть работа).
@@ -1909,7 +1975,18 @@
       },
       // Кнопка «Назад» на Android: сначала закрываются окна и меню. true — что-то закрыто.
       back: function () {
-        if (this.bp && !this.bp.busy) { this.closeBp(); return true; }
+        if (this.bp) {
+          const bp = this.bp, self = this;
+          if (bp.busy) return true; // идёт распознавание: окно остаётся открытым
+          if (bp.rooms) { // шаг назад: к масштабу; найденное можно вернуть
+            const rooms = bp.rooms;
+            bp.rooms = null;
+            this.say('Возврат к масштабу', function () { if (self.bp === bp) bp.rooms = rooms; });
+            return true;
+          }
+          this.closeBp();
+          return true;
+        }
         if (this.library) { this.library = null; return true; }
         if (this.pdfDialog) { this.pdfDialog = false; return true; }
         if (this.linkDialog) { this.linkDialog = ''; return true; }
@@ -1923,9 +2000,15 @@
       const self = this;
       document.addEventListener('click', function () { self.menuOpen = false; });
       document.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape') { self.menuOpen = false; self.pdfDialog = false; self.linkDialog = ''; self.library = null; if (self.bp && !self.bp.busy) self.closeBp(); }
+        if (e.key !== 'Escape') return;
+        if (self.bp) { self.back(); return; } // окно плана: как «Назад», по шагам
+        self.menuOpen = false; self.pdfDialog = false; self.linkDialog = ''; self.library = null;
       });
       PF.onBack(function () { return self.back(); });
+      // свернули или закрыли приложение: отложенное сохранение выполняется сразу
+      document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden' && self._saveTimer) self.saveNow(); });
+      window.addEventListener('pagehide', function () { if (self._saveTimer) self.saveNow(); });
+      setTimeout(function () { self.cleanImages(); }, 5000);
 
       this.openFirstRoomIfBlank();
 

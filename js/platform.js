@@ -44,10 +44,17 @@
   function safeName(name) { return String(name || 'file').replace(/[\\/:*?"<>|]+/g, '_'); }
 
   // Сохранить или отправить файл. base64 — содержимое, mime — тип.
-  // web и desktop: обычное скачивание (в Windows-приложении откроется окно «Сохранить как»);
+  // web: обычное скачивание;
+  // desktop: системное окно «Сохранить как»; ответ { how: 'dialog', cancelled, path, open };
   // android: файл кладётся в память приложения и открывается меню «Поделиться».
   function saveFile(name, base64, mime) {
     name = safeName(name);
+    if (desktop && typeof desktop.saveFile === 'function') {
+      return desktop.saveFile(name, base64).then(function (r) {
+        if (!r || !r.saved) return { how: 'dialog', cancelled: true };
+        return { how: 'dialog', cancelled: false, path: r.path, open: typeof desktop.openFile === 'function' ? function () { desktop.openFile(r.path); } : null };
+      });
+    }
     if (cap) {
       return native('Filesystem', 'writeFile', { path: name, data: base64, directory: 'CACHE', recursive: true })
         .then(function (res) {
@@ -75,9 +82,11 @@
     });
   }
 
-  // PDF из pdfmake: на телефоне-приложении — через «Поделиться», иначе — скачивание.
+  // PDF из pdfmake: на телефоне-приложении — через «Поделиться», в приложении для Windows — окном
+  // «Сохранить как», на сайте — скачивание.
   function savePdf(pdf, name) {
-    if (!cap) return new Promise(function (resolve) { pdf.download(name, function () { resolve({ how: 'download' }); }); });
+    const viaFile = cap || (desktop && typeof desktop.saveFile === 'function');
+    if (!viaFile) return new Promise(function (resolve) { pdf.download(name, function () { resolve({ how: 'download' }); }); });
     return new Promise(function (resolve, reject) {
       try { pdf.getBase64(function (b64) { saveFile(name, b64, 'application/pdf').then(resolve, reject); }); } catch (e) { reject(e); }
     });

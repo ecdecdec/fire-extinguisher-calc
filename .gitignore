@@ -9,3 +9,7 @@ native/dist-desktop/
 native/android/keystore.properties
 *.jks
 *.keystore
+
+# набор планов для проверки распознавания: картинки скачиваются, в git только список
+bench/vision/img/
+bench/vision/out/
