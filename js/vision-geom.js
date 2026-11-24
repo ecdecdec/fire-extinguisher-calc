@@ -13,6 +13,98 @@
   const WORK_SIDE = 440;
   const PLAN_SIDE = 360;
 
+  // Пороги оценки кандидатов (evaluateCandidate) и поиска области плана (planBox).
+  const DEFAULTS = {
+    // evaluateCandidate: геометрические фильтры и параметры выборки сторон
+    evalMinAreaFrac: 0.05,        // минимальная доля площади кандидата от кадра
+    evalMinSideFrac: 0.12,        // минимальная сторона как доля меньшей стороны кадра
+    evalMinOppRatio: 0.38,        // минимальное отношение противоположных сторон
+    evalCornerBorderPx: 0.8,      // допуск попадания угла точно в угол кадра
+    evalEdgeSamples: 40,          // число точек выборки вдоль каждой стороны
+    evalDarkMax: 175,             // верхняя граница порога темного пикселя
+    evalDarkDrop: 42,             // падение яркости от бумаги до темной линии
+    evalEdgeMin: 18,              // минимальный порог градиента вдоль края
+    evalEdgeLowMul: 0.85,         // множитель tLow для порога края
+    evalStrongMin: 65,            // минимальный порог сильного градиента
+    evalStrongHighMul: 1.4,       // множитель tHigh для сильного градиента
+    evalImageEdgeTol: 0.6,        // допуск совпадения стороны с кромкой кадра
+    evalNearEdgeTol: 3.5,         // допуск близости стороны к кромке кадра
+    evalSideContrastMin: 15,      // минимальный цветовой контраст стороны листа
+    // evaluateCandidate: критерии печатной рамки ('frame')
+    evalFrameDarkCovMin: 0.72,    // минимальное покрытие темной линией худшей стороны рамки
+    evalFrameMeanDarkCovMin: 0.82,// минимальное среднее покрытие темной линией 4 сторон рамки
+    evalFrameAreaMin: 0.42,       // минимальная доля площади печатной рамки
+    evalFrameMaxTiltSin: 0.14,    // максимальный синус наклона сторон рамки
+    evalFrameOutDarkMax: 0.24,    // максимальная доля темных точек снаружи рамки
+    evalFramePaperMin: 150,       // минимальная яркость бумаги для печатной рамки
+    evalFrameContainMin: 0.75,    // минимальная доля содержимого внутри рамки
+    evalFrameScoreMin: 0.58,      // порог оценки для выбора 'frame'
+    evalFrameLumDiffMax: 34,      // максимальный перепад яркости по обе стороны рамки
+    evalFrameOutLumMin: 150,      // минимальная яркость снаружи линии рамки
+    evalFrameOutDarkSideMax: 0.28,// максимальная доля темных точек снаружи стороны рамки
+    evalFrameEdgeDarkMin: 0.80,   // покрытие темной линией рамки вплотную к краю
+    evalFrameEdgePaperMin: 180,   // минимальная яркость бумаги для рамки вплотную к краю
+    // evaluateCandidate: критерии листа на фоне ('sheet')
+    evalSheetMinEdgeCov: 0.36,    // минимальное покрытие градиентом худшей стороны листа
+    evalSheetMeanEdgeCov: 0.54,   // минимальное среднее покрытие градиентом 4 сторон листа
+    evalSheetContrastNorm: 52,    // масштаб нормировки цветового контраста края листа
+    evalSheetLowContrastMin: 11,  // пониженный порог контраста для крупного листа на фото
+    evalSheetLowAreaMin: 0.55,    // минимальная площадь для пониженного порога контраста
+    evalSheetLowContainMin: 0.85, // минимальное содержание для пониженного порога контраста
+    evalSheetTwoSideContrast: 24, // порог контраста при двух контрастных сторонах
+    evalSheetTiltMin: 0.04,       // минимальный наклон при двух контрастных сторонах
+    evalSheetOutLightMax: 0.65,   // верхний порог светлого фона при двух контрастных сторонах
+    evalSheetCleanAreaMin: 0.35,  // минимальная площадь листа на чистом белом фоне
+    evalSheetCleanContainMin: 0.78,// минимальное содержание листа на чистом белом фоне
+    evalSheetCleanContrastMin: 25,// минимальный контраст листа на чистом белом фоне
+    evalSheetPartialContainMin: 0.32,// минимальное содержание листа на фото
+    evalSheetRoomAreaMax: 0.72,   // верхняя граница площади для фильтра внутренней комнаты
+    evalSheetRoomOutLightMin: 0.72,// доля светлой бумаги снаружи для фильтра комнаты
+    evalSheetRoomOutDarkMin: 0.10,// доля темных линий снаружи для фильтра комнаты
+    evalSheetRoomContrastMax: 38, // верхний порог контраста для фильтра внутренней комнаты
+    evalSheetBorderPenalty: 0.88, // штраф при одной стороне на краю кадра
+    evalSheetScoreMin: 0.54,      // порог оценки для выбора 'sheet'
+    evalSheetOutBrightLum: 205,   // порог светлой бумаги снаружи листа
+    evalSheetOutBrightMin: 0.78,  // доля светлой бумаги снаружи для проверки безрамочного чертежа
+    evalSheetOutInkMax: 0.06,     // максимальная доля темного плана снаружи на светлой бумаге
+    evalSheetMinBgDiff: 12,       // минимальное отличие фона бумаги внутри и снаружи на светлом фоне
+    evalSheetNearContentTol: 5.0, // допуск близости стороны к краю для проверки содержания
+    // planBox: выделение штрихов стен и выбор главной компоненты здания
+    planBgDiv: 24,                // делитель длинной стороны для радиуса оценки фона
+    planPadFrac: 0.03,            // отступ от кромки сетки при анализе плана
+    planBgMin: 85,                // минимальная локальная яркость фона под штрихом
+    planSatMax: 55,               // максимальная насыщенность нейтрального штриха стены
+    planSatGrayMin: 55,           // порог яркости, выше которого цветные метки отсеиваются
+    planDiffMin: 15,              // минимальный контраст штриха относительно локального фона
+    planInkFracMin: 0.004,        // минимальная доля темных штрихов для непустого плана
+    planInkTopAreaFrac: 0.18,     // предел доли площади при выборе адаптивного порога
+    planInkTopShare: 0.68,        // доля самых контрастных штрихов при выборе порога
+    planDiffThMin: 22,            // нижний предел порога контраста штриха
+    planDiffThMax: 48,            // верхний предел порога контраста штриха
+    planSolidRadFrac: 0.016,      // радиус отсева широких сплошных темных панелей
+    planMinRunFrac: 0.032,        // минимальная длина отрезка стены как доля длинной стороны
+    planMinDiagMul: 0.85,         // множитель минимальной длины для диагональных стен
+    planMinSpanMul: 1.4,          // минимальный размах связного каркаса стен под углом
+    planJoinRadFrac: 0.005,       // радиус сшивки стен через дверные проемы
+    planCompSideMinFrac: 0.06,    // минимальный размер компоненты как доля стороны
+    planCompAreaMinFrac: 0.02,    // минимальная площадь рамки компоненты как доля кадра
+    planInnerMarginFrac: 0.14,    // внутренний отступ для отличия плана от пустой рамки
+    planInnerFracMin: 0.06,       // минимальная доля внутренних линий внутри рамки
+    planBalanceMin: 0.07,         // минимальный баланс горизонтальных и вертикальных линий
+    planStampAreaMaxFrac: 0.14,   // максимальная доля площади углового штампа
+    planStampEdgeFrac: 0.88,      // порог близости штампа к краю листа
+    planStampPenalty: 0.45,       // понижающий множитель оценки углового штампа
+    planBestMassMul: 2.5,         // минимальная взвешенная масса лучшей компоненты (в minRun)
+    planNearGapFrac: 0.04,        // максимальный зазор для присоединения соседнего крыла
+    planCorrGapFrac: 0.10,        // максимальный зазор через коридор для соседнего крыла
+    planWingScoreFrac: 0.15,      // минимальная доля оценки для присоединяемого крыла
+    planWingThickFrac: 0.72,      // минимальная доля толщины стен присоединяемого крыла
+    planCorrScoreFrac: 0.28,      // минимальная доля оценки крыла через коридор
+    planCorrOverlapMin: 0.45,     // минимальное перекрытие проекций крыла через коридор
+    planOutMarginFrac: 0.045,     // запас расширения итоговой рамки здания
+    planMinUvSpan: 0.05           // минимальный размер итоговой области в координатах uv
+  };
+
   // ---------- геометрия четырехугольника ----------
 
   function fullQuad(w, h) {
@@ -201,14 +293,21 @@
            a[2] * (b[0] * c[1] - b[1] * c[0]);
   }
 
+  // Длины 4 сторон упорядоченного четырехугольника: верх, право, низ, лево.
+  function quadSides(q) {
+    return {
+      top: Math.hypot(q[1][0] - q[0][0], q[1][1] - q[0][1]),
+      right: Math.hypot(q[2][0] - q[1][0], q[2][1] - q[1][1]),
+      bot: Math.hypot(q[3][0] - q[2][0], q[3][1] - q[2][1]),
+      left: Math.hypot(q[0][0] - q[3][0], q[0][1] - q[3][1])
+    };
+  }
+
   // Оценка соотношения сторон прямоугольника по точкам схода (Чжан и Хэ, 2007).
   function estimateAspect(q, w, h) {
-    const top = Math.hypot(q[1][0] - q[0][0], q[1][1] - q[0][1]);
-    const bot = Math.hypot(q[2][0] - q[3][0], q[2][1] - q[3][1]);
-    const left = Math.hypot(q[3][0] - q[0][0], q[3][1] - q[0][1]);
-    const right = Math.hypot(q[2][0] - q[1][0], q[2][1] - q[1][1]);
-    const avgW = 0.5 * (top + bot);
-    const avgH = 0.5 * (left + right);
+    const s = quadSides(q);
+    const avgW = 0.5 * (s.top + s.bot);
+    const avgH = 0.5 * (s.left + s.right);
     const fallback = avgH > 1e-6 ? avgW / avgH : 1;
 
     const cx = w > 0 ? w * 0.5 : 0.25 * (q[0][0] + q[1][0] + q[2][0] + q[3][0]);
@@ -226,7 +325,7 @@
 
     const a2 = k2 * m2[0] - m1[0], b2 = k2 * m2[1] - m1[1], c2 = k2 - 1;
     const a3 = k3 * m3[0] - m1[0], b3 = k3 * m3[1] - m1[1], c3 = k3 - 1;
-    const refSide = w > 0 && h > 0 ? Math.max(w, h) : Math.max(top, bot, left, right);
+    const refSide = w > 0 && h > 0 ? Math.max(w, h) : Math.max(s.top, s.bot, s.left, s.right);
     const diag = w > 0 && h > 0 ? Math.hypot(w, h) : refSide * 1.25;
 
     let f2 = refSide * refSide;
@@ -246,12 +345,9 @@
 
   function rectifiedSize(quad, w, h) {
     const q = orderQuad(quad);
-    const top = Math.hypot(q[1][0] - q[0][0], q[1][1] - q[0][1]);
-    const bot = Math.hypot(q[2][0] - q[3][0], q[2][1] - q[3][1]);
-    const left = Math.hypot(q[3][0] - q[0][0], q[3][1] - q[0][1]);
-    const right = Math.hypot(q[2][0] - q[1][0], q[2][1] - q[1][1]);
-    const baseW = Math.max(top, bot);
-    const baseH = Math.max(left, right);
+    const s = quadSides(q);
+    const baseW = Math.max(s.top, s.bot);
+    const baseH = Math.max(s.left, s.right);
     if (baseW < 1 || baseH < 1) return { w: 1, h: 1 };
 
     let ar = estimateAspect(q, w, h);
@@ -298,11 +394,11 @@
   function cornerScales(H, outW, outH) {
     const h0 = H[0], h1 = H[1], h2 = H[2], h3 = H[3], h4 = H[4], h5 = H[5], h6 = H[6], h7 = H[7], h8 = H[8];
     const pts = [[0.5, 0.5], [outW - 0.5, 0.5], [outW - 0.5, outH - 0.5], [0.5, outH - 0.5], [outW * 0.5, outH * 0.5]];
-    let mn = Infinity, mx = 0;
+    let mn = Infinity, mx = 0, valid = 0;
     for (let i = 0; i < pts.length; i++) {
       const u = pts[i][0], v = pts[i][1];
       const den = h6 * u + h7 * v + h8;
-      if (Math.abs(den) < 1e-12) continue;
+      if (!(den > 1e-12)) continue;
       const inv = 1 / den;
       const sx = (h0 * u + h1 * v + h2) * inv;
       const sy = (h3 * u + h4 * v + h5) * inv;
@@ -312,27 +408,58 @@
       const sMax = du > dv ? du : dv;
       if (sMin < mn) mn = sMin;
       if (sMax > mx) mx = sMax;
+      valid += 1;
     }
-    return { min: mn, max: mx };
+    if (!valid) return { min: 1, max: 1, valid: 0 };
+    return { min: mn, max: mx, valid: valid };
+  }
+
+  // Билинейная выборка пикселя с накоплением в acc[0..3]; за границами кадра дает белый цвет.
+  function sampleBilinearAdd(src, sw, sh, stride, sx, sy, acc) {
+    if (sx < -0.5 || sy < -0.5 || sx > sw - 0.5 || sy > sh - 0.5) {
+      acc[0] += 255; acc[1] += 255; acc[2] += 255; acc[3] += 255;
+      return;
+    }
+    const wm1 = sw - 1, hm1 = sh - 1;
+    if (sx < 0) sx = 0; else if (sx > wm1) sx = wm1;
+    if (sy < 0) sy = 0; else if (sy > hm1) sy = hm1;
+    const x0 = sx | 0, y0 = sy | 0;
+    const x1 = x0 < wm1 ? x0 + 1 : wm1;
+    const y1 = y0 < hm1 ? y0 + 1 : hm1;
+    const fx = sx - x0, fy = sy - y0;
+    const ifx = 1 - fx, ify = 1 - fy;
+    const w00 = ifx * ify, w10 = fx * ify, w01 = ifx * fy, w11 = fx * fy;
+    const p00 = y0 * stride + x0 * 4;
+    const p10 = y0 * stride + x1 * 4;
+    const p01 = y1 * stride + x0 * 4;
+    const p11 = y1 * stride + x1 * 4;
+    acc[0] += src[p00]     * w00 + src[p10]     * w10 + src[p01]     * w01 + src[p11]     * w11;
+    acc[1] += src[p00 + 1] * w00 + src[p10 + 1] * w10 + src[p01 + 1] * w01 + src[p11 + 1] * w11;
+    acc[2] += src[p00 + 2] * w00 + src[p10 + 2] * w10 + src[p01 + 2] * w01 + src[p11 + 2] * w11;
+    acc[3] += src[p00 + 3] * w00 + src[p10 + 3] * w10 + src[p01 + 3] * w01 + src[p11 + 3] * w11;
   }
 
   function warp(rgba, w, h, quad, outW, outH) {
+    if (!Array.isArray(quad) || quad.length !== 4) {
+      throw new Error('warp: ожидается массив из 4 точек четырехугольника');
+    }
+    for (let i = 0; i < 4; i++) {
+      const pt = quad[i];
+      if (!pt || pt.length < 2 || !isFinite(pt[0]) || !isFinite(pt[1])) {
+        throw new Error('warp: некорректные координаты вершины ' + i);
+      }
+    }
     outW = Math.max(1, outW | 0);
     outH = Math.max(1, outH | 0);
     let src = rgba, sw = w, sh = h;
-    let q = [
-      [quad[0][0], quad[0][1]],
-      [quad[1][0], quad[1][1]],
-      [quad[2][0], quad[2][1]],
-      [quad[3][0], quad[3][1]]
-    ];
+    let q = orderQuad(quad);
     const dst4 = [[0, 0], [outW, 0], [outW, outH], [0, outH]];
     let H = homography(dst4, q);
     if (!H) return new Uint8ClampedArray(outW * outH * 4).fill(255);
 
     // Если картинка сжимается в 2 и более раз по всей площади, сперва мягко усредняем исходник.
     let sc = cornerScales(H, outW, outH);
-    while (sc.min >= 2.0 && sw >= 8 && sh >= 8) {
+    while (sc.valid === 5 && isFinite(sc.min) && sc.min >= 2.0 && sw >= 8 && sh >= 8) {
       const nxt = halfRgba(src, sw, sh);
       const sx = nxt.w / sw, sy = nxt.h / sh;
       src = nxt.rgba; sw = nxt.w; sh = nxt.h;
@@ -341,12 +468,14 @@
       if (!H) break;
       sc = cornerScales(H, outW, outH);
     }
+    if (!H) return new Uint8ClampedArray(outW * outH * 4).fill(255);
 
     const out = new Uint8ClampedArray(outW * outH * 4);
     const h0 = H[0], h1 = H[1], h2 = H[2];
     const h3 = H[3], h4 = H[4], h5 = H[5];
     const h6 = H[6], h7 = H[7], h8 = H[8];
-    const wm1 = sw - 1, hm1 = sh - 1, stride = sw * 4;
+    const stride = sw * 4;
+    const acc = new Float64Array(4);
 
     // Быстрый путь: без сильного сжатия достаточно одной билинейной выборки.
     if (sc.max <= 1.35) {
@@ -357,30 +486,20 @@
         let ny = h3 * 0.5 + h4 * vc + h5;
         let dn = h6 * 0.5 + h7 * vc + h8;
         for (let u = 0; u < outW; u++) {
-          const inv = 1 / dn;
-          let sx = nx * inv - 0.5;
-          let sy = ny * inv - 0.5;
+          const curDn = dn;
+          const curNx = nx, curNy = ny;
           nx += h0; ny += h3; dn += h6;
-          if (sx < -0.5 || sy < -0.5 || sx > sw - 0.5 || sy > sh - 0.5) {
+          if (!(curDn > 1e-9)) {
             out[o] = 255; out[o + 1] = 255; out[o + 2] = 255; out[o + 3] = 255;
             o += 4; continue;
           }
-          if (sx < 0) sx = 0; else if (sx > wm1) sx = wm1;
-          if (sy < 0) sy = 0; else if (sy > hm1) sy = hm1;
-          const x0 = sx | 0, y0 = sy | 0;
-          const x1 = x0 < wm1 ? x0 + 1 : wm1;
-          const y1 = y0 < hm1 ? y0 + 1 : hm1;
-          const fx = sx - x0, fy = sy - y0;
-          const ifx = 1 - fx, ify = 1 - fy;
-          const w00 = ifx * ify, w10 = fx * ify, w01 = ifx * fy, w11 = fx * fy;
-          const p00 = y0 * stride + x0 * 4;
-          const p10 = y0 * stride + x1 * 4;
-          const p01 = y1 * stride + x0 * 4;
-          const p11 = y1 * stride + x1 * 4;
-          out[o]     = src[p00]     * w00 + src[p10]     * w10 + src[p01]     * w01 + src[p11]     * w11 + 0.5;
-          out[o + 1] = src[p00 + 1] * w00 + src[p10 + 1] * w10 + src[p01 + 1] * w01 + src[p11 + 1] * w11 + 0.5;
-          out[o + 2] = src[p00 + 2] * w00 + src[p10 + 2] * w10 + src[p01 + 2] * w01 + src[p11 + 2] * w11 + 0.5;
-          out[o + 3] = src[p00 + 3] * w00 + src[p10 + 3] * w10 + src[p01 + 3] * w01 + src[p11 + 3] * w11 + 0.5;
+          const inv = 1 / curDn;
+          acc[0] = 0; acc[1] = 0; acc[2] = 0; acc[3] = 0;
+          sampleBilinearAdd(src, sw, sh, stride, curNx * inv - 0.5, curNy * inv - 0.5, acc);
+          out[o]     = acc[0] + 0.5;
+          out[o + 1] = acc[1] + 0.5;
+          out[o + 2] = acc[2] + 0.5;
+          out[o + 3] = acc[3] + 0.5;
           o += 4;
         }
       }
@@ -396,41 +515,25 @@
       const vc = v + 0.5;
       for (let u = 0; u < outW; u++) {
         const uc = u + 0.5;
-        let rr = 0, gg = 0, bb = 0, aa = 0;
+        acc[0] = 0; acc[1] = 0; acc[2] = 0; acc[3] = 0;
         for (let oy = 0; oy < subN; oy++) {
           const vv = vc + offs[oy];
           const bnx = h1 * vv + h2, bny = h4 * vv + h5, bdn = h7 * vv + h8;
           for (let ox = 0; ox < subN; ox++) {
             const uu = uc + offs[ox];
-            const inv = 1 / (h6 * uu + bdn);
-            let sx = (h0 * uu + bnx) * inv - 0.5;
-            let sy = (h3 * uu + bny) * inv - 0.5;
-            if (sx < -0.5 || sy < -0.5 || sx > sw - 0.5 || sy > sh - 0.5) {
-              rr += 255; gg += 255; bb += 255; aa += 255;
+            const curDn = h6 * uu + bdn;
+            if (!(curDn > 1e-9)) {
+              acc[0] += 255; acc[1] += 255; acc[2] += 255; acc[3] += 255;
               continue;
             }
-            if (sx < 0) sx = 0; else if (sx > wm1) sx = wm1;
-            if (sy < 0) sy = 0; else if (sy > hm1) sy = hm1;
-            const x0 = sx | 0, y0 = sy | 0;
-            const x1 = x0 < wm1 ? x0 + 1 : wm1;
-            const y1 = y0 < hm1 ? y0 + 1 : hm1;
-            const fx = sx - x0, fy = sy - y0;
-            const ifx = 1 - fx, ify = 1 - fy;
-            const w00 = ifx * ify, w10 = fx * ify, w01 = ifx * fy, w11 = fx * fy;
-            const p00 = y0 * stride + x0 * 4;
-            const p10 = y0 * stride + x1 * 4;
-            const p01 = y1 * stride + x0 * 4;
-            const p11 = y1 * stride + x1 * 4;
-            rr += src[p00]     * w00 + src[p10]     * w10 + src[p01]     * w01 + src[p11]     * w11;
-            gg += src[p00 + 1] * w00 + src[p10 + 1] * w10 + src[p01 + 1] * w01 + src[p11 + 1] * w11;
-            bb += src[p00 + 2] * w00 + src[p10 + 2] * w10 + src[p01 + 2] * w01 + src[p11 + 2] * w11;
-            aa += src[p00 + 3] * w00 + src[p10 + 3] * w10 + src[p01 + 3] * w01 + src[p11 + 3] * w11;
+            const inv = 1 / curDn;
+            sampleBilinearAdd(src, sw, sh, stride, (h0 * uu + bnx) * inv - 0.5, (h3 * uu + bny) * inv - 0.5, acc);
           }
         }
-        out[o]     = rr * invCount + 0.5;
-        out[o + 1] = gg * invCount + 0.5;
-        out[o + 2] = bb * invCount + 0.5;
-        out[o + 3] = aa * invCount + 0.5;
+        out[o]     = acc[0] * invCount + 0.5;
+        out[o + 1] = acc[1] * invCount + 0.5;
+        out[o + 2] = acc[2] * invCount + 0.5;
+        out[o + 3] = acc[3] * invCount + 0.5;
         o += 4;
       }
     }
@@ -716,10 +819,27 @@
         if (err <= 2.2) inl += 1;
       }
       if (inl < pCount * 0.72) continue;
-      seg.support = pCount;
       segments.push(seg);
     }
     return segments;
+  }
+
+  // Сливает перекрывающиеся 1D-интервалы и возвращает объединение и суммарную покрытую длину.
+  function unionIntervals(raw) {
+    if (!raw.length) return { spans: [], coverLen: 0 };
+    raw.sort(function (a, b) { return a[0] - b[0]; });
+    const spans = [[raw[0][0], raw[0][1]]];
+    for (let i = 1; i < raw.length; i++) {
+      const last = spans[spans.length - 1];
+      if (raw[i][0] <= last[1]) {
+        if (raw[i][1] > last[1]) last[1] = raw[i][1];
+      } else {
+        spans.push([raw[i][0], raw[i][1]]);
+      }
+    }
+    let coverLen = 0;
+    for (let i = 0; i < spans.length; i++) coverLen += spans[i][1] - spans[i][0];
+    return { spans: spans, coverLen: coverLen };
   }
 
   // Объединяет коллинеарные отрезки в длинные прямые (мосты через блики и пересечения).
@@ -730,10 +850,11 @@
     const minCos = 0.992; // около 7 градусов
     const list = segments.slice().sort(function (a, b) { return b.len - a.len; });
     const merged = [];
+    const mergedParts = [];
 
     for (let i = 0; i < list.length; i++) {
       const s = list[i];
-      let target = null;
+      let targetIdx = -1;
       for (let j = 0; j < merged.length; j++) {
         const m = merged[j];
         const dot = m.nx * s.nx + m.ny * s.ny;
@@ -748,17 +869,19 @@
         const tB1 = m.tx * s.x1 + m.ty * s.y1, tB2 = m.tx * s.x2 + m.ty * s.y2;
         const bLo = tB1 < tB2 ? tB1 : tB2, bHi = tB1 < tB2 ? tB2 : tB1;
         const gap = Math.max(aLo, bLo) - Math.min(aHi, bHi);
-        if (gap <= maxGap) { target = m; break; }
+        if (gap <= maxGap) { targetIdx = j; break; }
       }
-      if (!target) {
+      if (targetIdx < 0) {
         merged.push({
           nx: s.nx, ny: s.ny, d: s.d, tx: s.tx, ty: s.ty,
           x1: s.x1, y1: s.y1, x2: s.x2, y2: s.y2,
           mx: s.mx, my: s.my, len: s.len, coverLen: s.len,
           weight: s.weight, avgMag: s.avgMag,
-          spans: [[s.tx * s.x1 + s.ty * s.y1, s.tx * s.x2 + s.ty * s.y2]]
+          spans: null
         });
+        mergedParts.push([[s.x1, s.y1, s.x2, s.y2]]);
       } else {
+        const target = merged[targetIdx];
         // Обновляем прямую как средневзвешенную по двум парам концов.
         const pts = new Float32Array([
           target.x1, target.y1, target.x2, target.y2,
@@ -775,11 +898,27 @@
           target.tx = -nf.ny; target.ty = nf.nx;
           target.x1 = nf.x1; target.y1 = nf.y1; target.x2 = nf.x2; target.y2 = nf.y2;
           target.mx = nf.mx; target.my = nf.my; target.len = nf.len;
-          target.coverLen += s.len;
           target.weight += s.weight;
           target.avgMag = (target.avgMag * wt1 + s.avgMag * wt2) / (wt1 + wt2);
+          mergedParts[targetIdx].push([s.x1, s.y1, s.x2, s.y2]);
         }
       }
+    }
+
+    // Считаем реальную покрытую длину (объединение интервалов), чтобы пустые разрывы не засчитывались.
+    for (let i = 0; i < merged.length; i++) {
+      const m = merged[i];
+      const parts = mergedParts[i];
+      const raw = new Array(parts.length);
+      for (let k = 0; k < parts.length; k++) {
+        const p = parts[k];
+        const t1 = m.tx * p[0] + m.ty * p[1];
+        const t2 = m.tx * p[2] + m.ty * p[3];
+        raw[k] = t1 < t2 ? [t1, t2] : [t2, t1];
+      }
+      const u = unionIntervals(raw);
+      m.spans = u.spans;
+      m.coverLen = u.coverLen;
     }
     return merged;
   }
@@ -959,18 +1098,23 @@
     return out;
   }
 
-  // ---------- поиск печатной рамки листа на скане (проекции по minL) ----------
-
-  function frameProposals(work) {
-    const w = work.w, h = work.h, minL = work.minL, gray = work.gray;
-    // Оцениваем яркость бумаги по 75-му перцентилю яркости.
+  // 75-й перцентиль яркости (фон бумаги на сканах).
+  function paperLuminance(gray) {
     const hist = new Int32Array(256);
     for (let i = 0; i < gray.length; i++) hist[gray[i]] += 1;
-    let acc = 0, paperL = 240;
+    let acc = 0;
+    const need = gray.length * 0.75;
     for (let v = 0; v < 256; v++) {
       acc += hist[v];
-      if (acc >= gray.length * 0.75) { paperL = v; break; }
+      if (acc >= need) return v;
     }
+    return 220;
+  }
+
+  // ---------- поиск печатной рамки листа на скане (проекции по minL) ----------
+
+  function frameProposals(work, paperL) {
+    const w = work.w, h = work.h, minL = work.minL;
     if (paperL < 140) return [];
     const darkTh = Math.min(175, paperL - 45);
 
@@ -1084,8 +1228,8 @@
 
     for (let i = 0; i < ranked.length && picked.length < 22; i++) addLine(ranked[i]);
     // Добавляем крайние горизонтальные и вертикальные линии (у краев листа контраст бывает ниже стен).
-    const hor = ranked.filter(function (it) { return Math.abs(it.ln.ny) > 0.7 && it.ln.len > w * 0.14; });
-    const ver = ranked.filter(function (it) { return Math.abs(it.ln.nx) > 0.7 && it.ln.len > h * 0.14; });
+    const hor = ranked.filter(function (it) { return Math.abs(it.ln.ny) > 0.7 && it.ln.coverLen > w * 0.14; });
+    const ver = ranked.filter(function (it) { return Math.abs(it.ln.nx) > 0.7 && it.ln.coverLen > h * 0.14; });
     hor.sort(function (a, b) { return a.ln.my - b.ln.my; });
     for (let i = 0; i < Math.min(4, hor.length); i++) addLine(hor[i]);
     for (let i = Math.max(0, hor.length - 4); i < hor.length; i++) addLine(hor[i]);
@@ -1131,15 +1275,20 @@
     const P = Math.min(pairs.length, 90);
 
     function segOverlapFrac(ln, pA, pB) {
-      const vx = pB[0] - pA[0], vy = pB[1] - pA[1];
-      const sideLen = Math.hypot(vx, vy);
+      const tA = ln.tx * pA[0] + ln.ty * pA[1];
+      const tB = ln.tx * pB[0] + ln.ty * pB[1];
+      const sideLo = tA < tB ? tA : tB;
+      const sideHi = tA < tB ? tB : tA;
+      const sideLen = sideHi - sideLo;
       if (sideLen < 1) return 0;
-      const ux = vx / sideLen, uy = vy / sideLen;
-      const t1 = (ln.x1 - pA[0]) * ux + (ln.y1 - pA[1]) * uy;
-      const t2 = (ln.x2 - pA[0]) * ux + (ln.y2 - pA[1]) * uy;
-      const lo = Math.max(0, t1 < t2 ? t1 : t2);
-      const hi = Math.min(sideLen, t1 < t2 ? t2 : t1);
-      return hi > lo ? (hi - lo) / sideLen : 0;
+      const spans = ln.spans;
+      let covered = 0;
+      for (let i = 0; i < spans.length; i++) {
+        const lo = spans[i][0] > sideLo ? spans[i][0] : sideLo;
+        const hi = spans[i][1] < sideHi ? spans[i][1] : sideHi;
+        if (hi > lo) covered += hi - lo;
+      }
+      return covered / sideLen;
     }
 
     const minArea = w * h * 0.05;
@@ -1240,7 +1389,7 @@
 
     return {
       gw: gw, gh: gh, grid: grid, totalContent: totalContent,
-      borderCleanWhite: borderCleanWhite, borderMean: bMean, borderStd: bStd,
+      borderCleanWhite: borderCleanWhite,
       vis: new Uint8Array(w * h), stack: new Int32Array(w * h)
     };
   }
@@ -1364,61 +1513,136 @@
     return coreFrac < 0.12 && clearSides >= 2;
   }
 
+  // Перцентиль p (0..1) по гистограмме яркости 0..255.
+  function histQuantile(hist, total, p) {
+    const need = total * p;
+    let acc = 0;
+    for (let v = 0; v < 256; v++) {
+      acc += hist[v];
+      if (acc >= need) return v;
+    }
+    return 255;
+  }
+
+  // Отсеивает ложный 'sheet' на безрамочных чертежах: снаружи светлая бумага с темным планом или тот же фон бумаги.
+  function isBorderlessDrawingQuad(work, q, paperL, darkTh) {
+    const D = DEFAULTS;
+    const w = work.w, h = work.h, gray = work.gray;
+    const rArr = work.r, gArr = work.g, bArr = work.b;
+    const ax = new Float64Array(4), ay = new Float64Array(4), ac = new Float64Array(4);
+    for (let e = 0; e < 4; e++) {
+      const p0 = q[e], p1 = q[(e + 1) & 3];
+      const dx = p1[0] - p0[0], dy = p1[1] - p0[1];
+      const len = Math.hypot(dx, dy) || 1;
+      const inx = -dy / len, iny = dx / len;
+      ax[e] = inx; ay[e] = iny;
+      ac[e] = inx * p0[0] + iny * p0[1];
+    }
+    const brightTh = Math.max(D.evalSheetOutBrightLum, paperL - 25);
+    const inHR = new Int32Array(256), inHG = new Int32Array(256), inHB = new Int32Array(256);
+    const outHR = new Int32Array(256), outHG = new Int32Array(256), outHB = new Int32Array(256);
+    let outPx = 0, outBright = 0, outDark = 0, inDark = 0, inBgCnt = 0, outBgCnt = 0;
+    for (let y = 3; y < h - 3; y += 2) {
+      const ro = y * w;
+      for (let x = 3; x < w - 3; x += 2) {
+        let minD = 1e9;
+        for (let e = 0; e < 4; e++) {
+          const d = ax[e] * x + ay[e] * y - ac[e];
+          if (d < minD) minD = d;
+        }
+        const idx = ro + x, l = gray[idx];
+        if (minD >= -4) {
+          if (l < darkTh) inDark += 1;
+          if (minD > 12) {
+            inHR[rArr[idx]] += 1; inHG[gArr[idx]] += 1; inHB[bArr[idx]] += 1;
+            inBgCnt += 1;
+          }
+        } else {
+          outPx += 1;
+          if (l >= brightTh) outBright += 1;
+          if (l < darkTh) outDark += 1;
+          if (minD < -6) {
+            outHR[rArr[idx]] += 1; outHG[gArr[idx]] += 1; outHB[bArr[idx]] += 1;
+            outBgCnt += 1;
+          }
+        }
+      }
+    }
+    if (outPx < 20) return false;
+    if (outBright / outPx < D.evalSheetOutBrightMin) return false;
+    if ((inDark + outDark) >= 20 && outDark / (inDark + outDark) >= D.evalSheetOutInkMax) return true;
+    if (inBgCnt >= 20 && outBgCnt >= 20) {
+      const dr = Math.abs(histQuantile(inHR, inBgCnt, 0.75) - histQuantile(outHR, outBgCnt, 0.50));
+      const dg = Math.abs(histQuantile(inHG, inBgCnt, 0.75) - histQuantile(outHG, outBgCnt, 0.50));
+      const db = Math.abs(histQuantile(inHB, inBgCnt, 0.75) - histQuantile(outHB, outBgCnt, 0.50));
+      if (Math.max(dr, dg, db) < D.evalSheetMinBgDiff) return true;
+    }
+    return false;
+  }
+
   function evaluateCandidate(q, work, edges, paperL, stats, bestFrameScore) {
+    const D = DEFAULTS;
     const w = work.w, h = work.h;
     const gx = edges.gx, gy = edges.gy, br = edges.br, bg = edges.bg, bb = edges.bb;
     const minL = work.minL, gray = work.gray;
     const area = quadArea(q);
     const areaFrac = area / (w * h);
-    if (areaFrac < 0.05) return null;
+    if (areaFrac < D.evalMinAreaFrac) return null;
 
     // Проверка пропорций противоположных сторон.
-    const L0 = Math.hypot(q[1][0] - q[0][0], q[1][1] - q[0][1]);
-    const L1 = Math.hypot(q[2][0] - q[1][0], q[2][1] - q[1][1]);
-    const L2 = Math.hypot(q[3][0] - q[2][0], q[3][1] - q[2][1]);
-    const L3 = Math.hypot(q[0][0] - q[3][0], q[0][1] - q[3][1]);
+    const sides = quadSides(q);
+    const L0 = sides.top, L1 = sides.right, L2 = sides.bot, L3 = sides.left;
     const minSide = Math.min(L0, L1, L2, L3);
-    if (minSide < Math.min(w, h) * 0.12) return null;
+    if (minSide < Math.min(w, h) * D.evalMinSideFrac) return null;
     const oppRatio = Math.min(Math.min(L0, L2) / Math.max(L0, L2), Math.min(L1, L3) / Math.max(L1, L3));
-    if (oppRatio < 0.38) return null;
+    if (oppRatio < D.evalMinOppRatio) return null;
 
     // Если все 4 угла буквально в углах картинки (< 0.8 px от краев), это 'full'.
     let exactBorderCorners = 0;
+    const cTol = D.evalCornerBorderPx;
     for (let i = 0; i < 4; i++) {
       const px = q[i][0], py = q[i][1];
-      if ((px <= 0.8 || px >= w - 1.8) && (py <= 0.8 || py >= h - 1.8)) exactBorderCorners += 1;
+      if ((px <= cTol || px >= w - 1 - cTol) && (py <= cTol || py >= h - 1 - cTol)) exactBorderCorners += 1;
     }
     if (exactBorderCorners === 4) return null;
 
-    const darkTh = Math.min(175, paperL - 42);
-    const edgeTh = Math.max(18, edges.tLow * 0.85);
-    const strongTh = Math.max(65, edges.tHigh * 1.4);
+    const darkTh = Math.min(D.evalDarkMax, paperL - D.evalDarkDrop);
+    const edgeTh = Math.max(D.evalEdgeMin, edges.tLow * D.evalEdgeLowMul);
+    const strongTh = Math.max(D.evalStrongMin, edges.tHigh * D.evalStrongHighMul);
 
     let minEdgeCov = 1, meanEdgeCov = 0, meanStr = 0, meanPol = 0;
     let minDarkCov = 1, meanDarkCov = 0;
     let meanColorDiff = 0, contrastSides = 0, frameLikeSides = 0;
-    let borderSides = 0, nearEdgeSides = 0, insetOk = 0;
+    let borderSides = 0, nearEdgeSides = 0, nearContentSides = 0, insetOk = 0;
     let outLightFrac = 0, outDarkLineFrac = 0;
     let inOutSamples = 0;
 
-    const SAMPLES = 40;
+    const SAMPLES = D.evalEdgeSamples;
+    const imgEdgeTol = D.evalImageEdgeTol;
+    const nearTol = D.evalNearEdgeTol;
+    const nearCTol = D.evalSheetNearContentTol;
     for (let e = 0; e < 4; e++) {
       const a = q[e], b = q[(e + 1) & 3];
       const dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy);
       const outX = dy / len, outY = -dx / len;
       const inX = -outX, inY = -outY;
 
-      const onImageEdge = (Math.abs(a[0]) < 0.6 && Math.abs(b[0]) < 0.6) ||
-                          (Math.abs(a[0] - (w - 1)) < 0.6 && Math.abs(b[0] - (w - 1)) < 0.6) ||
-                          (Math.abs(a[1]) < 0.6 && Math.abs(b[1]) < 0.6) ||
-                          (Math.abs(a[1] - (h - 1)) < 0.6 && Math.abs(b[1] - (h - 1)) < 0.6);
-      const closeToEdge = (Math.max(a[0], b[0]) < 3.5) ||
-                          (Math.min(a[0], b[0]) > w - 4.5) ||
-                          (Math.max(a[1], b[1]) < 3.5) ||
-                          (Math.min(a[1], b[1]) > h - 4.5);
+      const onImageEdge = (Math.abs(a[0]) < imgEdgeTol && Math.abs(b[0]) < imgEdgeTol) ||
+                          (Math.abs(a[0] - (w - 1)) < imgEdgeTol && Math.abs(b[0] - (w - 1)) < imgEdgeTol) ||
+                          (Math.abs(a[1]) < imgEdgeTol && Math.abs(b[1]) < imgEdgeTol) ||
+                          (Math.abs(a[1] - (h - 1)) < imgEdgeTol && Math.abs(b[1] - (h - 1)) < imgEdgeTol);
+      const closeToEdge = (Math.max(a[0], b[0]) < nearTol) ||
+                          (Math.min(a[0], b[0]) > w - 1 - nearTol) ||
+                          (Math.max(a[1], b[1]) < nearTol) ||
+                          (Math.min(a[1], b[1]) > h - 1 - nearTol);
+      const closeForContent = (Math.max(a[0], b[0]) < nearCTol) ||
+                              (Math.min(a[0], b[0]) > w - 1 - nearCTol) ||
+                              (Math.max(a[1], b[1]) < nearCTol) ||
+                              (Math.min(a[1], b[1]) > h - 1 - nearCTol);
       if (onImageEdge) borderSides += 1;
       else insetOk += 1;
       if (closeToEdge) nearEdgeSides += 1;
+      if (closeForContent) nearContentSides += 1;
 
       let eHit = 0, dHit = 0, strSum = 0, polPos = 0, polNeg = 0;
       let sInNR = 0, sInNG = 0, sInNB = 0, sInNL = 0, nInN = 0;
@@ -1522,14 +1746,16 @@
         const cDiff = cNear < cFar ? cNear : cFar;
         meanColorDiff += cDiff;
         inOutSamples += 1;
-        if (cDiff >= 15) contrastSides += 1;
+        if (cDiff >= D.evalSideContrastMin) contrastSides += 1;
         const mInL = sInNL / nInN, mOutL = sOutNL / nOutN;
-        if (dCov >= 0.72 && Math.abs(mInL - mOutL) < 34 && mOutL > 150 && cNear < 34 && (outDark / nOutN) < 0.28) {
+        if (dCov >= D.evalFrameDarkCovMin && Math.abs(mInL - mOutL) < D.evalFrameLumDiffMax &&
+            mOutL > D.evalFrameOutLumMin && cNear < D.evalFrameLumDiffMax &&
+            (outDark / nOutN) < D.evalFrameOutDarkSideMax) {
           frameLikeSides += 1;
         }
         outLightFrac += outPaper / nOutN;
         outDarkLineFrac += outDark / nOutN;
-      } else if (dCov >= 0.80 && closeToEdge && paperL >= 180) {
+      } else if (dCov >= D.evalFrameEdgeDarkMin && closeToEdge && paperL >= D.evalFrameEdgePaperMin) {
         // Рамка вплотную к краю белого скана (меньше 1 рабочей точки до кромки).
         frameLikeSides += 1;
       }
@@ -1555,14 +1781,16 @@
 
     // Оценка как 'frame' (печатная рамка на скане/чертеже).
     let frameScore = 0;
-    if (areaFrac >= 0.42 && insetOk >= 3 && minDarkCov >= 0.72 && meanDarkCov >= 0.82 &&
-        frameLikeSides >= 3 && maxTiltSin < 0.14 && outDarkLineFrac < 0.24 && paperL >= 150 && containment >= 0.75) {
+    if (areaFrac >= D.evalFrameAreaMin && insetOk >= 3 && minDarkCov >= D.evalFrameDarkCovMin &&
+        meanDarkCov >= D.evalFrameMeanDarkCovMin && frameLikeSides >= 3 && maxTiltSin < D.evalFrameMaxTiltSin &&
+        outDarkLineFrac < D.evalFrameOutDarkMax && paperL >= D.evalFramePaperMin &&
+        containment >= D.evalFrameContainMin) {
       const preFrame = clamp(
         0.45 * meanDarkCov + 0.30 * minDarkCov + 0.15 * Math.sqrt(areaFrac) + 0.10 * (1 - outDarkLineFrac),
         0, 0.98
       );
       // Тяжелую проверку связности вызываем только если кандидат лучше текущего лидера.
-      if (preFrame >= 0.58 && preFrame > bestFrameScore && frameIsNotBuilding(work, q, darkTh, stats)) {
+      if (preFrame >= D.evalFrameScoreMin && preFrame > bestFrameScore && frameIsNotBuilding(work, q, darkTh, stats)) {
         frameScore = preFrame;
       }
     }
@@ -1570,32 +1798,46 @@
     // Оценка как 'sheet' (лист бумаги или рамка на фоне стены/стола/двери).
     // Лист на фоне не может прижиматься 2 и более сторонами вплотную к краям кадра.
     let sheetScore = 0;
-    if (nearEdgeSides < 2 && minEdgeCov >= 0.36 && meanEdgeCov >= 0.54) {
-      const contrastNorm = clamp(meanColorDiff / 52, 0, 1);
+    if (nearEdgeSides < 2 && minEdgeCov >= D.evalSheetMinEdgeCov && meanEdgeCov >= D.evalSheetMeanEdgeCov) {
+      const contrastNorm = clamp(meanColorDiff / D.evalSheetContrastNorm, 0, 1);
       const areaBonus = Math.pow(areaFrac, 0.32);
       const polBonus = 0.35 + 0.65 * meanPol;
       const contBonus = 0.48 + 0.52 * Math.min(1, containment / 0.88);
-      const hasSheetContrast = (contrastSides >= 3 && meanColorDiff >= 15) ||
-                               (contrastSides >= 3 && meanColorDiff >= 11 && areaFrac >= 0.55 && containment >= 0.85 && !stats.borderCleanWhite) ||
-                               (contrastSides >= 2 && meanColorDiff >= 24 && (maxTiltSin > 0.04 || outLightFrac < 0.65));
+      const hasSheetContrast = (contrastSides >= 3 && meanColorDiff >= D.evalSideContrastMin) ||
+                               (contrastSides >= 3 && meanColorDiff >= D.evalSheetLowContrastMin &&
+                                areaFrac >= D.evalSheetLowAreaMin && containment >= D.evalSheetLowContainMin &&
+                                !stats.borderCleanWhite) ||
+                               (contrastSides >= 2 && meanColorDiff >= D.evalSheetTwoSideContrast &&
+                                (maxTiltSin > D.evalSheetTiltMin || outLightFrac < D.evalSheetOutLightMax));
 
       // На чистых белых чертежах/скринах не принимаем отдельные комнаты за 'sheet'.
-      const rejectedClean = stats.borderCleanWhite && (areaFrac < 0.35 || containment < 0.78 || meanColorDiff < 25);
+      const rejectedClean = stats.borderCleanWhite &&
+        (areaFrac < D.evalSheetCleanAreaMin || containment < D.evalSheetCleanContainMin ||
+         meanColorDiff < D.evalSheetCleanContrastMin);
       // Даже на фото не принимаем мелкую внутреннюю комнату, когда большая часть рисунка снаружи.
-      const rejectedPartial = !stats.borderCleanWhite && containment < 0.32;
-      const looksLikeInteriorRoom = areaFrac < 0.72 && outLightFrac > 0.72 && outDarkLineFrac > 0.10 && meanColorDiff < 38;
+      const rejectedPartial = !stats.borderCleanWhite && containment < D.evalSheetPartialContainMin;
+      const looksLikeInteriorRoom = areaFrac < D.evalSheetRoomAreaMax &&
+        outLightFrac > D.evalSheetRoomOutLightMin && outDarkLineFrac > D.evalSheetRoomOutDarkMin &&
+        meanColorDiff < D.evalSheetRoomContrastMax;
 
-      if (hasSheetContrast && !rejectedClean && !rejectedPartial && !looksLikeInteriorRoom) {
+      if (hasSheetContrast && !rejectedClean && !rejectedPartial && !looksLikeInteriorRoom &&
+          !(nearContentSides >= 2 && containment < D.evalSheetCleanContainMin)) {
         const raw = (0.34 * meanEdgeCov + 0.24 * minEdgeCov + 0.20 * meanStr + 0.22 * contrastNorm) *
                     polBonus * contBonus * (0.55 + 0.45 * areaBonus);
-        sheetScore = clamp(borderSides > 0 ? raw * 0.88 : raw, 0, 0.99);
+        const candScore = clamp(borderSides > 0 ? raw * D.evalSheetBorderPenalty : raw, 0, 0.99);
+        // Не принимаем часть безрамочного чертежа за 'sheet', если снаружи светлая бумага с планом или тот же фон.
+        if (candScore >= D.evalSheetScoreMin && isBorderlessDrawingQuad(work, q, paperL, darkTh)) {
+          sheetScore = 0;
+        } else {
+          sheetScore = candScore;
+        }
       }
     }
 
-    if (frameScore > sheetScore && frameScore >= 0.58) {
+    if (frameScore > sheetScore && frameScore >= D.evalFrameScoreMin) {
       return { q: q, score: frameScore, kind: 'frame' };
     }
-    if (sheetScore >= 0.54) {
+    if (sheetScore >= D.evalSheetScoreMin) {
       return { q: q, score: sheetScore, kind: 'sheet' };
     }
     const bestLow = Math.max(frameScore, sheetScore);
@@ -1606,6 +1848,7 @@
 
   function refineQuadFullRes(rgba, w, h, quad, kind, workScale) {
     const rad = Math.min(14, Math.max(4, Math.ceil(2.5 / workScale)));
+    const borderTol = workScale > 0 ? 1.5 / workScale : 3;
     const M = 44;
     const stride = w * 4;
     const lines = [];
@@ -1617,10 +1860,10 @@
       const outX = dy / len, outY = -dx / len;
 
       // Если сторона на краю картинки, оставляем ее как есть.
-      if ((Math.abs(a[0]) < 3 && Math.abs(b[0]) < 3) ||
-          (Math.abs(a[0] - w) < 3 && Math.abs(b[0] - w) < 3) ||
-          (Math.abs(a[1]) < 3 && Math.abs(b[1]) < 3) ||
-          (Math.abs(a[1] - h) < 3 && Math.abs(b[1] - h) < 3)) {
+      if ((Math.abs(a[0]) < borderTol && Math.abs(b[0]) < borderTol) ||
+          (Math.abs(a[0] - w) < borderTol && Math.abs(b[0] - w) < borderTol) ||
+          (Math.abs(a[1]) < borderTol && Math.abs(b[1]) < borderTol) ||
+          (Math.abs(a[1] - h) < borderTol && Math.abs(b[1] - h) < borderTol)) {
         const nx = outX, ny = outY, d = nx * a[0] + ny * a[1];
         lines.push({ nx: nx, ny: ny, d: d });
         continue;
@@ -1762,14 +2005,7 @@
     const work = downscaleWork(rgba, w, h, WORK_SIDE);
     const dw = work.w, dh = work.h;
 
-    // 75-й перцентиль яркости (фон бумаги на сканах).
-    const hist = new Int32Array(256);
-    for (let i = 0; i < work.gray.length; i++) hist[work.gray[i]] += 1;
-    let acc = 0, paperL = 220;
-    for (let v = 0; v < 256; v++) {
-      acc += hist[v];
-      if (acc >= work.gray.length * 0.75) { paperL = v; break; }
-    }
+    const paperL = paperLuminance(work.gray);
 
     const edges = computeEdges(work);
     const stats = buildSceneStats(work, edges, paperL);
@@ -1782,7 +2018,7 @@
     for (let i = 0; i < lp.length; i++) candQuads.push(lp[i]);
     const rp = regionProposals(work, edges);
     for (let i = 0; i < rp.length; i++) candQuads.push(rp[i]);
-    const fp = frameProposals(work);
+    const fp = frameProposals(work, paperL);
     for (let i = 0; i < fp.length; i++) candQuads.push(fp[i]);
 
     let bestSheet = null, bestFrame = null, bestLow = 0;
@@ -1891,7 +2127,9 @@
           const bnx = h1 * vv + h2, bny = h4 * vv + h5, bdn = h7 * vv + h8;
           for (let ox = 0; ox < sub; ox++) {
             const uu = uc + offs[ox];
-            const inv = 1 / (h6 * uu + bdn);
+            const curDn = h6 * uu + bdn;
+            if (!(curDn > 1e-9)) { sl += 255; continue; }
+            const inv = 1 / curDn;
             const sx = Math.round((h0 * uu + bnx) * inv - 0.5);
             const sy = Math.round((h3 * uu + bny) * inv - 0.5);
             if (sx < 0 || sx >= w || sy < 0 || sy >= h) { sl += 255; continue; }
@@ -1916,6 +2154,7 @@
   // Обрезка плана этажа внутри quad: крупнейшая связная структура длинных толстых линий.
   function planBox(rgba, w, h, quad) {
     if (!rgba || w < 32 || h < 32) return null;
+    const D = DEFAULTS;
     const q = quad && quad.length === 4 ? orderQuad(quad) : fullQuad(w, h);
     const sz = rectifiedSize(q, w, h);
     const big = Math.max(sz.w, sz.h);
@@ -1927,22 +2166,22 @@
     const n = pw * ph;
 
     const longS = Math.max(pw, ph);
-    const bgRad = Math.max(8, Math.round(longS / 24));
+    const bgRad = Math.max(8, Math.round(longS / D.planBgDiv));
     const bg = localMax2D(gray, pw, ph, bgRad);
 
     // Выделяем нейтральные темные штрихи (исключаем цветные стрелки/баннеры и сплошной темный фон).
     const diff = new Uint8Array(n);
     const dHist = new Int32Array(256);
-    const padX = Math.max(3, Math.round(pw * 0.03));
-    const padY = Math.max(3, Math.round(ph * 0.03));
+    const padX = Math.max(3, Math.round(pw * D.planPadFrac));
+    const padY = Math.max(3, Math.round(ph * D.planPadFrac));
     for (let y = padY; y < ph - padY; y++) {
       const o = y * pw;
       for (let x = padX; x < pw - padX; x++) {
         const i = o + x;
-        if (bg[i] < 85) continue;
-        if (sat[i] > 55 && minGray[i] > 55) continue;
+        if (bg[i] < D.planBgMin) continue;
+        if (sat[i] > D.planSatMax && minGray[i] > D.planSatGrayMin) continue;
         const d = bg[i] - minGray[i];
-        if (d > 15) {
+        if (d > D.planDiffMin) {
           diff[i] = d;
           dHist[d] += 1;
         }
@@ -1950,21 +2189,22 @@
     }
 
     let inkTotal = 0;
-    for (let d = 16; d < 256; d++) inkTotal += dHist[d];
-    if (inkTotal < n * 0.004) return null;
+    for (let d = D.planDiffMin + 1; d < 256; d++) inkTotal += dHist[d];
+    if (inkTotal < n * D.planInkFracMin) return null;
     let acc = 0, dTh = 32;
-    for (let d = 255; d >= 16; d--) {
+    const inkNeed = Math.min(n * D.planInkTopAreaFrac, inkTotal * D.planInkTopShare);
+    for (let d = 255; d > D.planDiffMin; d--) {
       acc += dHist[d];
-      if (acc >= Math.min(n * 0.18, inkTotal * 0.68)) { dTh = d; break; }
+      if (acc >= inkNeed) { dTh = d; break; }
     }
-    if (dTh < 22) dTh = 22;
-    if (dTh > 48) dTh = 48;
+    if (dTh < D.planDiffThMin) dTh = D.planDiffThMin;
+    if (dTh > D.planDiffThMax) dTh = D.planDiffThMax;
 
     const ink = new Uint8Array(n);
     for (let i = 0; i < n; i++) if (diff[i] >= dTh) ink[i] = 1;
 
     // Убираем широкие сплошные темные полосы и панели (толще ~12 px), чтобы черный фон табличек не стал "стеной".
-    const rSolid = Math.max(4, Math.round(longS * 0.016));
+    const rSolid = Math.max(4, Math.round(longS * D.planSolidRadFrac));
     const invInk = new Uint8Array(n);
     for (let i = 0; i < n; i++) invInk[i] = ink[i] ? 0 : 1;
     const nearLight = localMax2D(invInk, pw, ph, rSolid);
@@ -1979,7 +2219,7 @@
     }
 
     // Отбираем длинные линии (0/90/45/135 градусов) и крупные 2D-связные каркасы стен (для косых и круглых зданий).
-    const minRun = Math.max(8, Math.round(longS * 0.032));
+    const minRun = Math.max(8, Math.round(longS * D.planMinRunFrac));
     const dirMask = new Uint8Array(n); // бит 1: гориз, бит 2: верт, бит 4: диаг/сеть
 
     for (let y = padY; y < ph - padY; y++) {
@@ -2003,7 +2243,7 @@
         }
       }
     }
-    const minDiag = Math.max(7, Math.round(minRun * 0.85));
+    const minDiag = Math.max(7, Math.round(minRun * D.planMinDiagMul));
     const dirs = [[1, 1], [1, -1]];
     for (let di = 0; di < 2; di++) {
       const dx = dirs[di][0], dy = dirs[di][1];
@@ -2025,7 +2265,7 @@
 
     // Сохраняем связные каркасы стен под произвольным углом (размах >= minRun * 1.4 по обеим осям).
     const preLbl = new Int32Array(n), stack = new Int32Array(n);
-    const minSpan = Math.max(12, Math.round(minRun * 1.4));
+    const minSpan = Math.max(12, Math.round(minRun * D.planMinSpanMul));
     let preId = 0;
     for (let s = 0; s < n; s++) {
       if (!ink[s] || preLbl[s]) continue;
@@ -2082,7 +2322,7 @@
     }
 
     // Небольшое расширение соединяет стены здания через дверные проемы.
-    const rJoin = Math.max(1, Math.round(longS * 0.005));
+    const rJoin = Math.max(1, Math.round(longS * D.planJoinRadFrac));
     const joined = new Uint8Array(n);
     for (let y = padY; y < ph - padY; y++) {
       const o = y * pw;
@@ -2146,13 +2386,13 @@
 
       if (linePx < minRun * 2 || x1 <= x0 || y1 <= y0) continue;
       const bw = x1 - x0 + 1, bh = y1 - y0 + 1;
-      if (bw < pw * 0.06 || bh < ph * 0.06) continue;
+      if (bw < pw * D.planCompSideMinFrac || bh < ph * D.planCompSideMinFrac) continue;
       const bboxArea = bw * bh;
-      if (bboxArea < n * 0.02) continue;
+      if (bboxArea < n * D.planCompAreaMinFrac) continue;
 
       // Доля линий внутри рамки (отсеивает любые пустые рамки, паспарту и границы табличек).
-      const ix0 = x0 + bw * 0.14, ix1 = x1 - bw * 0.14;
-      const iy0 = y0 + bh * 0.14, iy1 = y1 - bh * 0.14;
+      const ix0 = x0 + bw * D.planInnerMarginFrac, ix1 = x1 - bw * D.planInnerMarginFrac;
+      const iy0 = y0 + bh * D.planInnerMarginFrac, iy1 = y1 - bh * D.planInnerMarginFrac;
       let innerPx = 0;
       for (let k = 0; k < compPixels.length; k++) {
         const idx = compPixels[k];
@@ -2160,20 +2400,22 @@
         if (px > ix0 && px < ix1 && py > iy0 && py < iy1) innerPx += 1;
       }
       const innerFrac = innerPx / linePx;
-      if (innerFrac < 0.06) continue;
+      if (innerFrac < D.planInnerFracMin) continue;
 
       const hEff = hCnt + dCnt * 0.5, vEff = vCnt + dCnt * 0.5;
       const balance = Math.min(hEff, vEff) / Math.max(1, hEff + vEff);
-      if (balance < 0.07) continue;
+      if (balance < D.planBalanceMin) continue;
 
       const avgThick = thickSum / linePx;
       // Штрафуем небольшие штампы, прижатые к нижнему углу листа.
-      const cornerStamp = (bboxArea < n * 0.14) && (y1 > ph * 0.88) && (x1 > pw * 0.88 || x0 < pw * 0.12);
+      const stampLo = 1 - D.planStampEdgeFrac;
+      const cornerStamp = (bboxArea < n * D.planStampAreaMaxFrac) &&
+        (y1 > ph * D.planStampEdgeFrac) && (x1 > pw * D.planStampEdgeFrac || x0 < pw * stampLo);
       const score = wMass *
         (0.25 + 0.75 * Math.min(1, balance * 3.0)) *
         (0.30 + 0.70 * Math.min(1, innerFrac * 2.5)) *
         (0.65 + 0.35 * Math.min(2, avgThick)) *
-        (cornerStamp ? 0.45 : 1.0);
+        (cornerStamp ? D.planStampPenalty : 1.0);
 
       comps.push({
         x0: x0, y0: y0, x1: x1, y1: y1, bw: bw, bh: bh,
@@ -2184,22 +2426,23 @@
     if (!comps.length) return null;
     comps.sort(function (a, b) { return b.score - a.score; });
     const best = comps[0];
-    if (best.wMass < minRun * 2.5) return null;
+    if (best.wMass < minRun * D.planBestMassMul) return null;
 
     // Присоединяем соседнее крыло того же здания, если оно отделено широким проходом или коридором.
     let bx0 = best.x0, by0 = best.y0, bx1 = best.x1, by1 = best.y1;
-    const nearGap = Math.max(8, Math.round(longS * 0.04));
-    const corrGap = Math.max(16, Math.round(longS * 0.10));
+    const nearGap = Math.max(8, Math.round(longS * D.planNearGapFrac));
+    const corrGap = Math.max(16, Math.round(longS * D.planCorrGapFrac));
     for (let i = 1; i < comps.length; i++) {
       const c = comps[i];
-      if (c.cornerStamp || c.score < best.score * 0.15) continue;
-      if (c.avgThick < best.avgThick * 0.72) continue;
+      if (c.cornerStamp || c.score < best.score * D.planWingScoreFrac) continue;
+      if (c.avgThick < best.avgThick * D.planWingThickFrac) continue;
       const gx = Math.max(0, Math.max(c.x0 - bx1, bx0 - c.x1));
       const gy = Math.max(0, Math.max(c.y0 - by1, by0 - c.y1));
       const ovX = Math.max(0, Math.min(bx1, c.x1) - Math.max(bx0, c.x0)) / Math.max(1, Math.min(bx1 - bx0, c.bw));
       const ovY = Math.max(0, Math.min(by1, c.y1) - Math.max(by0, c.y0)) / Math.max(1, Math.min(by1 - by0, c.bh));
-      const acrossCorridor = c.score >= best.score * 0.28 &&
-        ((gx === 0 && gy <= corrGap && ovX >= 0.45) || (gy === 0 && gx <= corrGap && ovY >= 0.45));
+      const acrossCorridor = c.score >= best.score * D.planCorrScoreFrac &&
+        ((gx === 0 && gy <= corrGap && ovX >= D.planCorrOverlapMin) ||
+         (gy === 0 && gx <= corrGap && ovY >= D.planCorrOverlapMin));
       if ((gx <= nearGap && gy <= nearGap) || acrossCorridor) {
         if (c.x0 < bx0) bx0 = c.x0;
         if (c.y0 < by0) by0 = c.y0;
@@ -2209,12 +2452,12 @@
     }
 
     // Расширяем рамку на небольшой запас.
-    const margin = Math.max(6, Math.round(Math.max(bx1 - bx0, by1 - by0) * 0.045));
+    const margin = Math.max(6, Math.round(Math.max(bx1 - bx0, by1 - by0) * D.planOutMarginFrac));
     const ux0 = clamp((bx0 - margin) / pw, 0, 1);
     const uy0 = clamp((by0 - margin) / ph, 0, 1);
     const ux1 = clamp((bx1 + 1 + margin) / pw, 0, 1);
     const uy1 = clamp((by1 + 1 + margin) / ph, 0, 1);
-    if (ux1 - ux0 < 0.05 || uy1 - uy0 < 0.05) return null;
+    if (ux1 - ux0 < D.planMinUvSpan || uy1 - uy0 < D.planMinUvSpan) return null;
 
     const H = homography([[0, 0], [1, 0], [1, 1], [0, 1]], q);
     if (!H) return null;
@@ -2246,7 +2489,6 @@
     rectifiedSize: rectifiedSize,
     homography: homography,
     applyH: applyH,
-    warp: warp,
-    _orderQuad: orderQuad
+    warp: warp
   };
 }));
