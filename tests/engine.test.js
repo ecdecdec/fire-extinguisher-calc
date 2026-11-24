@@ -426,3 +426,16 @@ test('код для QR содержит только латиницу и циф�
   const r = E.calculate(P.EXAMPLES.factory.build());
   assert.match(E.summaryCode(r), /^[A-Za-z0-9\-();x]+$/);
 });
+
+test('шапка проверочного листа: новые поля сохраняются, у старых объектов пустые', () => {
+  const full = P.EXAMPLES.business.build();
+  Object.assign(full.building, { authority: 'ДЧС г. Астаны', actNo: '145/2026', actDate: '2026-11-10', bin: '180540001234' });
+  const b = E.calculate(full).building;
+  assert.deepEqual([b.authority, b.actNo, b.actDate, b.bin], ['ДЧС г. Астаны', '145/2026', '2026-11-10', '180540001234']);
+  const old = P.EXAMPLES.business.build();
+  ['authority', 'actNo', 'actDate', 'bin'].forEach(k => delete old.building[k]);
+  const o = E.calculate(old).building;
+  assert.deepEqual([o.authority, o.actNo, o.actDate, o.bin], ['', '', '', '']);
+  const flat = E.calculate({ name: 'X', floors: [] }).building;
+  assert.equal(flat.bin, '');
+});

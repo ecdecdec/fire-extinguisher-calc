@@ -255,6 +255,14 @@
       eq('название в окне и в заголовке — одно поле', title(), 'БЦ «Тест»');
       await click(q('[data-test=pdf-cancel]'));
       ok('окно закрывается', !q('.modal'));
+      // поля проверочного листа переживают перезагрузку
+      await open();
+      await click(q('[data-test=pdf]'));
+      eq('поля проверочного листа сохранились после перезагрузки',
+        ['pdf-authority', 'pdf-actno', 'pdf-actdate', 'pdf-bin'].map(k => q('[data-test=' + k + ']').value),
+        ['ДЧС г. Астаны', '12', '2026-11-10', '123456789012']);
+      eq('у номера акта maxlength 40', q('[data-test=pdf-actno]').getAttribute('maxlength'), '40');
+      await click(q('[data-test=pdf-cancel]'));
 
       // --- ссылка на пример ---
       await open('&demo=factory&step=3');

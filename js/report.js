@@ -74,8 +74,8 @@
     vLineColor: function () { return INK; },
     paddingLeft: function () { return 4; },
     paddingRight: function () { return 4; },
-    paddingTop: function () { return 2; },
-    paddingBottom: function () { return 2; }
+    paddingTop: function () { return 1.5; },
+    paddingBottom: function () { return 1.5; }
   };
 
   function th(text, extra) { return Object.assign({ text: text, bold: true, alignment: 'center' }, extra || {}); }
@@ -112,11 +112,17 @@
     return [b.owner, b.name].map(function (x) { return String(x || '').trim(); }).filter(Boolean).join(', ');
   }
 
+  // Версия приложения: из meta, из window.FIRECALC_CONFIG (браузер) или из package.json (Node, тесты).
   function appVersionOf(meta) {
     if (meta && meta.appVersion) return String(meta.appVersion);
-    const c = (meta && meta.config) || (typeof window !== 'undefined' && window.FIRECALC_CONFIG) || (typeof self !== 'undefined' && self.FIRECALC_CONFIG) || null;
+    let c = (meta && meta.config) || null;
+    if (!c && typeof window !== 'undefined') c = window.FIRECALC_CONFIG || null;
+    if (!c && typeof self !== 'undefined') c = self.FIRECALC_CONFIG || null;
+    if (!c && typeof module === 'object' && module.exports && typeof require === 'function') {
+      try { c = { version: require('../package.json').version }; } catch (e) { c = null; }
+    }
     if (c && c.version) return c.version + (c.build ? ' (сборка ' + c.build + ')' : '');
-    return '1.0.1';
+    return '';
   }
 
   function objectTable(result) {
@@ -215,14 +221,14 @@
     const floors = result.floors.filter(function (f) { return f.units.length; }).length;
     const bad = !c.ok || place > 0;
     const details = [];
-    if (bad) details.push('Степень нарушения: значительное (Приложение 1, п. 57).');
+    if (bad) details.push('Степень нарушения: значительное (приложение 1 к тому же приказу, строка 57).');
     if (!c.ok) details.push(c.text);
     if (place) details.push('Нарушений размещения: ' + place + '.');
     if (warn) details.push('Требует проверки на месте: ' + warn + '.');
     if (c.floorsChecked < floors) details.push('Не проверено этажей: ' + (floors - c.floorsChecked) + '.');
     return {
       text: [
-        'Приложение 3 к совместному приказу МВД РК от 30.10.2018 № 758 и МНЭ РК от 30.10.2018 № 31, п. 51: Наличие требуемого количества исправных и прошедших техническое обслуживание первичных средств пожаротушения: ',
+        'Приложение 3 к совместному приказу МВД РК от 30.10.2018 № 758 и МНЭ РК от 30.10.2018 № 31, п. 51: Наличие требуемого количества исправных и прошедших техническое обслуживание первичных средств пожаротушения. Осуществление эксплуатации и технического обслуживания огнетушителей в соответствии с требованиями документов по стандартизации: ',
         { text: bad ? 'не соответствует' : 'соответствует', bold: true },
         '.' + (details.length ? ' ' + details.join(' ') : '')
       ],
@@ -231,20 +237,31 @@
     };
   }
 
+  // Подпись: одна таблица, значения в первой строке с нижней чертой, подписи под чертой во второй.
+  // Подписи (должность, подпись, ФИО) стоят на одной линии, даже если должность переносится.
   function signature(role, raw) {
     const parts = String(raw || '').split(',');
     const name = parts[0].trim();
     const pos = parts.slice(1).join(',').trim();
-    const line = function (w) { return { canvas: [{ type: 'line', x1: 0, y1: 11, x2: w, y2: 11, lineWidth: 0.5, lineColor: INK }] }; };
+    const none = [false, false, false, false];
+    const under = [false, false, false, true];
+    const gap = { text: '', border: none };
+    const val = function (t) { return { text: t || ' ', fontSize: 10, border: under, margin: [0, 6, 0, 0] }; };
+    const cap = function (t, al) { return { text: t, style: 'caption', alignment: al, border: none }; };
     return {
-      columns: [
-        { width: 105, text: role, fontSize: 10 },
-        { width: 75, stack: [pos ? { text: pos, fontSize: 10, alignment: 'center', margin: [0, 1, 0, 0] } : line(75), { text: '(должность)', style: 'caption', alignment: 'center', margin: [0, pos ? 0 : 1, 0, 0] }] },
-        { width: 60, stack: [line(60), { text: '(подпись)', style: 'caption', alignment: 'center', margin: [0, 1, 0, 0] }] },
-        { width: '*', stack: [name ? { text: name, fontSize: 10, margin: [0, 1, 0, 0] } : line(135), { text: '(фамилия, имя, отчество при наличии)', style: 'caption', margin: [0, name ? 0 : 1, 0, 0] }] }
-      ],
-      columnGap: 8,
-      margin: [0, 4, 0, 0]
+      table: {
+        widths: [92, 6, 78, 6, 52, 6, '*'],
+        body: [
+          [{ text: role, fontSize: 10, border: none, margin: [0, 6, 0, 0] }, gap, Object.assign(val(pos), { alignment: 'center' }), gap, val(''), gap, val(name)],
+          [cap('', 'left'), gap, cap('(должность)', 'center'), gap, cap('(подпись)', 'center'), gap, cap('(фамилия, имя, отчество при наличии)', 'left')]
+        ]
+      },
+      layout: {
+        hLineWidth: function () { return 0.5; }, hLineColor: function () { return INK; }, vLineWidth: function () { return 0; },
+        paddingLeft: function () { return 0; }, paddingRight: function () { return 0; },
+        paddingTop: function () { return 0; }, paddingBottom: function () { return 1; }
+      },
+      margin: [0, 3, 0, 0]
     };
   }
 
@@ -350,7 +367,7 @@
       stack: [
         signature('Должностное лицо', b.inspector),
         signature('Руководитель субъекта контроля', ''),
-        { text: 'Расчёт выполнен в программе «' + appName + '» по исходным данным, введённым пользователем. Расчёт по помещениям и принятые допущения приведены в приложениях.', style: 'note', margin: [0, 5, 0, 0] }
+        { text: 'Расчёт выполнен в программе «' + appName + '» по исходным данным, введённым пользователем. Расчёт по помещениям и принятые допущения приведены в приложениях.', style: 'note', margin: [0, 3, 0, 0] }
       ]
     };
     if (meta.link) {
@@ -464,7 +481,7 @@
 
     return {
       pageSize: 'A4',
-      pageMargins: [57, 40, 34, 40],
+      pageMargins: [57, 40, 34, 42],
       info: {
         title: 'Расчёт огнетушителей' + (b.name ? ': ' + b.name : ''),
         author: b.inspector || appName,
@@ -477,13 +494,13 @@
         return { text: String(currentPage), alignment: 'center', fontSize: 10, margin: [0, 20, 0, 0] };
       },
       footer: function () {
-        return { text: footerText, style: 'caption', alignment: 'center', margin: [57, 10, 34, 0] };
+        return { text: footerText, style: 'caption', alignment: 'center', margin: [57, 4, 34, 0] };
       },
       content: content,
       defaultStyle: { font: 'Tinos', fontSize: 11, color: INK, lineHeight: 1.15 },
       styles: {
         title: { fontSize: 14, bold: true, alignment: 'center', characterSpacing: 0.5 },
-        section: { fontSize: 11, bold: true, margin: [0, 8, 0, 3] },
+        section: { fontSize: 11, bold: true, margin: [0, 6, 0, 2] },
         appendix: { fontSize: 12, bold: true, alignment: 'center', margin: [0, 12, 0, 8] },
         note: { fontSize: 9.5, color: SOFT, margin: [0, 4, 0, 0] },
         caption: { fontSize: 8.5, color: SOFT }
@@ -498,5 +515,5 @@
     return 'Расчёт_огнетушителей_' + (name || 'объект') + '_' + date + '.pdf';
   }
 
-  return { APP_NAME: APP_NAME, KIND_LABEL: KIND_LABEL, FONTS: FONTS, buildDoc: buildDoc, fileName: fileName, formatDate: formatDate, qrSide: qrSide };
+  return { APP_NAME: APP_NAME, KIND_LABEL: KIND_LABEL, FONTS: FONTS, buildDoc: buildDoc, fileName: fileName, formatDate: formatDate, qrSide: qrSide, actText: actText, subjectText: subjectText };
 }));
