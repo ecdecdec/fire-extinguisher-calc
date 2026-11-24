@@ -52,42 +52,60 @@ async function launch(opts) {
   const args = ['--headless=new', '--remote-debugging-port=' + port, '--user-data-dir=' + dir, '--no-first-run', '--no-default-browser-check',
     '--disable-background-timer-throttling', '--disable-renderer-backgrounding', '--window-size=' + (opts.width || 1320) + ',' + (opts.height || 900), 'about:blank'];
   const child = spawn(exe, args.concat(opts.args || []), { stdio: 'ignore' });
-  for (let i = 0; i < 100; i++) {
-    try { const r = await fetch('http://127.0.0.1:' + port + '/json/version'); if (r.ok) break; } catch (e) { /* ждём */ }
-    await sleep(100);
-  }
-  return {
+  const handle = {
     port: port,
     close: async function () { child.kill(); await sleep(300); try { fs.rmSync(dir, { recursive: true, force: true }); } catch (e) { /* файлы ещё заняты */ } }
   };
+  let up = false;
+  const end = Date.now() + 15000;
+  while (Date.now() < end && !up) {
+    try { const r = await fetch('http://127.0.0.1:' + port + '/json/version', { signal: AbortSignal.timeout(2000) }); if (r.ok) up = true; } catch (e) { /* ждём */ }
+    if (!up) await sleep(100);
+  }
+  if (!up) { await handle.close(); throw new Error('браузер не ответил за 15 с (порт ' + port + ')'); }
+  return handle;
 }
 
 // Вкладка: send(метод, параметры) → результат; on(событие, fn); eval(выражение) → значение.
 async function tab(browser, url) {
-  const r = await fetch('http://127.0.0.1:' + browser.port + '/json/new?' + encodeURI(url || 'about:blank'), { method: 'PUT' });
+  const r = await fetch('http://127.0.0.1:' + browser.port + '/json/new?' + encodeURI(url || 'about:blank'), { method: 'PUT', signal: AbortSignal.timeout(10000) });
   const info = await r.json();
   const ws = new WebSocket(info.webSocketDebuggerUrl);
-  await new Promise((res, rej) => { ws.onopen = res; ws.onerror = rej; });
+  await new Promise((res, rej) => {
+    const timer = setTimeout(() => rej(new Error('вкладка не открылась за 10 с')), 10000);
+    ws.onopen = () => { clearTimeout(timer); res(); };
+    ws.onerror = () => { clearTimeout(timer); rej(new Error('не удалось подключиться к вкладке')); };
+  });
   let seq = 0;
   const waiting = new Map(), handlers = {};
+  function failAll(why) {
+    waiting.forEach(function (w) { clearTimeout(w.timer); w.rej(new Error(why)); });
+    waiting.clear();
+  }
+  ws.onclose = function () { failAll('соединение с вкладкой закрыто'); };
+  ws.onerror = function () { failAll('ошибка соединения с вкладкой'); };
   ws.onmessage = function (m) {
     const msg = JSON.parse(m.data);
     if (msg.id && waiting.has(msg.id)) {
       const w = waiting.get(msg.id);
       waiting.delete(msg.id);
+      clearTimeout(w.timer);
       if (msg.error) w.rej(new Error(msg.error.message)); else w.res(msg.result);
     } else if (msg.method && handlers[msg.method]) handlers[msg.method].forEach(fn => fn(msg.params));
   };
   const t = {
     id: info.id,
-    send: function (method, params) {
-      const id = ++seq;
-      ws.send(JSON.stringify({ id: id, method: method, params: params || {} }));
-      return new Promise((res, rej) => waiting.set(id, { res: res, rej: rej }));
+    send: function (method, params, ms) {
+      const id = ++seq, limit = ms || 30000;
+      return new Promise((res, rej) => {
+        const timer = setTimeout(() => { waiting.delete(id); rej(new Error('нет ответа браузера на ' + method + ' за ' + Math.round(limit / 1000) + ' с')); }, limit);
+        waiting.set(id, { res: res, rej: rej, timer: timer });
+        try { ws.send(JSON.stringify({ id: id, method: method, params: params || {} })); } catch (e) { clearTimeout(timer); waiting.delete(id); rej(new Error('вкладка недоступна: ' + e.message)); }
+      });
     },
     on: function (event, fn) { (handlers[event] = handlers[event] || []).push(fn); },
-    eval: async function (expr) {
-      const out = await t.send('Runtime.evaluate', { expression: expr, awaitPromise: true, returnByValue: true });
+    eval: async function (expr, ms) {
+      const out = await t.send('Runtime.evaluate', { expression: expr, awaitPromise: true, returnByValue: true }, ms);
       if (out.exceptionDetails) throw new Error((out.exceptionDetails.exception && out.exceptionDetails.exception.description) || out.exceptionDetails.text);
       return out.result.value;
     },
@@ -95,7 +113,7 @@ async function tab(browser, url) {
     until: async function (expr, ms) {
       const end = Date.now() + (ms || 15000);
       while (Date.now() < end) {
-        try { const v = await t.eval(expr); if (v) return v; } catch (e) { /* страница ещё грузится */ }
+        try { const v = await t.eval(expr, Math.max(1000, Math.min(30000, end - Date.now()))); if (v) return v; } catch (e) { /* страница ещё грузится */ }
         await sleep(150);
       }
       throw new Error('не дождался: ' + expr);
