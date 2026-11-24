@@ -27,7 +27,7 @@ jobs:
             exit 1
           fi
       - name: В CHANGELOG.md есть раздел этой версии
-        run: grep -q "^## \[${GITHUB_REF_NAME#v}\]" CHANGELOG.md
+        run: grep -Fq "## [${GITHUB_REF_NAME#v}]" CHANGELOG.md
       - name: Модульные тесты
         run: node --test
 
@@ -65,6 +65,7 @@ jobs:
           for v in KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
             if [ -z "${!v}" ]; then echo "Не задан секрет для $v: без ключа выпуска APK не собирается"; exit 1; fi
           done
+          umask 077
           keys="$RUNNER_TEMP/firecalc-keys"
           mkdir -p "$keys"
           printf '%s' "$KEYSTORE_BASE64" | tr -d ' \t\r\n' | base64 -d > "$keys/firecalc-release.jks"
@@ -83,7 +84,8 @@ jobs:
 
       - name: Проверка подписи APK
         run: |
-          apk="$(ls release/Ognetushiteli-*.apk)"
+          apk="release/Ognetushiteli-${GITHUB_REF_NAME#v}.apk"
+          test -f "$apk"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$apk"
 
       - name: Убрать ключ с runner
@@ -143,7 +145,7 @@ jobs:
           ver="${GITHUB_REF_NAME#v}"
           awk -v v="$ver" '
             index($0, "## [" v "]") == 1 { on = 1; next }
-            on && /^## \[/ { exit }
+            on && (/^## \[/ || /^\[[^]]+\]:/) { exit }
             on { print }
           ' CHANGELOG.md > notes.md
           echo "" >> notes.md

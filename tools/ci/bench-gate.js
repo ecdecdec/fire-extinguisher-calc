@@ -11,8 +11,9 @@ const path = require('node:path');
 const DIR = path.join(__dirname, '..', '..', 'bench', 'vision');
 const args = process.argv.slice(2);
 const i = args.indexOf('--max-drop');
-const maxDrop = i >= 0 ? Number(args[i + 1]) : 2;
-if (!(maxDrop >= 0)) { console.error('Неверное значение --max-drop'); process.exit(2); }
+const rawDrop = i >= 0 ? args[i + 1] : '2';
+const maxDrop = (typeof rawDrop === 'string' && rawDrop.trim() !== '') ? Number(rawDrop) : NaN;
+if (!Number.isFinite(maxDrop) || maxDrop < 0) { console.error('Неверное значение --max-drop'); process.exit(2); }
 
 function read(file) {
   try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch (e) {
@@ -37,7 +38,7 @@ function checkScore(label, a, b) {
   if (a === null || b === null) return;
   checked += 1;
   const drop = b - a;
-  const bad = drop > maxDrop;
+  const bad = drop > maxDrop + 1e-9;
   if (bad) failed += 1;
   console.log((bad ? 'FAIL  ' : 'PASS  ') + label + ': ' + a.toFixed(2) + ' (базовый замер ' + b.toFixed(2) +
     ', разница ' + (a - b >= 0 ? '+' : '') + (a - b).toFixed(2) + ', допустимое падение ' + maxDrop + ')');
