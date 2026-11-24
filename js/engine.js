@@ -719,7 +719,9 @@
     const src = b.building || b;
     const building = {
       name: src.name || '', address: src.address || '', owner: src.owner || '',
-      inspector: src.inspector || '', date: src.date || '', kind: src.kind || 'public'
+      inspector: src.inspector || '', date: src.date || '', kind: src.kind || 'public',
+      // шапка проверочного листа, необязательные поля
+      authority: src.authority || '', actNo: src.actNo || '', actDate: src.actDate || '', bin: src.bin || ''
     };
     const allAuto = !!(src.autoSuppressionAll || b.autoSuppressionAll);
     const floors = (b.floors || []).map(function (f, fi) {

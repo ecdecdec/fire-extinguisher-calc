@@ -34,7 +34,8 @@
     const o = object || {};
     const b = o.building || {};
     return [VERSION,
-      [str(b.name), str(b.address), str(b.owner), str(b.inspector), str(b.date, 10), Math.max(0, KINDS.indexOf(b.kind)), b.autoSuppressionAll ? 1 : 0],
+      [str(b.name), str(b.address), str(b.owner), str(b.inspector), str(b.date, 10), Math.max(0, KINDS.indexOf(b.kind)), b.autoSuppressionAll ? 1 : 0,
+        str(b.authority), str(b.actNo, 40), str(b.actDate, 10), str(b.bin, 12)],
       (o.floors || []).map(function (f) {
         const index = {};
         (f.rooms || []).forEach(function (r, i) { if (r.id) index[r.id] = i; });
@@ -63,7 +64,9 @@
     const b = data[1];
     const building = {
       name: str(b[0]), address: str(b[1]), owner: str(b[2]), inspector: str(b[3]),
-      date: /^\d{4}-\d{2}-\d{2}$/.test(b[4]) ? b[4] : '', kind: KINDS[b[5]] || 'public', autoSuppressionAll: !!b[6]
+      date: /^\d{4}-\d{2}-\d{2}$/.test(b[4]) ? b[4] : '', kind: KINDS[b[5]] || 'public', autoSuppressionAll: !!b[6],
+      // поля шапки проверочного листа есть не во всех ссылках: старые ссылки читаются как раньше
+      authority: str(b[7]), actNo: str(b[8], 40), actDate: /^\d{4}-\d{2}-\d{2}$/.test(b[9]) ? b[9] : '', bin: str(b[10], 12)
     };
     const floors = data[2].slice(0, 200).map(function (f, fi) {
       if (!Array.isArray(f)) throw new Error('неизвестный формат');

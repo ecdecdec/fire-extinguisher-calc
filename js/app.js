@@ -80,7 +80,7 @@
   function blankObject(inspector) {
     return {
       id: uid('o'), example: '',
-      building: { name: '', address: '', owner: '', inspector: inspector || '', date: today(), kind: 'public', autoSuppressionAll: false },
+      building: { name: '', address: '', owner: '', inspector: inspector || '', date: today(), kind: 'public', autoSuppressionAll: false, authority: '', actNo: '', actDate: '', bin: '' },
       floors: [newFloor(1, 'office')]
     };
   }
@@ -90,6 +90,10 @@
     const base = blankObject('');
     const building = Object.assign(base.building, data.building || {});
     if (!building.date) building.date = today();
+    building.authority = typeof building.authority === 'string' ? building.authority : '';
+    building.actNo = typeof building.actNo === 'string' ? building.actNo : '';
+    building.actDate = typeof building.actDate === 'string' ? building.actDate : '';
+    building.bin = typeof building.bin === 'string' ? building.bin : '';
     const floors = (data.floors || []).map(function (f, i) {
       const idMap = {};
       const rooms = (f.rooms || []).map(function (r) {
@@ -696,11 +700,15 @@
 <div class="modal" v-if="pdfDialog" @click.self="pdfDialog = false">
   <div class="modal__box" role="dialog" aria-modal="true" aria-labelledby="pdfTitle">
     <h2 id="pdfTitle">Данные для отчёта</h2>
-    <p class="hint">Попадут в шапку PDF. Пустые поля останутся прочерками</p>
+    <p class="hint">Попадут в шапку PDF. Пустые поля останутся пустыми строками для записи от руки</p>
     <div class="modal__grid">
+      <label class="field modal__wide"><span>Государственный орган, назначивший проверку</span><input type="text" data-test="pdf-authority" v-model.trim="building.authority"></label>
+      <label class="field"><span>Акт о назначении проверки, номер</span><input type="text" maxlength="40" data-test="pdf-actno" v-model.trim="building.actNo"></label>
+      <label class="field"><span>Акт о назначении проверки, дата</span><input type="date" data-test="pdf-actdate" v-model="building.actDate"></label>
       <label class="field modal__wide"><span>Название объекта</span><input type="text" data-test="pdf-name" v-model.trim="building.name" placeholder="Школа № 12"></label>
       <label class="field modal__wide"><span>Адрес</span><input type="text" v-model.trim="building.address" placeholder="Город, улица, дом"></label>
       <label class="field modal__wide"><span>Собственник или организация</span><input type="text" v-model.trim="building.owner"></label>
+      <label class="field modal__wide"><span>ИИН или БИН</span><input type="text" inputmode="numeric" maxlength="12" data-test="pdf-bin" v-model.trim="building.bin" placeholder="12 цифр"></label>
       <label class="field"><span>Расчёт выполнил</span><input type="text" v-model.trim="building.inspector" placeholder="Фамилия И. О., должность"></label>
       <label class="field"><span>Дата расчёта</span><input type="date" v-model="building.date"></label>
     </div>

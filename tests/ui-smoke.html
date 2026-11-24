@@ -246,10 +246,23 @@
       // --- данные для отчёта спрашиваются при скачивании ---
       await click(q('[data-test=pdf]'));
       ok('кнопка PDF открывает окно с данными отчёта', !!q('.modal') && q('[data-test=pdf-name]').value === 'Бизнес-центр (пример)');
+      ok('в окне отчёта есть поля проверочного листа', !!q('[data-test=pdf-authority]') && !!q('[data-test=pdf-actno]') && !!q('[data-test=pdf-actdate]') && !!q('[data-test=pdf-bin]'));
+      await setValue(q('[data-test=pdf-authority]'), 'ДЧС г. Астаны');
+      await setValue(q('[data-test=pdf-actno]'), '12');
+      await setValue(q('[data-test=pdf-actdate]'), '2026-11-10');
+      await setValue(q('[data-test=pdf-bin]'), '123456789012');
       await setValue(q('[data-test=pdf-name]'), 'БЦ «Тест»');
       eq('название в окне и в заголовке — одно поле', title(), 'БЦ «Тест»');
       await click(q('[data-test=pdf-cancel]'));
       ok('окно закрывается', !q('.modal'));
+      // поля проверочного листа переживают перезагрузку
+      await open();
+      await click(q('[data-test=pdf]'));
+      eq('поля проверочного листа сохранились после перезагрузки',
+        ['pdf-authority', 'pdf-actno', 'pdf-actdate', 'pdf-bin'].map(k => q('[data-test=' + k + ']').value),
+        ['ДЧС г. Астаны', '12', '2026-11-10', '123456789012']);
+      eq('у номера акта maxlength 40', q('[data-test=pdf-actno]').getAttribute('maxlength'), '40');
+      await click(q('[data-test=pdf-cancel]'));
 
       // --- ссылка на пример ---
       await open('&demo=factory&step=3');

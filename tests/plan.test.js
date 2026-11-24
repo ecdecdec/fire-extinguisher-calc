@@ -350,6 +350,10 @@ test('ссылка: объект упаковывается и восстана�
   const src = P.EXAMPLES.business.build();
   src.building.inspector = 'Иванов И. И.';
   src.building.date = '2026-11-12';
+  src.building.authority = 'ДЧС г. Астаны';
+  src.building.actNo = '145';
+  src.building.actDate = '2026-11-10';
+  src.building.bin = '123456789012';
   src.floors[0].plan.pos = { 'b1:0': [0, 0], 'b2:0': [0, 15], 'b3:2': [12.5, 15] };
   const code = await SH.encode(src);
   assert.match(code, /^[zj][A-Za-z0-9_-]+$/);
@@ -357,6 +361,10 @@ test('ссылка: объект упаковывается и восстана�
   const back = await SH.decode(code);
   assert.equal(back.building.name, 'Бизнес-центр (пример)');
   assert.equal(back.building.inspector, 'Иванов И. И.');
+  assert.equal(back.building.authority, 'ДЧС г. Астаны');
+  assert.equal(back.building.actNo, '145');
+  assert.equal(back.building.actDate, '2026-11-10');
+  assert.equal(back.building.bin, '123456789012');
   assert.equal(back.floors[0].rooms[2].count, 4);
   assert.equal(back.floors[0].rooms[1].sensitive, true);
   assert.deepEqual(back.floors[0].plan.pos, { 's0_0:0': [0, 0], 's0_1:0': [0, 15], 's0_2:2': [12.5, 15] });
@@ -375,9 +383,9 @@ test('ссылка: повреждённые и чужие данные не о�
   await assert.rejects(SH.decode('j' + Buffer.from('{"a":1}').toString('base64url')));
   await assert.rejects(SH.decode('z' + 'A'.repeat(20000)));
   assert.throws(() => SH.unpack([2, [], []]));
-  // лишние и неверные поля отбрасываются
+  // лишние и неверные поля отбрасываются; старые ссылки без полей проверочного листа получают пустые строки
   const odd = SH.unpack([1, ['Объект', 5, null, '', 'вчера', 9, 1], [['Этаж', 'x', -1, [['Комната', 'нет такого назначения', '12,5', 5000, 'ZZ', 'AEEQ', 7, 'a', null, 'p5']], 1, [[0, 0, 1, 2], [9, 0, 1, 1]], [[0, 0, 5, -1, 99], [0, 4999, 0, 0, 0]]]]]);
-  assert.deepEqual(odd.building, { name: 'Объект', address: '', owner: '', inspector: '', date: '', kind: 'public', autoSuppressionAll: true });
+  assert.deepEqual(odd.building, { name: 'Объект', address: '', owner: '', inspector: '', date: '', kind: 'public', autoSuppressionAll: true, authority: '', actNo: '', actDate: '', bin: '' });
   const r = odd.floors[0].rooms[0];
   assert.deepEqual([r.area, r.count, r.category, r.classes, r.forceType, r.length], [12.5, 999, 'PUB', ['A', 'E'], '', '']);
   assert.deepEqual(odd.floors[0].plan.pos, { 's0_0:0': [1, 2] });
