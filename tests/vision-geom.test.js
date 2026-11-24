@@ -432,3 +432,115 @@ test('производительность на 1600 x 1200: detectQuad < 150 м
   assert.ok(detMs < 150, 'detectQuad слишком долгий: ' + Math.round(detMs) + ' мс');
   assert.ok(warpMs < 300, 'warp слишком долгий: ' + Math.round(warpMs) + ' мс');
 });
+
+// ---------- 8. Порядок вершин, вырожденные и вогнутые четырехугольники в warp ----------
+
+test('warp дает одинаковый результат при любом порядке вершин и отклоняет неверный quad', () => {
+  const w = 160, h = 120;
+  const rgba = new Uint8ClampedArray(w * h * 4);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const o = (y * w + x) * 4;
+      rgba[o] = (x * 2) & 255;
+      rgba[o + 1] = (y * 2) & 255;
+      rgba[o + 2] = ((x + y) * 3) & 255;
+      rgba[o + 3] = 255;
+    }
+  }
+  const base = [[18, 12], [142, 22], [134, 108], [14, 96]];
+  const ref = G.warp(rgba, w, h, base, 80, 60);
+
+  // Все 24 перестановки 4 вершин должны давать побитово одинаковый результат.
+  function permute(arr) {
+    if (arr.length <= 1) return [arr];
+    const out = [];
+    for (let i = 0; i < arr.length; i++) {
+      const rest = arr.slice(0, i).concat(arr.slice(i + 1));
+      const sub = permute(rest);
+      for (let j = 0; j < sub.length; j++) out.push([arr[i]].concat(sub[j]));
+    }
+    return out;
+  }
+  const perms = permute(base);
+  assert.equal(perms.length, 24);
+  for (let i = 0; i < perms.length; i++) {
+    const got = G.warp(rgba, w, h, perms[i], 80, 60);
+    assert.equal(Buffer.compare(Buffer.from(got.buffer), Buffer.from(ref.buffer)), 0, 'перестановка #' + i);
+  }
+
+  // Пустой или не из 4 точек quad отклоняется понятной ошибкой.
+  assert.throws(() => G.warp(rgba, w, h, null, 40, 40), /4/);
+  assert.throws(() => G.warp(rgba, w, h, [[0, 0], [10, 0], [10, 10]], 40, 40), /4/);
+  assert.throws(() => G.warp(rgba, w, h, [[0, 0], [10, 0], [10, 10], [0, 10], [5, 5]], 40, 40), /4/);
+  assert.equal(G._orderQuad, undefined, '_orderQuad не экспортируется');
+});
+
+test('warp корректно обрабатывает вогнутый и коллинеарный четырехугольники', () => {
+  // Исходник: белый фон с черной полосой в левом верхнем углу и серым низом.
+  const w = 200, h = 200;
+  const rgba = new Uint8ClampedArray(w * h * 4).fill(255);
+  fillRect(rgba, w, h, 0, 0, 200, 200, [40, 80, 120]);
+  fillRect(rgba, w, h, 20, 20, 40, 40, [220, 30, 30]);
+
+  // Коллинеарный quad (3 вершины на одной прямой): белый выход без сбоев.
+  const col = G.warp(rgba, w, h, [[10, 10], [100, 10], [190, 10], [100, 180]], 60, 60);
+  assert.equal(col.length, 60 * 60 * 4);
+  for (let i = 0; i < col.length; i++) assert.equal(col[i], 255, 'коллинеарный дает белый');
+
+  // Вогнутый quad (как при перетаскивании угла пользователем): где dn <= 0, должен быть белый.
+  const concave = [[50, 50], [190, 50], [110, 110], [50, 190]];
+  const outW = 100, outH = 100;
+  const H = G.homography([[0, 0], [outW, 0], [outW, outH], [0, outH]], concave);
+  assert.ok(H, 'гомография вогнутого quad существует');
+  // Красная метка в точке, куда попадает (u=0.5, v=0.5) с положительным dn.
+  const pSrc = G.applyH(H, 0.5, 0.5);
+  assert.ok(H[6] * 0.5 + H[7] * 0.5 + H[8] > 0.1, 'у верхнего угла dn > 0');
+  assert.ok(pSrc[0] > 10 && pSrc[0] < w - 10 && pSrc[1] > 10 && pSrc[1] < h - 10, 'точка внутри исходника');
+  fillRect(rgba, w, h, pSrc[0] - 8, pSrc[1] - 8, pSrc[0] + 8, pSrc[1] + 8, [220, 30, 30]);
+
+  const out = G.warp(rgba, w, h, concave, outW, outH);
+  assert.equal(out.length, outW * outH * 4);
+
+  let negCount = 0;
+  for (let v = 0; v < outH; v++) {
+    for (let u = 0; u < outW; u++) {
+      const dn = H[6] * (u + 0.5) + H[7] * (v + 0.5) + H[8];
+      if (dn <= 1e-9) {
+        negCount += 1;
+        const o = (v * outW + u) * 4;
+        assert.equal(out[o], 255, 'R белый при dn <= 0');
+        assert.equal(out[o + 1], 255, 'G белый при dn <= 0');
+        assert.equal(out[o + 2], 255, 'B белый при dn <= 0');
+        assert.equal(out[o + 3], 255, 'A=255 при dn <= 0');
+      }
+    }
+  }
+  assert.ok(negCount > 100, 'в вогнутом quad есть область с dn <= 0: ' + negCount);
+
+  // Проверка, что исходник не сжимается до 8x8: красная метка 16x16 в (0, 0) сохраняет цвет.
+  assert.ok(out[0] > 180 && out[1] < 80, 'красная метка не размыта сжатием до 8x8: rgb=' + out[0] + ',' + out[1] + ',' + out[2]);
+});
+
+// ---------- 9. refineQuadFullRes у кромки широкой картинки 1600 px ----------
+
+test('detectQuad сохраняет край листа на границе картинки шириной 1600 px', () => {
+  const cw = 1600, ch = 1200;
+  const rgba = new Uint8ClampedArray(cw * ch * 4);
+  // Серый фон стены.
+  fillRect(rgba, cw, ch, 0, 0, cw, ch, [110, 112, 115]);
+  // Лист бумаги лежит на левой кромке (x = 2, меньше 1.5 / workScale = 5.45 px, но x в рабочем масштабе дает край у границы).
+  const sx0 = 2, sy0 = 140, sx1 = 1260, sy1 = 1040;
+  const sheet = makePlanSheet(sx1 - sx0, sy1 - sy0);
+  for (let y = 0; y < sheet.h; y++) {
+    const srcOff = y * sheet.w * 4;
+    const dstOff = ((sy0 + y) * cw + sx0) * 4;
+    rgba.set(sheet.rgba.subarray(srcOff, srcOff + sheet.w * 4), dstOff);
+  }
+  const det = G.detectQuad(rgba, cw, ch);
+  assert.equal(det.kind, 'sheet', 'ожидается sheet, получено ' + det.kind);
+  // Левый край должен остаться у границы (<= 6 px), а не сместиться к внутренней стене.
+  assert.ok(det.quad[0][0] <= 6 && det.quad[3][0] <= 6, 'левый край у границы: x0=' + det.quad[0][0].toFixed(1) + ', x3=' + det.quad[3][0].toFixed(1));
+  assert.ok(Math.abs(det.quad[1][0] - sx1) < 12, 'правый край точен: ' + det.quad[1][0].toFixed(1));
+  assert.ok(Math.abs(det.quad[0][1] - sy0) < 12, 'верхний край точен: ' + det.quad[0][1].toFixed(1));
+  assert.ok(Math.abs(det.quad[2][1] - sy1) < 12, 'нижний край точен: ' + det.quad[2][1].toFixed(1));
+});

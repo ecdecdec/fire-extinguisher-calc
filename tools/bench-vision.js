@@ -36,30 +36,20 @@ function recognize(rgba, w, h, hint) {
   const t0 = performance.now();
   if (hnt.scale > 0) {
     const out = V.findRooms(rgba, w, h, { scale: hnt.scale });
-    const areas = V.roundAreas(out.rooms, hnt.scale);
-    return { scale: hnt.scale, out: out, areas: areas, passes: 1, ms: Math.round(performance.now() - t0) };
+    return { scale: hnt.scale, out: out, passes: 1, ms: Math.round(performance.now() - t0) };
   }
   if (hnt.areaM2 > 0) {
     const first = V.findRooms(rgba, w, h, { areaM2: hnt.areaM2 });
     const s1 = V.scaleFromArea(first.rooms, hnt.areaM2);
     if (!(s1 > 0)) {
-      return {
-        scale: 0, out: first,
-        areas: first.rooms.map(function () { return 0; }),
-        passes: 1, ms: Math.round(performance.now() - t0)
-      };
+      return { scale: 0, out: first, passes: 1, ms: Math.round(performance.now() - t0) };
     }
     const out = V.findRooms(rgba, w, h, { scale: s1 });
     const scale = V.scaleFromArea(out.rooms, hnt.areaM2) || s1;
-    const areas = scale > 0 ? V.roundAreas(out.rooms, scale) : out.rooms.map(function () { return 0; });
-    return { scale: scale, out: out, areas: areas, passes: 2, ms: Math.round(performance.now() - t0) };
+    return { scale: scale, out: out, passes: 2, ms: Math.round(performance.now() - t0) };
   }
   const out = V.findRooms(rgba, w, h, {});
-  return {
-    scale: 0, out: out,
-    areas: out.rooms.map(function () { return 0; }),
-    passes: 1, ms: Math.round(performance.now() - t0)
-  };
+  return { scale: 0, out: out, passes: 1, ms: Math.round(performance.now() - t0) };
 }
 
 // ---------- растеризация полигонов и сопоставление помещений ----------
@@ -256,7 +246,6 @@ function evalRealPlan(rooms, w, h, entry) {
   const range = Array.isArray(entry.roomsRange) && entry.roomsRange.length === 2
     ? [entry.roomsRange[0], entry.roomsRange[1]]
     : [expected, expected];
-  const inRange = found >= range[0] && found <= range[1];
   const box = entry.box || entry.main_plan_box || [0, 0, 1, 1];
   const ex0 = (box[0] - 0.03) * w;
   const ey0 = (box[1] - 0.03) * h;
@@ -268,6 +257,7 @@ function evalRealPlan(rooms, w, h, entry) {
     if (r.lx < ex0 || r.lx > ex1 || r.ly < ey0 || r.ly > ey1) junk += 1;
   }
   const validFound = found - junk;
+  const inRange = validFound >= range[0] && validFound <= range[1];
   let countAcc = 0;
   if (validFound >= range[0] && validFound <= range[1]) countAcc = 1;
   else if (validFound < range[0]) countAcc = range[0] > 0 ? validFound / range[0] : 0;
@@ -714,6 +704,10 @@ function main() {
   let synthVariants = Synth.VARIANTS.slice();
   let realFilter = null;
 
+  if (args.only.length > 0 && args.saveBaseline) {
+    console.error('--only вместе с --save-baseline не сохраняет базу: частичный прогон затёр бы полную. Уберите --only.');
+    process.exit(1);
+  }
   if (args.only.length > 0) {
     const matchedVariants = args.only.filter(function (x) { return allVariants.has(x); });
     const matchedReal = args.only.filter(function (x) { return allRealIds.has(x) || allRealKinds.has(x); });

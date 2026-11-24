@@ -4,7 +4,7 @@
     "score": 58.06,
     "synthMacroF1": 0.6581,
     "realScore": 0.503,
-    "elapsedMs": 43530
+    "elapsedMs": 88038
   },
   "synth": {
     "mode": "scale",
@@ -30,7 +30,7 @@
         "p90ErrPct": 2.21,
         "under10Count": 0,
         "under10Share": 0,
-        "ms": 141
+        "ms": 125
       },
       "hollow": {
         "variant": "hollow",
@@ -48,7 +48,7 @@
         "p90ErrPct": 1.79,
         "under10Count": 0,
         "under10Share": 0,
-        "ms": 180
+        "ms": 126
       },
       "door-arcs": {
         "variant": "door-arcs",
@@ -66,7 +66,7 @@
         "p90ErrPct": 6.28,
         "under10Count": 0,
         "under10Share": 0,
-        "ms": 50
+        "ms": 69
       },
       "windows": {
         "variant": "windows",
@@ -84,7 +84,7 @@
         "p90ErrPct": 5.09,
         "under10Count": 0,
         "under10Share": 0,
-        "ms": 110
+        "ms": 101
       },
       "furniture": {
         "variant": "furniture",
@@ -102,7 +102,7 @@
         "p90ErrPct": 23.13,
         "under10Count": 3,
         "under10Share": 0.1667,
-        "ms": 83
+        "ms": 74
       },
       "toilets": {
         "variant": "toilets",
@@ -120,7 +120,7 @@
         "p90ErrPct": 14.29,
         "under10Count": 0,
         "under10Share": 0,
-        "ms": 67
+        "ms": 60
       },
       "open-plan": {
         "variant": "open-plan",
@@ -138,7 +138,7 @@
         "p90ErrPct": null,
         "under10Count": 0,
         "under10Share": null,
-        "ms": 60
+        "ms": 56
       },
       "stubs": {
         "variant": "stubs",
@@ -156,7 +156,7 @@
         "p90ErrPct": 2.02,
         "under10Count": 0,
         "under10Share": 0,
-        "ms": 99
+        "ms": 91
       },
       "gray-walls": {
         "variant": "gray-walls",
@@ -174,7 +174,7 @@
         "p90ErrPct": null,
         "under10Count": 0,
         "under10Share": null,
-        "ms": 42
+        "ms": 39
       },
       "colored-walls": {
         "variant": "colored-walls",
@@ -192,7 +192,7 @@
         "p90ErrPct": null,
         "under10Count": 0,
         "under10Share": null,
-        "ms": 57
+        "ms": 49
       },
       "evacuation": {
         "variant": "evacuation",
@@ -228,7 +228,7 @@
         "p90ErrPct": 2.08,
         "under10Count": 0,
         "under10Share": 0,
-        "ms": 55
+        "ms": 53
       },
       "photo": {
         "variant": "photo",
@@ -246,7 +246,7 @@
         "p90ErrPct": 30.49,
         "under10Count": 2,
         "under10Share": 0.1538,
-        "ms": 94
+        "ms": 222
       },
       "lowres": {
         "variant": "lowres",
@@ -264,7 +264,7 @@
         "p90ErrPct": 5.3,
         "under10Count": 0,
         "under10Share": 0,
-        "ms": 6
+        "ms": 9
       },
       "tight": {
         "variant": "tight",
@@ -282,7 +282,7 @@
         "p90ErrPct": 2.54,
         "under10Count": 0,
         "under10Share": 0,
-        "ms": 36
+        "ms": 81
       },
       "two-buildings": {
         "variant": "two-buildings",
@@ -300,7 +300,7 @@
         "p90ErrPct": 2.17,
         "under10Count": 0,
         "under10Share": 0,
-        "ms": 49
+        "ms": 133
       }
     },
     "total": {
@@ -320,7 +320,7 @@
       "p90ErrPct": 5.37,
       "under10Count": 5,
       "under10Share": 0.0154,
-      "ms": 75
+      "ms": 85
     }
   },
   "real": {
@@ -328,26 +328,26 @@
       "architectural-drawing": {
         "kind": "architectural-drawing",
         "plans": 13,
-        "inRange": 1,
-        "inRangeShare": 0.0769,
+        "inRange": 2,
+        "inRangeShare": 0.1538,
         "found": 563,
         "expected": 223,
         "junk": 108,
         "junkShare": 0.1918,
         "score": 0.4876,
-        "ms": 847
+        "ms": 1529
       },
       "colored-plan": {
         "kind": "colored-plan",
         "plans": 7,
-        "inRange": 0,
-        "inRangeShare": 0,
+        "inRange": 2,
+        "inRangeShare": 0.2857,
         "found": 91,
         "expected": 88,
         "junk": 9,
         "junkShare": 0.0989,
         "score": 0.5576,
-        "ms": 735
+        "ms": 1648
       },
       "evacuation-plan-flat": {
         "kind": "evacuation-plan-flat",
@@ -359,19 +359,19 @@
         "junk": 0,
         "junkShare": 0,
         "score": 0.85,
-        "ms": 687
+        "ms": 1108
       },
       "evacuation-plan-photo": {
         "kind": "evacuation-plan-photo",
         "plans": 17,
-        "inRange": 3,
-        "inRangeShare": 0.1765,
+        "inRange": 0,
+        "inRangeShare": 0,
         "found": 1015,
         "expected": 594,
         "junk": 312,
         "junkShare": 0.3074,
         "score": 0.4907,
-        "ms": 444
+        "ms": 1171
       },
       "photo-of-drawing": {
         "kind": "photo-of-drawing",
@@ -383,7 +383,7 @@
         "junk": 54,
         "junkShare": 0.3313,
         "score": 0.4848,
-        "ms": 534
+        "ms": 1286
       },
       "scan": {
         "kind": "scan",
@@ -395,7 +395,7 @@
         "junk": 176,
         "junkShare": 0.2388,
         "score": 0.4752,
-        "ms": 619
+        "ms": 1143
       },
       "sketch": {
         "kind": "sketch",
@@ -407,7 +407,7 @@
         "junk": 0,
         "junkShare": 0,
         "score": 0.6667,
-        "ms": 602
+        "ms": 1268
       }
     },
     "total": {
@@ -419,7 +419,7 @@
       "junk": 659,
       "junkShare": 0.2538,
       "score": 0.503,
-      "ms": 626
+      "ms": 1313
     },
     "plans": {
       "evac-ru-kdc-1": {
@@ -428,7 +428,7 @@
         "w": 1600,
         "h": 1200,
         "passes": 1,
-        "ms": 514,
+        "ms": 1377,
         "found": 56,
         "expected": 37,
         "range": [
@@ -447,7 +447,7 @@
         "w": 1600,
         "h": 890,
         "passes": 1,
-        "ms": 288,
+        "ms": 627,
         "found": 39,
         "expected": 25,
         "range": [
@@ -466,7 +466,7 @@
         "w": 1200,
         "h": 1600,
         "passes": 1,
-        "ms": 371,
+        "ms": 946,
         "found": 75,
         "expected": 35,
         "range": [
@@ -485,7 +485,7 @@
         "w": 1600,
         "h": 1200,
         "passes": 1,
-        "ms": 408,
+        "ms": 1066,
         "found": 37,
         "expected": 74,
         "range": [
@@ -504,14 +504,14 @@
         "w": 1600,
         "h": 1200,
         "passes": 1,
-        "ms": 338,
+        "ms": 937,
         "found": 43,
         "expected": 36,
         "range": [
           28,
           46
         ],
-        "inRange": true,
+        "inRange": false,
         "junk": 43,
         "junkShare": 1,
         "validFound": 0,
@@ -523,14 +523,14 @@
         "w": 1200,
         "h": 1600,
         "passes": 1,
-        "ms": 590,
+        "ms": 1562,
         "found": 30,
         "expected": 28,
         "range": [
           25,
           32
         ],
-        "inRange": true,
+        "inRange": false,
         "junk": 6,
         "junkShare": 0.2,
         "validFound": 24,
@@ -542,7 +542,7 @@
         "w": 1600,
         "h": 1200,
         "passes": 1,
-        "ms": 357,
+        "ms": 921,
         "found": 38,
         "expected": 11,
         "range": [
@@ -561,7 +561,7 @@
         "w": 1600,
         "h": 1200,
         "passes": 1,
-        "ms": 348,
+        "ms": 939,
         "found": 50,
         "expected": 12,
         "range": [
@@ -580,7 +580,7 @@
         "w": 1600,
         "h": 1200,
         "passes": 1,
-        "ms": 362,
+        "ms": 881,
         "found": 100,
         "expected": 23,
         "range": [
@@ -599,7 +599,7 @@
         "w": 1600,
         "h": 1200,
         "passes": 1,
-        "ms": 400,
+        "ms": 975,
         "found": 43,
         "expected": 14,
         "range": [
@@ -618,7 +618,7 @@
         "w": 1067,
         "h": 1600,
         "passes": 1,
-        "ms": 581,
+        "ms": 1600,
         "found": 75,
         "expected": 25,
         "range": [
@@ -637,7 +637,7 @@
         "w": 1200,
         "h": 1600,
         "passes": 1,
-        "ms": 382,
+        "ms": 1050,
         "found": 60,
         "expected": 41,
         "range": [
@@ -656,14 +656,14 @@
         "w": 1600,
         "h": 1200,
         "passes": 1,
-        "ms": 388,
+        "ms": 1037,
         "found": 106,
         "expected": 106,
         "range": [
           95,
           115
         ],
-        "inRange": true,
+        "inRange": false,
         "junk": 18,
         "junkShare": 0.1698,
         "validFound": 88,
@@ -675,7 +675,7 @@
         "w": 1200,
         "h": 1600,
         "passes": 1,
-        "ms": 754,
+        "ms": 2013,
         "found": 21,
         "expected": 14,
         "range": [
@@ -694,7 +694,7 @@
         "w": 1600,
         "h": 1195,
         "passes": 1,
-        "ms": 418,
+        "ms": 1197,
         "found": 97,
         "expected": 48,
         "range": [
@@ -713,7 +713,7 @@
         "w": 1600,
         "h": 1195,
         "passes": 1,
-        "ms": 635,
+        "ms": 1748,
         "found": 15,
         "expected": 8,
         "range": [
@@ -732,7 +732,7 @@
         "w": 1600,
         "h": 1200,
         "passes": 1,
-        "ms": 416,
+        "ms": 1029,
         "found": 130,
         "expected": 57,
         "range": [
@@ -751,7 +751,7 @@
         "w": 1600,
         "h": 1200,
         "passes": 1,
-        "ms": 556,
+        "ms": 1203,
         "found": 77,
         "expected": 19,
         "range": [
@@ -770,7 +770,7 @@
         "w": 1600,
         "h": 1199,
         "passes": 1,
-        "ms": 687,
+        "ms": 1108,
         "found": 20,
         "expected": 16,
         "range": [
@@ -789,7 +789,7 @@
         "w": 1600,
         "h": 1278,
         "passes": 1,
-        "ms": 619,
+        "ms": 1744,
         "found": 109,
         "expected": 44,
         "range": [
@@ -808,7 +808,7 @@
         "w": 1600,
         "h": 1431,
         "passes": 1,
-        "ms": 843,
+        "ms": 2069,
         "found": 23,
         "expected": 8,
         "range": [
@@ -827,14 +827,14 @@
         "w": 1600,
         "h": 1333,
         "passes": 1,
-        "ms": 674,
+        "ms": 1761,
         "found": 17,
         "expected": 10,
         "range": [
           9,
           12
         ],
-        "inRange": false,
+        "inRange": true,
         "junk": 5,
         "junkShare": 0.2941,
         "validFound": 12,
@@ -846,7 +846,7 @@
         "w": 1600,
         "h": 1333,
         "passes": 1,
-        "ms": 700,
+        "ms": 1810,
         "found": 17,
         "expected": 10,
         "range": [
@@ -865,7 +865,7 @@
         "w": 1600,
         "h": 1340,
         "passes": 1,
-        "ms": 1778,
+        "ms": 1888,
         "found": 74,
         "expected": 12,
         "range": [
@@ -884,7 +884,7 @@
         "w": 1600,
         "h": 1289,
         "passes": 1,
-        "ms": 1324,
+        "ms": 1723,
         "found": 89,
         "expected": 11,
         "range": [
@@ -903,7 +903,7 @@
         "w": 1600,
         "h": 1102,
         "passes": 1,
-        "ms": 1081,
+        "ms": 1465,
         "found": 40,
         "expected": 12,
         "range": [
@@ -922,7 +922,7 @@
         "w": 1600,
         "h": 1107,
         "passes": 1,
-        "ms": 877,
+        "ms": 1150,
         "found": 30,
         "expected": 22,
         "range": [
@@ -941,7 +941,7 @@
         "w": 1600,
         "h": 690,
         "passes": 1,
-        "ms": 392,
+        "ms": 528,
         "found": 16,
         "expected": 42,
         "range": [
@@ -960,7 +960,7 @@
         "w": 1600,
         "h": 1232,
         "passes": 1,
-        "ms": 911,
+        "ms": 1463,
         "found": 56,
         "expected": 9,
         "range": [
@@ -979,7 +979,7 @@
         "w": 1600,
         "h": 628,
         "passes": 1,
-        "ms": 296,
+        "ms": 601,
         "found": 93,
         "expected": 12,
         "range": [
@@ -998,7 +998,7 @@
         "w": 1600,
         "h": 1384,
         "passes": 1,
-        "ms": 1173,
+        "ms": 2228,
         "found": 16,
         "expected": 5,
         "range": [
@@ -1017,7 +1017,7 @@
         "w": 960,
         "h": 1242,
         "passes": 1,
-        "ms": 256,
+        "ms": 551,
         "found": 108,
         "expected": 160,
         "range": [
@@ -1036,7 +1036,7 @@
         "w": 1205,
         "h": 1600,
         "passes": 1,
-        "ms": 528,
+        "ms": 920,
         "found": 129,
         "expected": 170,
         "range": [
@@ -1055,7 +1055,7 @@
         "w": 1600,
         "h": 1232,
         "passes": 1,
-        "ms": 379,
+        "ms": 988,
         "found": 140,
         "expected": 90,
         "range": [
@@ -1074,14 +1074,14 @@
         "w": 1600,
         "h": 1067,
         "passes": 1,
-        "ms": 394,
+        "ms": 1107,
         "found": 78,
         "expected": 58,
         "range": [
           50,
           75
         ],
-        "inRange": false,
+        "inRange": true,
         "junk": 22,
         "junkShare": 0.2821,
         "validFound": 56,
@@ -1093,7 +1093,7 @@
         "w": 1600,
         "h": 1297,
         "passes": 1,
-        "ms": 747,
+        "ms": 1872,
         "found": 40,
         "expected": 4,
         "range": [
@@ -1112,7 +1112,7 @@
         "w": 1600,
         "h": 1132,
         "passes": 1,
-        "ms": 563,
+        "ms": 1374,
         "found": 4,
         "expected": 6,
         "range": [
@@ -1131,7 +1131,7 @@
         "w": 1600,
         "h": 1286,
         "passes": 1,
-        "ms": 1446,
+        "ms": 1944,
         "found": 15,
         "expected": 5,
         "range": [
@@ -1150,7 +1150,7 @@
         "w": 1600,
         "h": 1035,
         "passes": 1,
-        "ms": 625,
+        "ms": 1273,
         "found": 19,
         "expected": 13,
         "range": [
@@ -1169,7 +1169,7 @@
         "w": 1252,
         "h": 1600,
         "passes": 1,
-        "ms": 732,
+        "ms": 1661,
         "found": 15,
         "expected": 11,
         "range": [
@@ -1188,7 +1188,7 @@
         "w": 1250,
         "h": 1600,
         "passes": 1,
-        "ms": 605,
+        "ms": 1438,
         "found": 24,
         "expected": 13,
         "range": [
@@ -1207,7 +1207,7 @@
         "w": 964,
         "h": 983,
         "passes": 1,
-        "ms": 169,
+        "ms": 387,
         "found": 15,
         "expected": 23,
         "range": [
@@ -1226,7 +1226,7 @@
         "w": 1600,
         "h": 1200,
         "passes": 1,
-        "ms": 807,
+        "ms": 1446,
         "found": 20,
         "expected": 6,
         "range": [
@@ -1245,7 +1245,7 @@
         "w": 705,
         "h": 1600,
         "passes": 1,
-        "ms": 423,
+        "ms": 806,
         "found": 25,
         "expected": 25,
         "range": [
@@ -1264,14 +1264,14 @@
         "w": 1600,
         "h": 1452,
         "passes": 1,
-        "ms": 1065,
+        "ms": 2381,
         "found": 9,
         "expected": 7,
         "range": [
           7,
           8
         ],
-        "inRange": false,
+        "inRange": true,
         "junk": 1,
         "junkShare": 0.1111,
         "validFound": 8,
@@ -1283,7 +1283,7 @@
         "w": 1600,
         "h": 903,
         "passes": 1,
-        "ms": 428,
+        "ms": 900,
         "found": 1,
         "expected": 8,
         "range": [
@@ -1302,7 +1302,7 @@
         "w": 1593,
         "h": 1600,
         "passes": 1,
-        "ms": 970,
+        "ms": 2037,
         "found": 3,
         "expected": 15,
         "range": [
@@ -1321,7 +1321,7 @@
         "w": 960,
         "h": 1600,
         "passes": 1,
-        "ms": 500,
+        "ms": 1202,
         "found": 24,
         "expected": 32,
         "range": [
@@ -1340,7 +1340,7 @@
         "w": 1600,
         "h": 1125,
         "passes": 1,
-        "ms": 476,
+        "ms": 1117,
         "found": 12,
         "expected": 25,
         "range": [
@@ -1359,7 +1359,7 @@
         "w": 1200,
         "h": 1600,
         "passes": 1,
-        "ms": 684,
+        "ms": 1690,
         "found": 35,
         "expected": 15,
         "range": [
@@ -1378,7 +1378,7 @@
         "w": 1430,
         "h": 1600,
         "passes": 1,
-        "ms": 1154,
+        "ms": 1745,
         "found": 16,
         "expected": 23,
         "range": [
@@ -1397,7 +1397,7 @@
         "w": 1201,
         "h": 1600,
         "passes": 1,
-        "ms": 541,
+        "ms": 952,
         "found": 60,
         "expected": 78,
         "range": [
@@ -1416,7 +1416,7 @@
         "w": 1600,
         "h": 1129,
         "passes": 1,
-        "ms": 604,
+        "ms": 1126,
         "found": 21,
         "expected": 13,
         "range": [
@@ -1435,7 +1435,7 @@
         "w": 1600,
         "h": 1310,
         "passes": 1,
-        "ms": 746,
+        "ms": 1758,
         "found": 33,
         "expected": 6,
         "range": [
@@ -1454,7 +1454,7 @@
         "w": 1600,
         "h": 1252,
         "passes": 1,
-        "ms": 574,
+        "ms": 1364,
         "found": 8,
         "expected": 7,
         "range": [
@@ -1473,7 +1473,7 @@
         "w": 1600,
         "h": 1042,
         "passes": 1,
-        "ms": 306,
+        "ms": 716,
         "found": 13,
         "expected": 34,
         "range": [
@@ -1492,7 +1492,7 @@
         "w": 1600,
         "h": 1200,
         "passes": 1,
-        "ms": 551,
+        "ms": 1458,
         "found": 30,
         "expected": 18,
         "range": [
@@ -1511,7 +1511,7 @@
         "w": 1272,
         "h": 1600,
         "passes": 1,
-        "ms": 602,
+        "ms": 1268,
         "found": 8,
         "expected": 13,
         "range": [
