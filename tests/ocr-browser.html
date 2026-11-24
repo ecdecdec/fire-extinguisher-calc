@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Проверка чтения надписей</title>
+</head>
+<body>
+  <p>Открывается через tools/check-ocr-browser.js. Параметр ?mode=worker читает надписи из фонового потока.</p>
+  <pre id="out">Выполняется…</pre>
+  <script src="../js/vision.js"></script>
+  <script src="../js/presets.js"></script>
+  <script src="../vendor/tesseract/tesseract.min.js"></script>
+  <script src="../js/vision-ocr.js"></script>
+  <script src="../tools/synth-plans.js"></script>
+  <script src="ocr-browser.js"></script>
+  <script>
+    (function () {
+      const out = document.getElementById('out');
+      function done(o) { window.__ocr = o; out.textContent = JSON.stringify(o, null, 1); }
+      if (/mode=worker/.test(location.search)) {
+        const w = new Worker('ocr-browser.worker.js');
+        w.onmessage = function (e) { done(e.data); };
+        w.onerror = function (e) { done({ ok: false, error: 'поток: ' + e.message }); };
+        w.postMessage({ origin: location.origin });
+      } else {
+        ocrBrowserRun(location.origin).then(function (r) { done({ ok: true, result: r }); }, function (e) { done({ ok: false, error: String(e && e.message || e) }); });
+      }
+    }());
+  </script>
+</body>
+</html>

@@ -177,7 +177,7 @@
 
   // ---------- 3. рабочий поток tesseract ----------
 
-  const state = { key: '', promise: null, worker: null };
+  const state = { key: '', promise: null, worker: null, core: '' };
 
   function simdOk() {
     try {
@@ -194,16 +194,35 @@
     return p;
   }
 
+  // Адрес чужого источника (http, https или без протокола) не допускается: иначе tesseract.js
+  // взял бы файлы из сети. Свой источник: тот же адрес, что у страницы, или из opts.allowOrigins.
+  function checkLocal(p, o, what) {
+    const s = String(p);
+    const m = /^(https?:)?[/][/]([^/?#]+)/i.exec(s);
+    if (!m) return s;
+    const origin = (m[1] ? m[1].toLowerCase() : (typeof location !== 'undefined' && location.protocol ? location.protocol : 'https:')) + '//' + m[2].toLowerCase();
+    const allow = (o.allowOrigins || []).map(function (x) { return String(x).toLowerCase().replace(/[/]$/, ''); });
+    if (typeof location !== 'undefined' && location.origin && location.origin !== 'null') allow.push(location.origin.toLowerCase());
+    if (allow.indexOf(origin) < 0) throw new Error('Путь ' + what + ' ведёт на другой адрес (' + origin + '): файлы распознавания берутся только из vendor/tesseract.');
+    return s;
+  }
+
   function pathsFor(o) {
-    if (o.paths) return o.paths;
     let base = o.base || 'vendor/tesseract/';
-    if (base.charAt(base.length - 1) !== '/' && base.charAt(base.length - 1) !== '\\') base += '/';
+    if (!/[/\\]$/.test(base)) base += '/';
+    checkLocal(base, o, 'base');
     base = absUrl(base);
-    return {
+    const given = o.paths || {};
+    const def = {
       workerPath: base + 'worker.min.js',
       corePath: base + 'core/' + (simdOk() ? 'tesseract-core-simd-lstm.wasm.js' : 'tesseract-core-lstm.wasm.js'),
       langPath: base + 'lang'
     };
+    const out = {};
+    ['workerPath', 'corePath', 'langPath'].forEach(function (k) {
+      out[k] = given[k] ? checkLocal(given[k], o, k) : def[k];
+    });
+    return out;
   }
 
   function getTesseract(o) {
@@ -218,6 +237,7 @@
     if (state.promise && state.key === key) return state.promise;
     const T = getTesseract(o);
     state.key = key;
+    state.core = String(p.corePath).split(/[/\\]/).pop();
     state.promise = T.createWorker(langs, 1, {
       workerPath: p.workerPath, workerBlobURL: false, corePath: p.corePath, langPath: p.langPath,
       gzip: true, cacheMethod: 'none', logger: function () {}
@@ -404,8 +424,8 @@
 
   return {
     findTextBoxes: findTextBoxes, readLabels: readLabels, scaleFromLabels: scaleFromLabels,
-    parseArea: parseArea, dispose: dispose,
+    parseArea: parseArea, dispose: dispose, info: function () { return { core: state.core, simd: simdOk() }; },
     // для тестов
-    _cropPgm: cropPgm, _cleanName: cleanName
+    _cropPgm: cropPgm, _pathsFor: pathsFor, _cleanName: cleanName
   };
 }));

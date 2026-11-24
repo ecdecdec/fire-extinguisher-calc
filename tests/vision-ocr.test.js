@@ -45,6 +45,21 @@ test('scaleFromLabels: выброс отбрасывается, меньше т�
   assert.equal(O.scaleFromLabels(rooms, scatter), null);
 });
 
+test('пути tesseract: недостающие берутся из vendor, чужой адрес отклоняется', () => {
+  const def = O._pathsFor({});
+  ['workerPath', 'corePath', 'langPath'].forEach((k) => assert.ok(def[k] && def[k].indexOf('vendor/tesseract/') === 0, k));
+  const part = O._pathsFor({ paths: { langPath: 'свой/lang' } });
+  assert.equal(part.langPath, 'свой/lang');
+  assert.equal(part.workerPath, def.workerPath);
+  assert.equal(part.corePath, def.corePath);
+  const empty = O._pathsFor({ paths: {} });
+  Object.keys(empty).forEach((k) => assert.ok(empty[k], k + ' не задан'));
+  assert.throws(() => O._pathsFor({ paths: { corePath: 'https://cdn.jsdelivr.net/npm/x.js' } }), /другой адрес/);
+  assert.throws(() => O._pathsFor({ paths: { workerPath: '//cdn.example.com/w.js' } }), /другой адрес/);
+  assert.throws(() => O._pathsFor({ base: 'http://example.com/t/' }), /другой адрес/);
+  assert.doesNotThrow(() => O._pathsFor({ base: 'http://127.0.0.1:9/', allowOrigins: ['http://127.0.0.1:9'] }));
+});
+
 test('findTextBoxes: у каждого помещения синтетического плана БТИ есть строка с площадью', () => {
   const p = S.make('hollow', 1);
   const rooms = p.rooms.map((r, i) => ({ id: i + 1, poly: r.poly }));
@@ -64,6 +79,7 @@ test('запуск tesseract.js в этой версии Node', { timeout: 90000
     OPTS.Tesseract = env.Tesseract;
     OPTS.guessPurpose = P.guessPurpose;
     OPTS.timeoutMs = 60000;
+    OPTS.allowOrigins = [new URL(env.base).origin];
     OPTS.paths = {
       workerPath: path.join(env.vendor, 'worker.min.js'),
       corePath: path.join(env.vendor, 'core', 'tesseract-core-simd-lstm.wasm.js'),
