@@ -603,8 +603,8 @@
         drawLineAA(rgba, w, h, offsetPx - tick * 0.7, y + tick * 0.7, offsetPx + tick * 0.7, y - tick * 0.7, lineW * 1.2, color, 1);
         if (i + 1 < axisCoords.length) {
           const label = String(Math.round((axisCoords[i + 1] - y) / scale * 1000));
-          // цифры слева от линии, по центру отрезка
-          drawDigits(rgba, w, h, label, offsetPx - cell * 14, (y + axisCoords[i + 1]) * 0.5, cell, color, 1);
+          // цифры с внешней стороны линии, по центру отрезка
+          drawDigits(rgba, w, h, label, offsetPx - dir * cell * 14, (y + axisCoords[i + 1]) * 0.5, cell, color, 1);
         }
       }
     }

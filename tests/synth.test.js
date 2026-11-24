@@ -155,6 +155,37 @@ test('растеризация и метрики стенда корректно
   );
   assert.equal(ev.found, 2);
   assert.equal(ev.junk, 1);
+  assert.equal(ev.validFound, 1);
   assert.equal(ev.inRange, true);
   assert.equal(ev.score, 0.5);
+
+  // inRange проверяет validFound (найдено минус мусор), а не сырой found
+  const evUnder = Bench.evalRealPlan(
+    [{ lx: 50, ly: 50 }, { lx: 95, ly: 50 }],
+    100, 100,
+    { rooms: 2, roomsRange: [2, 3], box: [0.2, 0.2, 0.8, 0.8] }
+  );
+  assert.equal(evUnder.found, 2);
+  assert.equal(evUnder.junk, 1);
+  assert.equal(evUnder.validFound, 1);
+  assert.equal(evUnder.inRange, false, 'found=2 в [2,3], но validFound=1 вне диапазона');
+
+  const evOver = Bench.evalRealPlan(
+    [{ lx: 40, ly: 50 }, { lx: 60, ly: 50 }, { lx: 95, ly: 50 }],
+    100, 100,
+    { rooms: 2, roomsRange: [1, 2], box: [0.2, 0.2, 0.8, 0.8] }
+  );
+  assert.equal(evOver.found, 3);
+  assert.equal(evOver.junk, 1);
+  assert.equal(evOver.validFound, 2);
+  assert.equal(evOver.inRange, true, 'found=3 выше [1,2], но validFound=2 в диапазоне');
+});
+
+test('bench-vision отказывается сохранять baseline при указанном --only', function () {
+  const cp = require('node:child_process');
+  const path = require('node:path');
+  const script = path.join(__dirname, '..', 'tools', 'bench-vision.js');
+  const res = cp.spawnSync(process.execPath, [script, '--only', 'clean', '--save-baseline'], { encoding: 'utf8' });
+  assert.equal(res.status, 1, 'ожидался код выхода 1');
+  assert.ok((res.stderr || '').indexOf('--only') >= 0, 'сообщение объясняет отказ');
 });

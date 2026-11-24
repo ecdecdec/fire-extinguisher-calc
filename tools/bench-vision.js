@@ -36,29 +36,20 @@ function recognize(rgba, w, h, hint) {
   const t0 = performance.now();
   if (hnt.scale > 0) {
     const out = V.findRooms(rgba, w, h, { scale: hnt.scale });
-    return { scale: hnt.scale, out: out, areas: V.roundAreas(out.rooms, hnt.scale), passes: 1, ms: Math.round(performance.now() - t0) };
+    return { scale: hnt.scale, out: out, passes: 1, ms: Math.round(performance.now() - t0) };
   }
   if (hnt.areaM2 > 0) {
     const first = V.findRooms(rgba, w, h, { areaM2: hnt.areaM2 });
     const s1 = V.scaleFromArea(first.rooms, hnt.areaM2);
     if (!(s1 > 0)) {
-      return {
-        scale: 0, out: first,
-        areas: first.rooms.map(function () { return 0; }),
-        passes: 1, ms: Math.round(performance.now() - t0)
-      };
+      return { scale: 0, out: first, passes: 1, ms: Math.round(performance.now() - t0) };
     }
     const out = V.findRooms(rgba, w, h, { scale: s1 });
     const scale = V.scaleFromArea(out.rooms, hnt.areaM2) || s1;
-    const areas = scale > 0 ? V.roundAreas(out.rooms, scale) : out.rooms.map(function () { return 0; });
-    return { scale: scale, out: out, areas: areas, passes: 2, ms: Math.round(performance.now() - t0) };
+    return { scale: scale, out: out, passes: 2, ms: Math.round(performance.now() - t0) };
   }
   const out = V.findRooms(rgba, w, h, {});
-  return {
-    scale: 0, out: out,
-    areas: out.rooms.map(function () { return 0; }),
-    passes: 1, ms: Math.round(performance.now() - t0)
-  };
+  return { scale: 0, out: out, passes: 1, ms: Math.round(performance.now() - t0) };
 }
 
 // ---------- растеризация полигонов и сопоставление помещений ----------
