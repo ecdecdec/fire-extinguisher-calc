@@ -33,16 +33,25 @@ function pick(report, part) {
 
 const parts = [['synth', 'Синтетика (macro F1)'], ['real', 'Реальные планы (score)']];
 let checked = 0, failed = 0;
-parts.forEach(function (it) {
-  const a = pick(now, it[0]), b = pick(base, it[0]);
+function checkScore(label, a, b) {
   if (a === null || b === null) return;
   checked += 1;
   const drop = b - a;
   const bad = drop > maxDrop;
   if (bad) failed += 1;
-  console.log((bad ? 'FAIL  ' : 'PASS  ') + it[1] + ': ' + a.toFixed(2) + ' (базовый замер ' + b.toFixed(2) +
+  console.log((bad ? 'FAIL  ' : 'PASS  ') + label + ': ' + a.toFixed(2) + ' (базовый замер ' + b.toFixed(2) +
     ', разница ' + (a - b >= 0 ? '+' : '') + (a - b).toFixed(2) + ', допустимое падение ' + maxDrop + ')');
+}
+
+parts.forEach(function (it) {
+  checkScore(it[1], pick(now, it[0]), pick(base, it[0]));
 });
+
+if (now && now.synth && now.real && base && base.synth && base.real &&
+    now.overall && typeof now.overall.score === 'number' &&
+    base.overall && typeof base.overall.score === 'number') {
+  checkScore('Общий балл (overall)', now.overall.score, base.overall.score);
+}
 
 if (!checked) { console.error('Нечего сравнивать: в bench.json и baseline.json нет общих частей'); process.exit(2); }
 if (failed) { console.error('Распознавание стало хуже базового замера больше чем на ' + maxDrop + ' п.'); process.exit(1); }

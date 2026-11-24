@@ -83,11 +83,12 @@ jobs:
         if: steps.app.outputs.present == 'true'
         run: npm run test:unit
 
-      # Playwright ставит свой Chromium со всеми системными библиотеками. Установленный на runner
-      # Chrome тоже подошёл бы (channel chrome), но тогда версия зависит от образа runner.
+      # На ubuntu-latest уже установлен /usr/bin/google-chrome (подходит для channel: 'chrome').
+      # Если конфигурация Playwright использует channel: 'msedge' (как на Windows) или встроенный
+      # chromium, ставим оба браузера со всеми системными библиотеками.
       - name: Браузер для сквозных тестов
         if: steps.app.outputs.present == 'true'
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium msedge
 
       - name: Сквозные тесты
         if: steps.app.outputs.present == 'true'

@@ -50,7 +50,7 @@ jobs:
       - name: Android SDK (платформа 36, build-tools)
         run: |
           sdk="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
-          mgr="$sdk/cmdline-tools/latest/bin/sdkmanager"
+          mgr="$(command -v sdkmanager || echo "$sdk/cmdline-tools/latest/bin/sdkmanager")"
           yes | "$mgr" --licenses > /dev/null || true
           "$mgr" "platforms;android-36" "build-tools;36.0.0"
           echo "ANDROID_HOME=$sdk" >> "$GITHUB_ENV"
@@ -67,7 +67,7 @@ jobs:
           done
           keys="$RUNNER_TEMP/firecalc-keys"
           mkdir -p "$keys"
-          echo "$KEYSTORE_BASE64" | base64 -d > "$keys/firecalc-release.jks"
+          printf '%s' "$KEYSTORE_BASE64" | tr -d ' \t\r\n' | base64 -d > "$keys/firecalc-release.jks"
           {
             echo "storeFile=$keys/firecalc-release.jks"
             echo "storePassword=$KEYSTORE_PASSWORD"
