@@ -95,6 +95,10 @@
     const base = blankObject('');
     const building = Object.assign(base.building, data.building || {});
     if (!building.date) building.date = today();
+    building.authority = typeof building.authority === 'string' ? building.authority : '';
+    building.actNo = typeof building.actNo === 'string' ? building.actNo : '';
+    building.actDate = typeof building.actDate === 'string' ? building.actDate : '';
+    building.bin = typeof building.bin === 'string' ? building.bin : '';
     const floors = (data.floors || []).map(function (f, i) {
       const idMap = {};
       const rooms = (f.rooms || []).map(function (r) {

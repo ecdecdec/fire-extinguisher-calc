@@ -246,6 +246,11 @@
       // --- данные для отчёта спрашиваются при скачивании ---
       await click(q('[data-test=pdf]'));
       ok('кнопка PDF открывает окно с данными отчёта', !!q('.modal') && q('[data-test=pdf-name]').value === 'Бизнес-центр (пример)');
+      ok('в окне отчёта есть поля проверочного листа', !!q('[data-test=pdf-authority]') && !!q('[data-test=pdf-actno]') && !!q('[data-test=pdf-actdate]') && !!q('[data-test=pdf-bin]'));
+      await setValue(q('[data-test=pdf-authority]'), 'ДЧС г. Астаны');
+      await setValue(q('[data-test=pdf-actno]'), '12');
+      await setValue(q('[data-test=pdf-actdate]'), '2026-11-10');
+      await setValue(q('[data-test=pdf-bin]'), '123456789012');
       await setValue(q('[data-test=pdf-name]'), 'БЦ «Тест»');
       eq('название в окне и в заголовке — одно поле', title(), 'БЦ «Тест»');
       await click(q('[data-test=pdf-cancel]'));

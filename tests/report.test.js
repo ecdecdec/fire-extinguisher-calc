@@ -54,6 +54,7 @@ function collectStrings(node, out) {
 function docStrings(dd) {
   const out = collectStrings(dd.content, []);
   collectStrings(dd.header(2, 3), out);
+  if (dd.footer) collectStrings(dd.footer(1, 3), out);
   collectStrings(dd.info, out);
   return out;
 }
@@ -113,10 +114,15 @@ test('служебный документ: заголовок, разделы, �
   const dd = R.buildDoc(result, { generatedAt: fixedDate });
   const text = docStrings(dd).join('\n');
   ['РАСЧЁТ', 'необходимого количества первичных средств пожаротушения (огнетушителей)', 'г. Астана', '11.11.2026',
-    '1. Сведения об объекте', 'Бизнес-центр (пример)', 'Общественное здание', '2 этажа, 8 помещений, 720 м²',
+    '1. Сведения об объекте', 'Государственный орган, назначивший проверку', 'Акт о назначении проверки, номер и дата',
+    'Наименование субъекта (объекта) контроля', 'ИИН/БИН субъекта контроля', 'Адрес места нахождения',
+    'Бизнес-центр (пример)', 'Общественное здание', '2 этажа, 8 помещений, 720 м²',
     '2. Требуемое количество огнетушителей', 'ОП-5, порошковый, заряд ABC(E)', 'ОУ-3, углекислотный', 'Итого огнетушителей',
     '3. Сверка с фактическим наличием', 'Порошковые (ОП)', 'недостаёт', 'На этажах со схемой',
-    '4. Вывод', 'не соответствует', 'Не хватает: 1 порошкового (ОП) и 1 углекислотного (ОУ).', 'Расчёт выполнил', 'Иванов И. И.',
+    '4. Вывод', 'Приложение 3 к совместному приказу МВД РК от 30.10.2018 № 758 и МНЭ РК от 30.10.2018 № 31, п. 51',
+    'Наличие требуемого количества исправных и прошедших техническое обслуживание первичных средств пожаротушения',
+    'не соответствует', 'Степень нарушения: значительное', 'Не хватает: 1 порошкового (ОП) и 1 углекислотного (ОУ).',
+    'Должностное лицо', 'Руководитель субъекта контроля', '(должность)', '(подпись)', '(фамилия, имя, отчество при наличии)', 'Иванов И. И.',
     'Приложение 1', 'к расчёту от 11.11.2026', 'Расчёт по помещениям', '450 м² × 4 шт. / 800 м² = 2,25, с округлением вверх 3 шт.',
     'Приложение 2', 'Требования к размещению, принятые допущения и нормативные документы', 'СТ РК 1487-2006', 'Прил. 3, п. 7', 'Прил. 3, п. 5'
   ].forEach(x => assert.ok(text.includes(x), 'есть «' + x + '»'));
@@ -235,4 +241,59 @@ test('отчёт проверки: нарушения и меры, схемы «
   assert.equal(r2.check.ok, true);
   const t2 = docStrings(R.buildDoc(r2, { generatedAt: fixedDate, audit: PL.audit(placed, r2) })).join('\n');
   assert.ok(t2.includes('не соответствует') && t2.includes('Нарушений размещения: 1.'), t2.slice(0, 400));
+});
+
+test('шапка проверочного листа, вывод по п. 51, подписи и нижний колонтитул с версией и редакцией норм', () => {
+  const N = require('../js/norms.js');
+  const input = inputs().business;
+  // пустые поля шапки: пустые строки для записи от руки, а не прочерки
+  const emptyDoc = R.buildDoc(E.calculate(input), { generatedAt: fixedDate });
+  const emptyObjTable = nodes(emptyDoc.content, 'table')[0].table.body;
+  assert.deepEqual(emptyObjTable.slice(0, 5).map(r => r[0]), [
+    'Государственный орган, назначивший проверку',
+    'Акт о назначении проверки, номер и дата',
+    'Наименование субъекта (объекта) контроля',
+    'ИИН/БИН субъекта контроля',
+    'Адрес места нахождения'
+  ]);
+  assert.equal(emptyObjTable[0][1], '');
+  assert.equal(emptyObjTable[1][1], '');
+  assert.equal(emptyObjTable[3][1], '');
+  emptyObjTable.forEach(r => assert.ok(r[1] !== '-' && r[1] !== '\u2014', 'нет прочерка в поле «' + r[0] + '»'));
+
+  // заполненные поля шапки и должность инспектора через запятую
+  input.building.authority = 'ДЧС г. Астаны МЧС РК';
+  input.building.actNo = '145/2026';
+  input.building.actDate = '2026-11-10';
+  input.building.bin = '180540001234';
+  input.building.inspector = 'Иванов И. И., старший инспектор';
+  const dd = R.buildDoc(E.calculate(input), { generatedAt: fixedDate, appVersion: '1.0.1 (сборка 009014ff79)' });
+  const objTable = nodes(dd.content, 'table')[0].table.body;
+  assert.equal(objTable[0][1], 'ДЧС г. Астаны МЧС РК');
+  assert.equal(objTable[1][1], '№ 145/2026 от 10.11.2026');
+  assert.equal(objTable[2][1], 'ТОО «Пример», Бизнес-центр (пример)');
+  assert.equal(objTable[3][1], '180540001234');
+  assert.equal(objTable[4][1], 'г. Астана, ул. Примерная, 1');
+
+  const text = docStrings(dd).join('\n');
+  assert.ok(text.includes('старший инспектор'));
+  assert.ok(text.includes('Иванов И. И.'));
+  assert.ok(text.includes('Должностное лицо'));
+  assert.ok(text.includes('Руководитель субъекта контроля'));
+
+  // колонтитул на каждой странице: версия приложения со сборкой и редакция норм
+  [1, 2, 3].forEach(page => {
+    const f = collectStrings(dd.footer(page, 3), []).join(' ');
+    assert.ok(f.includes('1.0.1 (сборка 009014ff79)'), 'версия и сборка на стр. ' + page);
+    assert.ok(f.includes(N.VERSION), 'редакция норм на стр. ' + page);
+  });
+  assert.ok(dd.info.creator.includes('1.0.1 (сборка 009014ff79)'));
+  assert.ok(dd.info.subject.includes(N.VERSION));
+
+  // при соответствии степень нарушения не приписывается
+  input.floors.forEach(f => { f.plan = null; f.installedOP = 10; f.installedOU = 5; });
+  const okText = docStrings(R.buildDoc(E.calculate(input), { generatedAt: fixedDate })).join('\n');
+  assert.ok(okText.includes('п. 51: Наличие требуемого количества исправных и прошедших техническое обслуживание первичных средств пожаротушения'));
+  assert.ok(okText.includes('\nсоответствует\n'));
+  assert.ok(!okText.includes('Степень нарушения'));
 });
