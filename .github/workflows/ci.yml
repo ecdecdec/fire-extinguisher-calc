@@ -1,0 +1,105 @@
+# Проверки при каждом изменении: тесты, стенд распознавания, интерфейс в браузере, работа без сети.
+# Когда в проекте появится app/index.html (приложение 2.0), добавляются проверки кода, типов и сквозные тесты.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # tools/cdp.js берёт браузер из BROWSER; обёртка добавляет --no-sandbox
+      # (на ubuntu-latest без неё Chrome может не запуститься)
+      BROWSER: /tmp/chrome-ci.sh
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            native/package-lock.json
+
+      - name: Зависимости
+        run: |
+          if [ -f package-lock.json ]; then npm ci --no-audit --no-fund; else npm install --no-audit --no-fund; fi
+
+      - name: Браузер для проверок
+        run: |
+          test -x /usr/bin/google-chrome
+          printf '#!/bin/sh\nexec /usr/bin/google-chrome --no-sandbox "$@"\n' > /tmp/chrome-ci.sh
+          chmod +x /tmp/chrome-ci.sh
+          /usr/bin/google-chrome --version
+
+      - name: Модульные тесты
+        run: node --test
+
+      - name: Стенд распознавания (синтетические планы)
+        run: node tools/bench-vision.js --synth
+
+      - name: Порог стенда (не хуже базового замера больше чем на 2 п.)
+        run: node tools/ci/bench-gate.js --max-drop 2
+
+      - name: Результат стенда
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bench
+          path: bench/vision/out/bench.json
+          if-no-files-found: ignore
+
+      - name: Проверка интерфейса в браузере
+        run: node tools/check-ui.js
+
+      - name: Проверка работы без сети (PWA)
+        run: node tools/check-pwa.js
+
+      - name: Есть ли приложение 2.0 (app/index.html)
+        id: app
+        run: |
+          if [ -f app/index.html ]; then echo "present=true" >> "$GITHUB_OUTPUT"; else echo "present=false" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Проверка кода (lint)
+        if: steps.app.outputs.present == 'true'
+        run: npm run lint
+
+      - name: Проверка типов
+        if: steps.app.outputs.present == 'true'
+        run: npm run typecheck
+
+      - name: Модульные тесты приложения 2.0
+        if: steps.app.outputs.present == 'true'
+        run: npm run test:unit
+
+      # На ubuntu-latest уже установлен /usr/bin/google-chrome (подходит для channel: 'chrome').
+      # Если конфигурация Playwright использует channel: 'msedge' (как на Windows) или встроенный
+      # chromium, ставим оба браузера со всеми системными библиотеками.
+      - name: Браузер для сквозных тестов
+        if: steps.app.outputs.present == 'true'
+        run: npx playwright install --with-deps chromium msedge
+
+      - name: Сквозные тесты
+        if: steps.app.outputs.present == 'true'
+        run: npm run test:e2e
+
+      - name: Отчёты сквозных тестов
+        if: always() && steps.app.outputs.present == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
