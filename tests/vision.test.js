@@ -293,6 +293,44 @@ test('большое здание на одной картинке: 9,5 точк
   assert.ok(out.ms < 6000, 'быстро: ' + out.ms + ' мс');
 });
 
+// План эвакуации: блок из шести помещений 10 × 10 м, вдоль него коридор 3 м. Наружная стена
+// коридора тёмно-синяя и разорвана выходами 1,2 м и окнами 0,5 м у блока на куски, каждый меньше
+// 20 % стен блока. Над блоком в 0,8 м схема-ориентир из тонких линий. Масштаб 10 точек на метр.
+function evacImage() {
+  const s = 10, ML = 4, MT = 10, w = (60 + 2 * ML) * s, h = (15 + MT + 4) * s;
+  const rgba = new Uint8ClampedArray(w * h * 4).fill(255);
+  const fill = (x0, y0, x1, y1, c) => {
+    for (let y = Math.round((y0 + MT) * s); y < Math.round((y1 + MT) * s); y++) for (let x = Math.round((x0 + ML) * s); x < Math.round((x1 + ML) * s); x++) {
+      const o = (y * w + x) * 4; rgba[o] = c[0]; rgba[o + 1] = c[1]; rgba[o + 2] = c[2];
+    }
+  };
+  const black = [0, 0, 0], white = [255, 255, 255], navy = [30, 40, 110];
+  fill(0, 0, 60, 0.3, black); fill(0, 9.7, 60, 10, black); fill(0, 0, 0.3, 10, black); fill(59.7, 0, 60, 10, black);
+  for (let k = 1; k < 6; k++) fill(k * 10 - 0.15, 0, k * 10 + 0.15, 10, black);
+  for (let k = 0; k < 6; k++) fill(k * 10 + 4.5, 9.7, k * 10 + 5.5, 10, white);
+  fill(-0.4, 10.5, 0, 13.4, navy); fill(60, 10.5, 60.4, 13.4, navy);
+  [[-0.4, 15.2], [15.2, 30.6], [30.6, 46], [46, 60.4]].forEach((p, i) => fill(p[0], 13, p[1] - (i < 3 ? 1.2 : 0), 13.4, navy));
+  // схема-ориентир: прямоугольник 20 × 5 м из линий 0,15 м с перегородками
+  fill(2, -5.8, 22, -5.65, black); fill(2, -0.95, 22, -0.8, black); fill(2, -5.8, 2.15, -0.8, black); fill(21.85, -5.8, 22, -0.8, black);
+  fill(8.9, -5.8, 9.05, -0.8, black); fill(15.9, -5.8, 16.05, -0.8, black);
+  return { rgba, w, h, s, ML, MT };
+}
+
+test('план эвакуации: коридор вдоль наружной стены из отдельных кусков, щель у схемы-ориентира не помещение', () => {
+  const img = evacImage();
+  const out = V.findRooms(img.rgba, img.w, img.h, { scale: img.s });
+  const rooms = out.rooms.slice().sort((a, b) => a.bbox[1] - b.bbox[1] || a.bbox[0] - b.bbox[0]);
+  assert.equal(rooms.length, 7, out.rooms.map(r => r.area).join(', '));
+  rooms.slice(0, 6).forEach(r => assert.ok(Math.abs(r.area - 91) < 4, 'помещение ' + r.area + ' м²'));
+  const corridor = rooms[6];
+  assert.ok(Math.abs(corridor.area - 180) / 180 < 0.08, 'коридор ' + corridor.area + ' м² вместо 180');
+  assert.ok(V.looksLikeCorridor(corridor, img.s), 'коридор узнан');
+  // по общей площади: те же семь помещений
+  const total = out.rooms.reduce((t, r) => t + r.area, 0);
+  const first = V.findRooms(img.rgba, img.w, img.h, { areaM2: total });
+  assert.equal(V.findRooms(img.rgba, img.w, img.h, { scale: V.scaleFromArea(first.rooms, total) }).rooms.length, 7, 'по площади');
+});
+
 test('пустая и сплошь тёмная картинка не ломают распознавание', () => {
   const w = 120, h = 80;
   assert.deepEqual(V.findRooms(new Uint8ClampedArray(w * h * 4).fill(255), w, h, { scale: 10 }).rooms, []);
