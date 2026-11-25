@@ -54,7 +54,7 @@ jobs:
 
       - name: Результат стенда
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: bench
           path: bench/vision/out/bench.json
@@ -96,7 +96,7 @@ jobs:
 
       - name: Отчёты сквозных тестов
         if: always() && steps.app.outputs.present == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report
           path: |
