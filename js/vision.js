@@ -28,6 +28,7 @@
     doorM: 1.2,       // типичный дверной проём, м (для подсказок; разделение — по глубине, см. tauM)
     outM: 1.5,        // вход уже 2 × outM не соединяет здание с улицей, м
     minRoomM2: 1,     // меньше — не помещение (ниша, шахта, толщина стены)
+    minWideM: 0.6,    // уже — не помещение (просвет между линиями двойной стены или окна), м
     tauM: 0.2,        // помещение отделяется проёмом, если поднимается над ним хотя бы на столько, м
     openRatio: 0.75,  // проём не уже 3/4 ширины помещения — это одно помещение (арка, сужение)
     furnitureM: 3,    // отдельно стоящий предмет меньше этого (мебель, колонна, значок) — не стена, м
@@ -476,6 +477,55 @@
     return merged;
   }
 
+  // Улица: от края картинки через проходы шире 2 × rOut, плюс полоса rOut вдоль наружных стен.
+  // wall — стены, rOut2 — квадрат rOut в точках, d — квадрат расстояния до стен, если уже посчитан.
+  function streetMask(wall, w, h, rOut2, d) {
+    const n = w * h, wide = new Uint8Array(n), queue = new Int32Array(n);
+    if (!d) d = edt(wall, w, h);
+    let head = 0, tail = 0;
+    function out(i) { if (!wide[i] && !wall[i] && d[i] > rOut2) { wide[i] = 1; queue[tail++] = i; } }
+    for (let x = 0; x < w; x++) { out(x); out((h - 1) * w + x); }
+    for (let y = 0; y < h; y++) { out(y * w); out(y * w + w - 1); }
+    while (head < tail) {
+      const i = queue[head++], x = i % w;
+      if (x > 0) out(i - 1);
+      if (x < w - 1) out(i + 1);
+      if (i >= w) out(i - w);
+      if (i < n - w) out(i + w);
+    }
+    const dOut = edt(wide, w, h), street = new Uint8Array(n);
+    for (let i = 0; i < n; i++) if (!wall[i] && dOut[i] <= rOut2) street[i] = 1;
+    return street;
+  }
+
+  // Место, которое было улицей по основным стенам (street0) и стало внутренним из-за остальных
+  // линий, снова становится улицей, если граничит с улицей больше чем седьмой частью своей
+  // границы. Коридор вдоль наружной стены выходит на улицу только дверями и остаётся внутри.
+  function openPockets(street, street0, wall, w, h) {
+    const n = w * h, pocket = new Uint8Array(n);
+    let any = false;
+    for (let i = 0; i < n; i++) if (street0[i] && !street[i] && !wall[i]) { pocket[i] = 1; any = true; }
+    if (!any) return;
+    const parts = components(pocket, w, h, false), K = parts.count;
+    const edge = new Float64Array(K + 1), open = new Float64Array(K + 1);
+    for (let i = 0; i < n; i++) {
+      const k = parts.labels[i];
+      if (!k) continue;
+      const x = i % w;
+      for (let s = 0; s < 4; s++) {
+        let j;
+        if (s === 0) { if (x === 0) continue; j = i - 1; } else if (s === 1) { if (x === w - 1) continue; j = i + 1; } else if (s === 2) { if (i < w) continue; j = i - w; } else { if (i >= n - w) continue; j = i + w; }
+        if (pocket[j]) continue;
+        edge[k] += 1;
+        if (street[j]) open[k] += 1;
+      }
+    }
+    for (let i = 0; i < n; i++) {
+      const k = parts.labels[i];
+      if (k && open[k] > edge[k] / 7) street[i] = 1;
+    }
+  }
+
   // ---------- главное ----------
 
   // rgba — Uint8ClampedArray (w × h × 4). options.scale — точек на метр (если известен);
@@ -534,22 +584,6 @@
     const rOut = scale ? o.outM * scale : big * 0.02;
     const distShell = edt(shell, w, h);
 
-    // улица: от края картинки через проходы шире 2 × rOut, плюс полоса rOut вдоль наружных стен
-    const rOut2 = rOut * rOut, wide = new Uint8Array(n), queue = new Int32Array(n);
-    let head = 0, tail = 0;
-    function out(i) { if (!wide[i] && !shell[i] && distShell[i] > rOut2) { wide[i] = 1; queue[tail++] = i; } }
-    for (let x = 0; x < w; x++) { out(x); out((h - 1) * w + x); }
-    for (let y = 0; y < h; y++) { out(y * w); out(y * w + w - 1); }
-    while (head < tail) {
-      const i = queue[head++], x = i % w;
-      if (x > 0) out(i - 1);
-      if (x < w - 1) out(i + 1);
-      if (i >= w) out(i - w);
-      if (i < n - w) out(i + w);
-    }
-    const dOut = edt(wide, w, h), street = new Uint8Array(n);
-    for (let i = 0; i < n; i++) if (!shell[i] && dOut[i] <= rOut2) street[i] = 1;
-
     // Препятствия — стены. Отдельно стоящие мелкие предметы (мебель, колонна, значок, надпись),
     // не связанные со стенами здания, стенами не считаются: их площадь — площадь помещения.
     // Но кусок стены между дверями, отделённый от остальных стен просветом в точку-другую,
@@ -566,10 +600,56 @@
       const f = parts.info[k], a = f.x1 - f.x0 + 1, b = f.y1 - f.y0 + 1;
       wallish[k] = !nearAll(k) && (keep[k] || Math.max(a, b) >= floatMax || nearShell[k] <= 2.25 || Math.max(a, b) >= 6 * Math.min(a, b)) ? 1 : 0;
     }
-    const obst = new Uint8Array(n);
+    const obst = new Uint8Array(n), foreign = new Uint8Array(parts.count + 1);
     for (let i = 0; i < n; i++) if (ink[i] && wallish[parts.labels[i]]) obst[i] = 1;
-    dropThin(obst, w, h, scale ? Math.min(3, o.hairM * scale) : 0);
-    const dist = edt(obst, w, h);
+    // Улицу останавливают не только основные стены, но и остальные: наружная стена, разорванная
+    // окнами и выходами на отдельные куски (на планах эвакуации её часто рисуют другим цветом),
+    // тоже замыкает коридор. Место, замкнутое только остальными линиями, остаётся внутри, если
+    // почти со всех сторон закрыто (openPockets): карман между стеной и размерной линией или
+    // надписью открыт к улице широко. И кроме кусков, которые замыкают больше своего, чем места
+    // у основных стен (схема-ориентир, рамки легенды): щель между схемой и зданием — не помещение.
+    // Область — связное через проёмы место внутри стен; atMain — область примыкает к основным стенам.
+    const rOut2 = rOut * rOut, street0 = streetMask(shell, w, h, rOut2, distShell);
+    const distObst = edt(obst, w, h);
+    let street = streetMask(obst, w, h, rOut2, distObst);
+    openPockets(street, street0, obst, w, h);
+    const inside = new Uint8Array(n);
+    for (let i = 0; i < n; i++) if (!obst[i] && !street[i]) inside[i] = 1;
+    const reg = components(inside, w, h, false), R = reg.count, atMain = new Uint8Array(R + 1);
+    for (let i = 0; i < n; i++) if (reg.labels[i] && distShell[i] <= 4) atMain[reg.labels[i]] = 1;
+    {
+      const seen = new Set(), last = new Int32Array(parts.count + 1), inA = new Float64Array(parts.count + 1), outA = new Float64Array(parts.count + 1);
+      for (let i = 0; i < n; i++) {
+        if (!obst[i] || shell[i]) continue;
+        const k = parts.labels[i], x = i % w;
+        for (let s = 0; s < 4; s++) {
+          let j;
+          if (s === 0) { if (x === 0) continue; j = i - 1; } else if (s === 1) { if (x === w - 1) continue; j = i + 1; } else if (s === 2) { if (i < w) continue; j = i - w; } else { if (i >= n - w) continue; j = i + w; }
+          const r = reg.labels[j];
+          if (!r || r === last[k]) continue;
+          last[k] = r;
+          if (seen.has(k * (R + 1) + r)) continue;
+          seen.add(k * (R + 1) + r);
+          if (atMain[r]) inA[k] += reg.info[r].n; else outA[k] += reg.info[r].n;
+        }
+      }
+      // улицу пересчитывать, только если такой кусок примыкает к месту у основных стен
+      let any = false;
+      for (let k = 1; k <= parts.count; k++) {
+        if (!wallish[k] || keep[k] || outA[k] <= inA[k]) continue;
+        foreign[k] = 1;
+        if (inA[k] > 0) any = true;
+      }
+      if (any) {
+        const bar = new Uint8Array(n);
+        for (let i = 0; i < n; i++) if (obst[i] && !foreign[parts.labels[i]]) bar[i] = 1;
+        street = streetMask(bar, w, h, rOut2, null);
+        openPockets(street, street0, bar, w, h);
+        for (let i = 0; i < n; i++) if (obst[i]) street[i] = 0;
+      }
+    }
+
+    const dist = dropThin(obst, w, h, scale ? Math.min(3, o.hairM * scale) : 0) ? edt(obst, w, h) : distObst;
 
     // помещения по глубине (segment), затем мебель у стен присоединяется к своим помещениям
     const free = new Uint8Array(n);
@@ -583,7 +663,7 @@
     // сведения о помещениях
     const K = seg.count;
     const cnt = new Float64Array(K + 1), x0 = new Int32Array(K + 1).fill(w), y0 = new Int32Array(K + 1).fill(h);
-    const x1 = new Int32Array(K + 1).fill(-1), y1 = new Int32Array(K + 1).fill(-1), edge = new Uint8Array(K + 1);
+    const x1 = new Int32Array(K + 1).fill(-1), y1 = new Int32Array(K + 1).fill(-1), edge = new Uint8Array(K + 1), inMain = new Uint8Array(K + 1);
     const first = new Int32Array(K + 1).fill(-1), best = new Float64Array(K + 1).fill(-1), bestI = new Int32Array(K + 1);
     for (let y = 0; y < h; y++) {
       for (let x = 0; x < w; x++) {
@@ -597,16 +677,27 @@
         if (y > y1[L]) y1[L] = y;
         if (x === 0 || y === 0 || x === w - 1 || y === h - 1) edge[L] = 1;
         if (dist[i] > best[L]) { best[L] = dist[i]; bestI[L] = i; }
+        const r = reg.labels[i];
+        if (r && atMain[r]) inMain[L] = 1;
       }
     }
     const minPx = scale ? o.minRoomM2 * scale * scale : n0 * 0.0008;
     const eps = Math.max(1, scale ? 0.15 * scale : big * 0.002);
-    // кандидаты: не у края картинки, не меньше ниши, внутри рамки стен здания
+    // Рамка здания: основные стены и крупные куски других стен (наружная стена, разорванная окнами).
+    let bx0 = sx0, by0 = sy0, bx1 = sx1, by1 = sy1;
+    for (let k = 1; k <= parts.count; k++) {
+      const f = parts.info[k];
+      if (!wallish[k] || keep[k] || foreign[k] || f.n < largest * 0.05) continue;
+      bx0 = Math.min(bx0, f.x0); by0 = Math.min(by0, f.y0); bx1 = Math.max(bx1, f.x1); by1 = Math.max(by1, f.y1);
+    }
+    // кандидаты: не у края картинки, не меньше ниши, не уже minWideM, в области у основных стен,
+    // внутри рамки здания
+    const halfW = scale ? o.minWideM * scale / 2 : big * 0.003, halfW2 = halfW * halfW;
     const cand = [];
     for (let L = 1; L <= K; L++) {
-      if (edge[L] || cnt[L] < minPx) continue;
+      if (edge[L] || cnt[L] < minPx || best[L] < halfW2 || !inMain[L]) continue;
       const lx = bestI[L] % w, ly = (bestI[L] - lx) / w;
-      if (lx < sx0 || lx > sx1 || ly < sy0 || ly > sy1) continue;
+      if (lx < bx0 || lx > bx1 || ly < by0 || ly > by1) continue;
       cand.push(L);
     }
     // область, рамка которой охватывает все остальные, — поле вокруг здания (например, внутри рамки листа)
